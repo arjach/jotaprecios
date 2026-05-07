@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JotaPrecios — Cobrá lo que vale tu trabajo</title>
+<meta name="description" content="Calculá el precio justo de cada trabajo de impresión 3D y sublimación en segundos. Sin adivinar, sin perder plata. Gratis para siempre." />
+<meta name="keywords" content="calculadora precios impresión 3D, precio sublimación, cotizador taller, precio filamento, margen ganancia maker" />
+<meta name="author" content="JotaPrecios" />
+
+<!-- Open Graph (Facebook, WhatsApp, LinkedIn) -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://jotaprecios.com.ar/" />
+<meta property="og:title" content="JotaPrecios — Cobrá lo que vale tu trabajo" />
+<meta property="og:description" content="Calculá el precio exacto de cada trabajo de impresión 3D y sublimación. Con tu margen real incluido. Gratis para siempre." />
+<meta property="og:image" content="https://jotaprecios.com.ar/og-image.png" />
+<meta property="og:locale" content="es_AR" />
+<meta property="og:site_name" content="JotaPrecios" />
+
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:url" content="https://jotaprecios.com.ar/" />
+<meta name="twitter:title" content="JotaPrecios — Cobrá lo que vale tu trabajo" />
+<meta name="twitter:description" content="Calculá el precio exacto de cada trabajo de impresión 3D y sublimación. Gratis para siempre." />
+<meta name="twitter:image" content="https://jotaprecios.com.ar/og-image.png" />
+
+<!-- Favicon -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>" />
+
+<!-- Canonical -->
+<link rel="canonical" href="https://jotaprecios.com.ar/" />
+
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --orange: #ff5c1a;
+    --orange-dim: #ff5c1a22;
+    --cream: #f5f0e8;
+    --dark: #0e0c0a;
+    --dark2: #181410;
+    --dark3: #221e18;
+    --muted: #7a6f62;
+    --green: #3ddc84;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--dark);
+    color: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 40px;
+    background: rgba(14,12,10,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid #ffffff08;
+  }
+  .nav-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 0.05em;
+    color: var(--orange);
+  }
+  .nav-cta {
+    background: var(--orange);
+    color: #fff;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.2s;
+    text-decoration: none;
+  }
+  .nav-cta:hover { opacity: 0.85; transform: translateY(-1px); }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 120px 40px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,92,26,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,92,26,0.06) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 40%, transparent 100%);
+  }
+  .hero-glow {
+    position: absolute;
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(255,92,26,0.12) 0%, transparent 65%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--orange-dim);
+    border: 1px solid var(--orange);
+    color: var(--orange);
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    width: fit-content;
+    animation: fadeUp 0.6s ease both;
+  }
+  .hero h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(64px, 10vw, 120px);
+    line-height: 0.92;
+    letter-spacing: 0.01em;
+    margin-bottom: 28px;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+  .hero h1 span { color: var(--orange); }
+  .hero-sub {
+    font-size: clamp(16px, 2vw, 20px);
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.6;
+    margin-bottom: 44px;
+    font-weight: 300;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+  .hero-buttons {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+  .btn-primary {
+    background: var(--orange);
+    color: #fff;
+    border: none;
+    padding: 16px 36px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(255,92,26,0.35);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--cream);
+    border: 1px solid #ffffff22;
+    padding: 16px 36px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 16px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-ghost:hover { border-color: var(--orange); background: var(--orange-dim); }
+
+  /* STATS */
+  .stats {
+    display: flex; gap: 0;
+    border-top: 1px solid #ffffff0a;
+    border-bottom: 1px solid #ffffff0a;
+    margin: 0 40px;
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+  .stat {
+    flex: 1;
+    padding: 40px 32px;
+    border-right: 1px solid #ffffff0a;
+    text-align: center;
+  }
+  .stat:last-child { border-right: none; }
+  .stat-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    color: var(--orange);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-label { font-size: 13px; color: var(--muted); font-weight: 400; }
+
+  /* PROBLEM */
+  .section { padding: 100px 40px; }
+  .section-tag {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--orange);
+    margin-bottom: 16px;
+  }
+  .section h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(42px, 6vw, 72px);
+    line-height: 1;
+    margin-bottom: 20px;
+  }
+  .problem-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+    margin-top: 56px;
+  }
+  .problem-card {
+    background: var(--dark2);
+    border: 1px solid #ffffff08;
+    border-radius: 12px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .problem-card:hover { border-color: var(--orange); transform: translateY(-4px); }
+  .problem-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--orange), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .problem-card:hover::before { opacity: 1; }
+  .problem-icon { font-size: 32px; margin-bottom: 16px; }
+  .problem-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+  .problem-card p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* FEATURES */
+  .features-bg { background: var(--dark2); }
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2px;
+    margin-top: 60px;
+    border: 1px solid #ffffff08;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .feature-item {
+    padding: 36px 32px;
+    background: var(--dark2);
+    border-right: 1px solid #ffffff08;
+    border-bottom: 1px solid #ffffff08;
+    transition: background 0.3s;
+  }
+  .feature-item:hover { background: var(--dark3); }
+  .feature-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--orange);
+    margin-bottom: 16px;
+    opacity: 0.7;
+  }
+  .feature-item h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+  .feature-item p { font-size: 14px; color: var(--muted); line-height: 1.65; }
+
+  /* MOCKUP */
+  .mockup-section {
+    padding: 100px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .mockup-bg {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 50% at 50% 100%, rgba(255,92,26,0.08) 0%, transparent 70%);
+  }
+  .mockup-window {
+    max-width: 640px;
+    margin: 60px auto 0;
+    background: var(--dark2);
+    border: 1px solid #ffffff12;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,92,26,0.1);
+  }
+  .mockup-bar {
+    background: var(--dark3);
+    padding: 14px 20px;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid #ffffff08;
+  }
+  .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .mockup-content { padding: 32px; }
+  .mockup-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #ffffff08;
+    font-size: 14px;
+  }
+  .mockup-label { color: var(--muted); }
+  .mockup-val { font-family: 'JetBrains Mono', monospace; }
+  .mockup-val.orange { color: var(--orange); font-size: 22px; font-weight: 700; }
+  .mockup-val.green { color: var(--green); }
+
+  /* PRICING */
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    margin-top: 60px;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .pricing-card {
+    background: var(--dark2);
+    border: 1px solid #ffffff0a;
+    border-radius: 16px;
+    padding: 36px 32px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s;
+  }
+  .pricing-card:hover { transform: translateY(-6px); }
+  .pricing-card.featured {
+    border-color: var(--orange);
+    background: linear-gradient(145deg, #1a1008, #0e0c0a);
+  }
+  .pricing-badge {
+    position: absolute; top: 20px; right: 20px;
+    background: var(--orange);
+    color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 4px 10px; border-radius: 100px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .pricing-plan { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .pricing-price {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 64px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .pricing-price span { font-size: 20px; color: var(--muted); }
+  .pricing-period { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+  .pricing-features { list-style: none; margin-bottom: 32px; }
+  .pricing-features li {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; padding: 8px 0;
+    border-bottom: 1px solid #ffffff06;
+    color: #ccc;
+  }
+  .pricing-features li .check { color: var(--green); font-size: 16px; }
+  .pricing-features li .cross { color: #444; font-size: 16px; }
+  .pricing-features li.dim { color: #444; }
+
+  /* TESTIMONIALS */
+  .testimonials-bg { background: var(--dark2); }
+  .testimonials-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-top: 56px;
+  }
+  .testimonial {
+    background: var(--dark);
+    border: 1px solid #ffffff08;
+    border-radius: 12px;
+    padding: 28px;
+    transition: border-color 0.3s;
+  }
+  .testimonial:hover { border-color: #ffffff18; }
+  .testimonial-text { font-size: 15px; line-height: 1.7; color: #ccc; margin-bottom: 20px; font-style: italic; }
+  .testimonial-author { display: flex; align-items: center; gap: 12px; }
+  .testimonial-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--orange-dim);
+    border: 1px solid var(--orange);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .testimonial-name { font-size: 14px; font-weight: 700; }
+  .testimonial-role { font-size: 12px; color: var(--muted); }
+
+  /* CTA FINAL */
+  .final-cta {
+    padding: 120px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .final-cta-glow {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 50% 60% at 50% 50%, rgba(255,92,26,0.1) 0%, transparent 70%);
+  }
+  .final-cta h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(52px, 8vw, 100px);
+    line-height: 0.95;
+    margin-bottom: 24px;
+  }
+  .final-cta h2 span { color: var(--orange); }
+  .final-cta p { font-size: 18px; color: var(--muted); margin-bottom: 44px; font-weight: 300; }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid #ffffff08;
+    padding: 32px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .footer-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: var(--orange);
+    letter-spacing: 0.05em;
+  }
+  footer p { font-size: 13px; color: var(--muted); }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .reveal {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  /* FAQ */
+  .faq-list { margin-top: 48px; max-width: 680px; }
+  .faq-item { border-bottom: 1px solid #ffffff0a; overflow: hidden; }
+  .faq-question {
+    width: 100%; background: none; border: none;
+    color: var(--cream); font-family: 'DM Sans', sans-serif;
+    font-size: 16px; font-weight: 600;
+    text-align: left; padding: 22px 0;
+    cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    transition: color 0.2s;
+  }
+  .faq-question:hover { color: var(--orange); }
+  .faq-arrow { font-size: 20px; color: var(--orange); transition: transform 0.3s; flex-shrink: 0; }
+  .faq-item.open .faq-arrow { transform: rotate(45deg); }
+  .faq-answer { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+  .faq-item.open .faq-answer { max-height: 300px; }
+  .faq-answer p { font-size: 15px; color: var(--muted); line-height: 1.7; padding-bottom: 20px; }
+
+  @media (max-width: 640px) {
+    nav { padding: 14px 16px; }
+    .nav-logo { font-size: 22px; }
+    .nav-cta { padding: 8px 16px; font-size: 13px; }
+    .hero { padding: 90px 16px 50px; }
+    .hero h1 { font-size: 58px; }
+    .hero-buttons { flex-direction: column; }
+    .btn-primary, .btn-ghost { text-align: center; width: 100%; box-sizing: border-box; }
+    .stats { flex-direction: column; margin: 0 16px; }
+    .stat { border-right: none; border-bottom: 1px solid #ffffff0a; padding: 28px 20px; }
+    .stat-num { font-size: 40px; }
+    .section { padding: 60px 16px; }
+    .section h2 { font-size: 38px; }
+    .problem-grid, .features-grid, .testimonials-grid { grid-template-columns: 1fr; }
+    .mockup-section { padding: 60px 16px; }
+    .mockup-content { padding: 20px; }
+    .pricing-grid { grid-template-columns: 1fr; max-width: 100%; }
+    .final-cta { padding: 70px 16px; }
+    .final-cta h2 { font-size: 48px; }
+    .final-cta .btn-primary { width: 100%; text-align: center; }
+    footer { padding: 24px 16px; flex-direction: column; gap: 8px; text-align: center; }
+    .faq-question { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">JotaPrecios</div>
+  <a class="nav-cta" href="#precios">Empezar gratis</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-tag">🔥 Para talleres de impresión 3D y sublimación</div>
+  <h1>Cobrá lo que<br/><span>realmente vale</span><br/>tu trabajo.</h1>
+  <p class="hero-sub">Dejá de improvisar precios. JotaPrecios calcula el precio exacto de cada trabajo en segundos, con tu margen real incluido.</p>
+  <div class="hero-buttons">
+    <a class="btn-primary" href="/calculadora-pricing">Probarlo gratis →</a>
+    <a class="btn-ghost" href="#como-funciona">Ver cómo funciona</a>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats reveal">
+  <div class="stat">
+    <div class="stat-num">73%</div>
+    <div class="stat-label">de los talleres cobra de más o de menos sin saberlo</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">2 min</div>
+    <div class="stat-label">para calcular el precio exacto de cualquier trabajo</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">$0</div>
+    <div class="stat-label">para empezar a usarlo hoy</div>
+  </div>
+</div>
+
+<!-- PROBLEMA -->
+<section class="section">
+  <div class="section-tag">El problema</div>
+  <h2>¿Cuánto le cobrás<br/>a ese cliente?</h2>
+  <p style="font-size:17px; color:var(--muted); max-width:520px; line-height:1.6; font-weight:300;">
+    La mayoría de los emprendedores del rubro fijan precios "a ojo", copiando a la competencia o peor: sin contar el costo de su tiempo.
+  </p>
+  <div class="problem-grid">
+    <div class="problem-card reveal">
+      <div class="problem-icon">😰</div>
+      <h3>Perdés plata sin darte cuenta</h3>
+      <p>Olvidás incluir electricidad, costos fijos o el tiempo invertido. Trabajás mucho para ganar poco.</p>
+    </div>
+    <div class="problem-card reveal">
+      <div class="problem-icon">🤔</div>
+      <h3>Cada presupuesto es una adivinanza</h3>
+      <p>Sin un método claro, cada cotización te genera dudas. ¿Cobro poco? ¿Pierdo el cliente si cobro más?</p>
+    </div>
+    <div class="problem-card reveal">
+      <div class="problem-icon">📉</div>
+      <h3>No podés escalar si no sabés tu margen</h3>
+      <p>Sin datos claros de rentabilidad, es imposible saber qué trabajos convienen y cuáles no.</p>
+    </div>
+  </div>
+</section>
+
+<!-- MOCKUP -->
+<section class="mockup-section" id="como-funciona">
+  <div class="mockup-bg"></div>
+  <div class="section-tag">Cómo funciona</div>
+  <h2 style="font-family:'Bebas Neue',sans-serif; font-size:clamp(42px,6vw,72px); line-height:1;">Ingresás los datos.<br/>Nosotros hacemos la math.</h2>
+  <div class="mockup-window reveal">
+    <div class="mockup-bar">
+      <div class="mockup-dot" style="background:#ff5f57"></div>
+      <div class="mockup-dot" style="background:#ffbd2e"></div>
+      <div class="mockup-dot" style="background:#28c840"></div>
+      <span style="font-size:12px; color:#555; margin-left:8px; font-family:'JetBrains Mono',monospace">jotaprecios.com — Impresión 3D</span>
+    </div>
+    <div class="mockup-content">
+      <div class="mockup-row">
+        <span class="mockup-label">Costo de materiales</span>
+        <span class="mockup-val">$1.25</span>
+      </div>
+      <div class="mockup-row">
+        <span class="mockup-label">Costo eléctrico</span>
+        <span class="mockup-val">$0.24</span>
+      </div>
+      <div class="mockup-row">
+        <span class="mockup-label">Costos fijos</span>
+        <span class="mockup-val">$5.00</span>
+      </div>
+      <div class="mockup-row">
+        <span class="mockup-label">Ganancia estimada</span>
+        <span class="mockup-val green">+$2.73</span>
+      </div>
+      <div class="mockup-row" style="border:none; padding-top:20px;">
+        <span class="mockup-label" style="font-weight:700; color:#fff; font-size:16px;">✅ Precio sugerido</span>
+        <span class="mockup-val orange">$9.22</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section features-bg">
+  <div class="section-tag">Funcionalidades</div>
+  <h2>Todo lo que<br/>necesitás.</h2>
+  <div class="features-grid reveal">
+    <div class="feature-item">
+      <div class="feature-num">01</div>
+      <h3>Calculadora 3D y Sublimación</h3>
+      <p>Dos modos específicos para cada proceso. Variables reales del rubro, no genéricas.</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-num">02</div>
+      <h3>Margen configurable</h3>
+      <p>Definís tu objetivo de ganancia y la herramienta te dice el precio exacto para lograrlo.</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-num">03</div>
+      <h3>Escenarios de precios</h3>
+      <p>Comparativa visual de márgenes conservador, moderado y agresivo para tomar mejores decisiones.</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-num">04 ⭐ PRO</div>
+      <h3>Historial de presupuestos</h3>
+      <p>Guardá todos tus trabajos anteriores para comparar, reutilizar y analizar tu rentabilidad histórica.</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-num">05 ⭐ PRO</div>
+      <h3>Export a PDF</h3>
+      <p>Generá presupuestos profesionales listos para enviar a tus clientes en un clic.</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-num">06 ⭐ PRO</div>
+      <h3>Múltiples perfiles</h3>
+      <p>Guardá distintos perfiles de costos según el tipo de trabajo o cliente. Sin reescribir nada.</p>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="section" id="precios">
+  <div style="text-align:center;">
+    <div class="section-tag">Precios</div>
+    <h2>Simple y transparente.</h2>
+    <p style="color:var(--muted); font-size:16px; margin-top:12px; font-weight:300;">Sin contratos. Cancelás cuando querés.</p>
+  </div>
+  <div class="pricing-grid reveal">
+    <div class="pricing-card">
+      <div class="pricing-plan">Gratuito</div>
+      <div class="pricing-price">$0<span></span></div>
+      <div class="pricing-period">Para siempre</div>
+      <ul class="pricing-features">
+        <li><span class="check">✓</span> Calculadora 3D y Sublimación</li>
+        <li><span class="check">✓</span> Comparativa de escenarios</li>
+        <li><span class="check">✓</span> Margen configurable</li>
+        <li class="dim"><span class="cross">✗</span> Historial de presupuestos</li>
+        <li class="dim"><span class="cross">✗</span> Export a PDF</li>
+        <li class="dim"><span class="cross">✗</span> Múltiples perfiles</li>
+      </ul>
+      <a class="btn-ghost" href="/calculadora-pricing" style="display:block; text-align:center;">Empezar gratis</a>
+    </div>
+    <div class="pricing-card featured">
+      <div class="pricing-badge">Recomendado</div>
+      <div class="pricing-plan">Pro</div>
+      <div class="pricing-price">$9.000<span>/mes</span></div>
+      <div class="pricing-period">Facturado mensualmente</div>
+      <ul class="pricing-features">
+        <li><span class="check">✓</span> Todo lo del plan gratis</li>
+        <li><span class="check">✓</span> Historial de presupuestos</li>
+        <li><span class="check">✓</span> Export a PDF profesional</li>
+        <li><span class="check">✓</span> Múltiples perfiles de costos</li>
+        <li><span class="check">✓</span> Soporte prioritario</li>
+        <li><span class="check">✓</span> Nuevas funciones primero</li>
+      </ul>
+      <a class="btn-primary" href="https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=3d2eb337ca7e460fa4bba4aa34b37528" style="display:block; text-align:center;">Empezar 14 días gratis →</a>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="section testimonials-bg">
+  <div class="section-tag">Testimonios</div>
+  <h2>Lo que dicen<br/>los makers.</h2>
+  <div class="testimonials-grid reveal">
+    <div class="testimonial">
+      <div class="testimonial-text">"Antes cotizaba a ojo y siempre tenía esa duda de si había cobrado bien. Con JotaPrecios por fin sé exactamente qué margen estoy ganando en cada trabajo."</div>
+      <div class="testimonial-author">
+        <div class="testimonial-avatar">🖨️</div>
+        <div>
+          <div class="testimonial-name">Martín G.</div>
+          <div class="testimonial-role">Taller de impresión 3D · Rosario</div>
+        </div>
+      </div>
+    </div>
+    <div class="testimonial">
+      <div class="testimonial-text">"Lo que más me gustó fue la comparativa de escenarios. Me ayudó a entender que podía cobrar más sin perder clientes. Subí mis precios 20% y no perdí a nadie."</div>
+      <div class="testimonial-author">
+        <div class="testimonial-avatar">🎨</div>
+        <div>
+          <div class="testimonial-name">Valeria M.</div>
+          <div class="testimonial-role">Estudio de sublimación · Buenos Aires</div>
+        </div>
+      </div>
+    </div>
+    <div class="testimonial">
+      <div class="testimonial-text">"En 2 minutos tengo el presupuesto listo para enviar. Antes tardaba 20 minutos haciendo cuentas en el celular. Una locura el tiempo que me ahorra."</div>
+      <div class="testimonial-author">
+        <div class="testimonial-avatar">⚙️</div>
+        <div>
+          <div class="testimonial-name">Diego R.</div>
+          <div class="testimonial-role">Maker independiente · Córdoba</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<!-- FAQ -->
+<section class="section">
+  <div class="section-tag">Preguntas frecuentes</div>
+  <h2>Todo lo que<br/>querés saber.</h2>
+  <div class="faq-list reveal">
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">¿Para qué tipo de negocios sirve JotaPrecios?<span class="faq-arrow">+</span></button>
+      <div class="faq-answer"><p>Principalmente para talleres de impresión 3D y sublimación, pero funciona para cualquier negocio de producción personalizada: bordado, vinilo, láser, serigrafía y más. Si fabricás algo con costos de materiales y tiempo, JotaPrecios te sirve.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">¿Necesito saber de tecnología para usarlo?<span class="faq-arrow">+</span></button>
+      <div class="faq-answer"><p>Para nada. Solo ingresás tus costos reales en los campos y la herramienta calcula todo automáticamente. Si sabés usar una calculadora, sabés usar JotaPrecios.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">¿En qué moneda trabaja?<span class="faq-arrow">+</span></button>
+      <div class="faq-answer"><p>Los cálculos son en la moneda que vos uses. Los valores de ejemplo están en pesos argentinos, pero podés ingresar cualquier número. No importa si usás ARS, USD o cualquier otra moneda.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">¿Qué diferencia hay entre el plan gratis y el Pro?<span class="faq-arrow">+</span></button>
+      <div class="faq-answer"><p>El plan gratis incluye la calculadora completa para uso diario. El plan Pro agrega historial de presupuestos guardados, exportación a PDF profesional y múltiples perfiles de costos. Ideal si manejás muchos clientes o proyectos.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">¿Puedo cancelar la suscripción cuando quiero?<span class="faq-arrow">+</span></button>
+      <div class="faq-answer"><p>Sí, sin preguntas ni penalidades. Cancelás desde tu panel y no se te cobra más. Los datos de tus presupuestos quedan accesibles hasta que venza el período pagado.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">¿Los primeros 14 días son realmente gratis?<span class="faq-arrow">+</span></button>
+      <div class="faq-answer"><p>Sí. Tenés 14 días del plan Pro sin ingresar ningún dato de pago. Si al final del período no querés continuar, no se te cobra nada. Sin trampa.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <div class="final-cta-glow"></div>
+  <h2>Empezá a cobrar<br/><span>lo que vale</span><br/>tu trabajo.</h2>
+  <p>Gratis para siempre. Sin tarjeta. Sin excusas.</p>
+  <a class="btn-primary" href="https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=3d2eb337ca7e460fa4bba4aa34b37528" style="font-size:18px; padding:20px 48px;">Suscribirme a Pro →</a>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">JotaPrecios</div>
+  <p>© 2026 JotaPrecios · Hecho para makers, por makers.</p>
+  <p style="font-size:13px; color:var(--muted);">Términos · Privacidad · Contacto</p>
+</footer>
+
+<script>
+  // FAQ toggle
+  function toggleFaq(btn) {
+    const item = btn.parentElement;
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  }
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

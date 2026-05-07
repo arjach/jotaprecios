@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0e0c0a"/>
+      <stop offset="100%" style="stop-color:#1c1408"/>
+    </linearGradient>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b35"/>
+      <stop offset="100%" style="stop-color:#e84e0f"/>
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e1810"/>
+      <stop offset="100%" style="stop-color:#141008"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="60" result="blur"/>
+    </filter>
+    <filter id="softglow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="rounded">
+      <rect width="1200" height="630" rx="0"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Glow orb left -->
+  <ellipse cx="300" cy="315" rx="350" ry="300" fill="#ff5c1a" opacity="0.10" filter="url(#glow)"/>
+
+  <!-- Grid lines horizontal -->
+  <g opacity="0.04" stroke="#ff6b35" stroke-width="1">
+    <line x1="0" y1="90" x2="1200" y2="90"/>
+    <line x1="0" y1="180" x2="1200" y2="180"/>
+    <line x1="0" y1="270" x2="1200" y2="270"/>
+    <line x1="0" y1="360" x2="1200" y2="360"/>
+    <line x1="0" y1="450" x2="1200" y2="450"/>
+    <line x1="0" y1="540" x2="1200" y2="540"/>
+  </g>
+  <!-- Grid lines vertical -->
+  <g opacity="0.04" stroke="#ff6b35" stroke-width="1">
+    <line x1="120" y1="0" x2="120" y2="630"/>
+    <line x1="240" y1="0" x2="240" y2="630"/>
+    <line x1="360" y1="0" x2="360" y2="630"/>
+    <line x1="480" y1="0" x2="480" y2="630"/>
+    <line x1="600" y1="0" x2="600" y2="630"/>
+    <line x1="720" y1="0" x2="720" y2="630"/>
+    <line x1="840" y1="0" x2="840" y2="630"/>
+    <line x1="960" y1="0" x2="960" y2="630"/>
+    <line x1="1080" y1="0" x2="1080" y2="630"/>
+  </g>
+
+  <!-- Left accent bar -->
+  <rect x="80" y="140" width="4" height="340" rx="2" fill="url(#orangeGrad)" opacity="0.6"/>
+
+  <!-- Logo icon box -->
+  <rect x="80" y="140" width="70" height="70" rx="16" fill="url(#orangeGrad)"/>
+  <text x="115" y="191" font-family="Arial" font-size="36" text-anchor="middle" fill="white">$</text>
+
+  <!-- Brand name: JOTA -->
+  <text x="80" y="310" font-family="Arial Black, Arial" font-size="128" font-weight="900" fill="white" letter-spacing="-4" opacity="1">JOTA</text>
+
+  <!-- Brand name: PRECIOS -->
+  <text x="80" y="420" font-family="Arial Black, Arial" font-size="128" font-weight="900" fill="url(#orangeGrad)" letter-spacing="-4">PRECIOS</text>
+
+  <!-- Tagline -->
+  <text x="80" y="475" font-family="Arial" font-size="22" fill="#7a6f62" letter-spacing="2">CALCULADORA DE PRECIOS PARA MAKERS</text>
+
+  <!-- Divider line -->
+  <line x1="80" y1="505" x2="560" y2="505" stroke="#ff6b35" stroke-width="1" opacity="0.3"/>
+
+  <!-- Bottom pills -->
+  <!-- Pill 1 -->
+  <rect x="80" y="524" width="140" height="36" rx="18" fill="#ff6b3515" stroke="#ff6b3540" stroke-width="1"/>
+  <text x="150" y="547" font-family="Arial" font-size="14" font-weight="700" fill="#ff6b35" text-anchor="middle" letter-spacing="1">IMPRESIÓN 3D</text>
+
+  <!-- Pill 2 -->
+  <rect x="232" y="524" width="130" height="36" rx="18" fill="#a78bfa15" stroke="#a78bfa40" stroke-width="1"/>
+  <text x="297" y="547" font-family="Arial" font-size="14" font-weight="700" fill="#a78bfa" text-anchor="middle" letter-spacing="1">SUBLIMACIÓN</text>
+
+  <!-- Pill 3 -->
+  <rect x="374" y="524" width="100" height="36" rx="18" fill="#4ade8015" stroke="#4ade8040" stroke-width="1"/>
+  <text x="424" y="547" font-family="Arial" font-size="14" font-weight="700" fill="#4ade80" text-anchor="middle" letter-spacing="1">GRATIS</text>
+
+  <!-- RIGHT SIDE — Mockup card -->
+  <rect x="700" y="80" width="420" height="470" rx="20" fill="url(#cardGrad)" stroke="#ffffff08" stroke-width="1"/>
+
+  <!-- Card header -->
+  <rect x="700" y="80" width="420" height="56" rx="20" fill="#1e1810"/>
+  <rect x="700" y="116" width="420" height="20" fill="#1e1810"/>
+  <circle cx="730" cy="108" r="8" fill="#ff5f57"/>
+  <circle cx="754" cy="108" r="8" fill="#ffbd2e"/>
+  <circle cx="778" cy="108" r="8" fill="#28c840"/>
+  <text x="830" y="113" font-family="Arial" font-size="12" fill="#333" letter-spacing="0.5">jotaprecios.com.ar</text>
+
+  <!-- Card content label -->
+  <text x="730" y="178" font-family="Arial" font-size="10" font-weight="700" fill="#ff6b35" letter-spacing="2">IMPRESIÓN 3D · RESULTADO</text>
+
+  <!-- Card rows -->
+  <!-- Row 1 -->
+  <line x1="720" y1="200" x2="1100" y2="200" stroke="#ffffff06" stroke-width="1"/>
+  <text x="730" y="222" font-family="Arial" font-size="15" fill="#666">Costo de materiales</text>
+  <text x="1090" y="222" font-family="Arial" font-size="15" fill="#ccc" text-anchor="end">$1.750</text>
+
+  <!-- Row 2 -->
+  <line x1="720" y1="236" x2="1100" y2="236" stroke="#ffffff06" stroke-width="1"/>
+  <text x="730" y="258" font-family="Arial" font-size="15" fill="#666">Electricidad</text>
+  <text x="1090" y="258" font-family="Arial" font-size="15" fill="#ccc" text-anchor="end">$360</text>
+
+  <!-- Row 3 -->
+  <line x1="720" y1="272" x2="1100" y2="272" stroke="#ffffff06" stroke-width="1"/>
+  <text x="730" y="294" font-family="Arial" font-size="15" fill="#666">Costos fijos</text>
+  <text x="1090" y="294" font-family="Arial" font-size="15" fill="#ccc" text-anchor="end">$800</text>
+
+  <!-- Row 4 -->
+  <line x1="720" y1="308" x2="1100" y2="308" stroke="#ffffff06" stroke-width="1"/>
+  <text x="730" y="330" font-family="Arial" font-size="15" fill="#666">Ganancia estimada</text>
+  <text x="1090" y="330" font-family="Arial" font-size="15" fill="#4ade80" text-anchor="end">+$1.940</text>
+
+  <!-- Divider thick -->
+  <line x1="720" y1="354" x2="1100" y2="354" stroke="#ff6b3530" stroke-width="1"/>
+
+  <!-- Price label -->
+  <text x="730" y="392" font-family="Arial" font-size="16" font-weight="700" fill="#ffffff">✅ Precio sugerido</text>
+
+  <!-- Big price -->
+  <text x="1090" y="400" font-family="Arial Black, Arial" font-size="52" font-weight="900" fill="#ff6b35" text-anchor="end">$4.850</text>
+
+  <!-- Scenario bars -->
+  <text x="730" y="440" font-family="Arial" font-size="10" fill="#444" letter-spacing="1">ESCENARIOS</text>
+
+  <!-- Bar 1 -->
+  <rect x="730" y="452" width="340" height="4" rx="2" fill="#1a1a2e"/>
+  <rect x="730" y="452" width="180" height="4" rx="2" fill="#4ade80"/>
+  <text x="730" y="470" font-family="Arial" font-size="10" fill="#4ade80">Conservador · $3.612</text>
+
+  <!-- Bar 2 -->
+  <rect x="730" y="478" width="340" height="4" rx="2" fill="#1a1a2e"/>
+  <rect x="730" y="478" width="260" height="4" rx="2" fill="#ff6b35"/>
+  <text x="730" y="496" font-family="Arial" font-size="10" fill="#ff6b35">Tu margen · $4.850</text>
+
+  <!-- Bar 3 -->
+  <rect x="730" y="504" width="340" height="4" rx="2" fill="#1a1a2e"/>
+  <rect x="730" y="504" width="320" height="4" rx="2" fill="#a78bfa"/>
+  <text x="730" y="522" font-family="Arial" font-size="10" fill="#a78bfa">Agresivo · $9.700</text>
+
+  <!-- Bottom URL -->
+  <text x="600" y="610" font-family="Arial" font-size="16" fill="#2a2520" text-anchor="middle" letter-spacing="2">jotaprecios.com.ar</text>
+
+</svg>

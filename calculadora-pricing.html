@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Calculadora — JotaPrecios</title>
+<meta name="description" content="Calculá el precio justo de cada trabajo de impresión 3D y sublimación en segundos." />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d0d1a; font-family: sans-serif; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+  import { createRoot } from 'https://esm.sh/react-dom@18/client';
+  import React, { useState } from 'https://esm.sh/react@18';
+
+  // ─── PDF Export ─────────────────────────────────────────────────────
+  function exportarPDF({ tipo, vals, res, is3D }) {
+    const fecha = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
+    const nro = Math.floor(Math.random() * 9000) + 1000;
+    const f = (v) => `$${Math.round(v).toLocaleString("es-AR")}`;
+    const detalles = is3D
+      ? `<tr><td>Peso</td><td>${vals.pesoGramos} gr</td></tr><tr><td>Filamento</td><td>${f(vals.pesoGramos * vals.costoPorGramo)}</td></tr><tr><td>Tiempo</td><td>${vals.tiempoHoras} hs</td></tr>`
+      : `<tr><td>Sustrato</td><td>${f(vals.costoSustrato)}</td></tr><tr><td>Tinta</td><td>${f(vals.costoTinta)}</td></tr><tr><td>Tiempo</td><td>${vals.tiempoMinutos} min</td></tr>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Presupuesto #${nro}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;padding:48px;max-width:660px;margin:0 auto;color:#1a1a1a}.hdr{display:flex;justify-content:space-between;margin-bottom:36px;padding-bottom:20px;border-bottom:2px solid #ff5c1a}.logo{font-size:24px;font-weight:800;color:#ff5c1a}.sec{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#ff5c1a;margin:24px 0 10px}table{width:100%;border-collapse:collapse}td{padding:9px 12px;font-size:14px;border-bottom:1px solid #f0f0f0}td:last-child{text-align:right;font-weight:600}.tot td{font-size:15px;font-weight:700;padding:14px 12px;background:#fff8f5;border:none}.tot td:last-child{color:#ff5c1a;font-size:20px}.foot{margin-top:40px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:11px;color:#aaa}</style>
+</head><body>
+<div class="hdr"><div><div class="logo">JotaPrecios</div><p style="font-size:11px;color:#888">jotaprecios.com.ar</p></div>
+<div style="text-align:right"><h2 style="font-size:17px">Presupuesto #${nro}</h2><p style="font-size:12px;color:#888">${fecha}</p><p style="color:#ff5c1a;font-weight:600;font-size:13px">${tipo}</p></div></div>
+<div class="sec">Detalle</div>
+<table><tbody>${detalles}<tr><td>Electricidad</td><td>${f(res.electricidad)}</td></tr><tr><td>Costos fijos</td><td>${f(res.fijos)}</td></tr><tr style="color:#aaa"><td>Costo total × ${vals.cantidad}</td><td>${f(res.costoTotal)}</td></tr></tbody></table>
+<div class="sec">Precio final</div>
+<table><tbody><tr style="color:#aaa;font-size:13px"><td>Precio mínimo</td><td>${f(res.costoTotal)}</td></tr><tr><td>Ganancia (${vals.margenDeseado}%)</td><td style="color:#22c55e">${f(res.ganancia)}</td></tr><tr class="tot"><td>✅ Precio sugerido</td><td>${f(res.precioSugerido)}</td></tr></tbody></table>
+<div class="foot"><p>JotaPrecios — jotaprecios.com.ar</p><p>Presupuesto orientativo</p></div>
+<script>window.onload=()=>window.print();<\/script></body></html>`;
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+  }
+
+  const DEFAULT_INSUMOS = [
+    { id: 1, nombre: "Filamento PLA 1kg", tipo: "3D", unidad: "gr", costo: 35, activo: true },
+    { id: 2, nombre: "Filamento ABS 1kg", tipo: "3D", unidad: "gr", costo: 42, activo: true },
+    { id: 3, nombre: "Filamento PETG 1kg", tipo: "3D", unidad: "gr", costo: 48, activo: true },
+    { id: 4, nombre: "Filamento TPU 1kg", tipo: "3D", unidad: "gr", costo: 68, activo: true },
+    { id: 5, nombre: "Taza cerámica 11oz", tipo: "SUB", unidad: "u", costo: 1200, activo: true },
+    { id: 6, nombre: "Remera algodón", tipo: "SUB", unidad: "u", costo: 2800, activo: true },
+    { id: 7, nombre: "Tinta sublimación", tipo: "SUB", unidad: "impresión", costo: 380, activo: true },
+    { id: 8, nombre: "Papel sublimación A4", tipo: "SUB", unidad: "hoja", costo: 45, activo: true },
+  ];
+  const DEFAULT_PERFILES = [
+    { id: 1, nombre: "Taller pequeño", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500 },
+    { id: 2, nombre: "Taller mediano", electricidad: 200, costosFijos3D: 1500, costosFijosSub: 900 },
+  ];
+
+  const fmt = (v) => `$${Math.round(v).toLocaleString("es-AR")}`;
+  const TIPO_COLOR = { "3D": "#ff6b35", SUB: "#a78bfa", General: "#4ade80" };
+  const TIPO_LABEL = { "3D": "🖨️ 3D", SUB: "🎨 Sub", General: "⚙️ Gral" };
+
+  function calcular3D(v, fil, perf) {
+    const cxg = fil ? fil.costo : v.costoPorGramo;
+    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+    const fijos = perf ? perf.costosFijos3D : v.costosFijos;
+    const material = v.pesoGramos * cxg;
+    const electricidad = v.tiempoHoras * elec;
+    const costoTotal = (material + electricidad + fijos) * v.cantidad;
+    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
+    return { material, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+  }
+  function calcularSub(v, sus, tin, perf) {
+    const cSus = sus ? sus.costo : v.costoSustrato;
+    const cTin = tin ? tin.costo : v.costoTinta;
+    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+    const fijos = perf ? perf.costosFijosSub : v.costosFijos;
+    const electricidad = (v.tiempoMinutos / 60) * elec;
+    const costoTotal = (cSus + cTin + electricidad + fijos) * v.cantidad;
+    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
+    return { cSus, cTin, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+  }
+
+  const CARD = { background: "#111128", border: "1px solid #1e1e3a", borderRadius: 12, padding: 16, marginBottom: 10 };
+  const BTN = { border: "none", borderRadius: 8, fontFamily: "inherit", fontWeight: 700, cursor: "pointer" };
+
+  function Tag({ tipo }) {
+    return React.createElement("span", { style: { background: TIPO_COLOR[tipo] + "22", color: TIPO_COLOR[tipo], fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 100 } }, TIPO_LABEL[tipo]);
+  }
+
+  function Modal({ title, onClose, children }) {
+    return React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } },
+      React.createElement("div", { style: { background: "#111128", border: "1px solid #2a2a4a", borderRadius: 16, padding: 28, width: "100%", maxWidth: 400 } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
+          React.createElement("span", { style: { fontWeight: 700, fontSize: 16 } }, title),
+          React.createElement("button", { onClick: onClose, style: { ...BTN, background: "none", color: "#666", fontSize: 22, padding: "0 4px" } }, "×")
+        ),
+        children
+      )
+    );
+  }
+
+  function Field({ label, value, onChange, type = "text", step, min, placeholder }) {
+    const inputStyle = { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+    return React.createElement("div", { style: { marginBottom: 13 } },
+      React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 5 } }, label),
+      React.createElement("input", { type, value, step, min, placeholder, onChange: e => onChange(type === "number" ? (parseFloat(e.target.value) || 0) : e.target.value), style: inputStyle, onFocus: e => e.target.style.borderColor = "#ff6b35", onBlur: e => e.target.style.borderColor = "#2a2a4a" })
+    );
+  }
+
+  function DropSelect({ label, value, onChange, options }) {
+    return React.createElement("div", { style: { marginBottom: 13 } },
+      React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 5 } }, label),
+      React.createElement("select", { value, onChange: e => onChange(e.target.value), style: { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box", cursor: "pointer" } },
+        options.map(o => React.createElement("option", { key: o.value, value: o.value }, o.label))
+      )
+    );
+  }
+
+  function NumInput({ label, val, onChange, step = 1, unit = "", disabled = false }) {
+    return React.createElement("div", { style: { marginBottom: 11, opacity: disabled ? 0.4 : 1 } },
+      React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 } },
+        label, " ", React.createElement("span", { style: { color: "#ff6b35" } }, unit)
+      ),
+      React.createElement("input", { type: "number", step, min: 0, value: val, disabled, onChange: e => onChange(parseFloat(e.target.value) || 0), style: { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "9px 12px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }, onFocus: e => { if (!disabled) e.target.style.borderColor = "#ff6b35"; }, onBlur: e => e.target.style.borderColor = "#2a2a4a" })
+    );
+  }
+
+  function ResultRow({ label, value, hi, big }) {
+    return React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: big ? "14px 0" : "8px 0", borderBottom: "1px solid #1a1a2e" } },
+      React.createElement("span", { style: { fontSize: big ? 15 : 13, color: hi ? "#fff" : "#666", fontWeight: hi ? 700 : 400 } }, label),
+      React.createElement("span", { style: { fontSize: big ? 22 : 13, fontFamily: "monospace", color: hi ? "#ff6b35" : "#ccc", fontWeight: big ? 800 : 500 } }, value)
+    );
+  }
+
+  function QuickSelect({ label, color, value, onChange, options, onSelect }) {
+    return React.createElement("div", { style: { marginBottom: 8 } },
+      React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 5 } }, label),
+      React.createElement("select", { value, onChange: e => { onChange(e.target.value); onSelect(e.target.value); }, style: { width: "100%", background: "#0a0a18", border: "1px solid #1e1e3a", borderRadius: 8, padding: "9px 12px", color: value ? "#fff" : "#555", fontSize: 12, fontFamily: "inherit", outline: "none", cursor: "pointer" } },
+        React.createElement("option", { value: "" }, "— Manual —"),
+        options.map(i => React.createElement("option", { key: i.id, value: String(i.id) }, `${i.nombre} · ${fmt(i.costo)}/${i.unidad}`))
+      )
+    );
+  }
+
+  function App() {
+    const [screen, setScreen] = useState(0);
+    const [activeTab, setActiveTab] = useState(0);
+    const [tallerTab, setTallerTab] = useState(0);
+    const [filterTipo, setFilterTipo] = useState("Todos");
+    const [insumos, setInsumos] = useState(DEFAULT_INSUMOS);
+    const [perfiles, setPerfiles] = useState(DEFAULT_PERFILES);
+    const [selPerf, setSelPerf] = useState("");
+    const [selFil, setSelFil] = useState("");
+    const [selSus, setSelSus] = useState("");
+    const [selTin, setSelTin] = useState("");
+    const [v3D, setV3D] = useState({ pesoGramos: 50, costoPorGramo: 35, tiempoHoras: 3, costoElectricidadHora: 120, costosFijos: 800, margenDeseado: 40, cantidad: 1 });
+    const [vSub, setVSub] = useState({ costoSustrato: 1500, costoTinta: 380, tiempoMinutos: 20, costoElectricidadHora: 120, costosFijos: 500, margenDeseado: 50, cantidad: 1 });
+    const [showInsumo, setShowInsumo] = useState(false);
+    const [showPerf, setShowPerf] = useState(false);
+    const [editIns, setEditIns] = useState(null);
+    const [editPerf, setEditPerf] = useState(null);
+    const [newIns, setNewIns] = useState({ nombre: "", tipo: "3D", unidad: "gr", costo: 0 });
+    const [newPerf, setNewPerf] = useState({ nombre: "", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500 });
+    const [historial, setHistorial] = useState([]);
+    const [savedFlash, setSavedFlash] = useState(false);
+
+    const is3D = activeTab === 0;
+    const vals = is3D ? v3D : vSub;
+    const set3D = (k) => (v) => setV3D(p => ({ ...p, [k]: v }));
+    const setSub = (k) => (v) => setVSub(p => ({ ...p, [k]: v }));
+    const filamento = insumos.find(i => String(i.id) === selFil);
+    const sustrato = insumos.find(i => String(i.id) === selSus);
+    const tinta = insumos.find(i => String(i.id) === selTin);
+    const perfil = perfiles.find(p => String(p.id) === selPerf);
+    const res = is3D ? calcular3D(v3D, filamento, perfil) : calcularSub(vSub, sustrato, tinta, perfil);
+    const ins3D = insumos.filter(i => (i.tipo === "3D" || i.tipo === "General") && i.activo);
+    const insSub = insumos.filter(i => (i.tipo === "SUB" || i.tipo === "General") && i.activo);
+    const insFiltered = filterTipo === "Todos" ? insumos : insumos.filter(i => i.tipo === filterTipo);
+
+    const tabStyle = (active) => ({ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: active ? "#ff6b35" : "#1e1e3a", background: active ? "#ff6b3512" : "transparent", color: active ? "#ff6b35" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" });
+
+    function saveInsumo() {
+      if (!newIns.nombre.trim()) return;
+      if (editIns) setInsumos(p => p.map(i => i.id === editIns.id ? { ...i, ...newIns } : i));
+      else setInsumos(p => [...p, { id: Date.now(), ...newIns, activo: true }]);
+      setShowInsumo(false); setEditIns(null);
+    }
+    function savePerfil() {
+      if (!newPerf.nombre.trim()) return;
+      if (editPerf) setPerfiles(p => p.map(x => x.id === editPerf.id ? { ...x, ...newPerf } : x));
+      else setPerfiles(p => [...p, { id: Date.now(), ...newPerf }]);
+      setShowPerf(false); setEditPerf(null);
+    }
+    function saveToHistorial() {
+      const entry = { id: Date.now(), fecha: new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" }), hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), tipo: is3D ? "Impresión 3D" : "Sublimación", vals: { ...vals }, costoTotal: res.costoTotal, precioSugerido: res.precioSugerido, ganancia: res.ganancia, margen: vals.margenDeseado };
+      setHistorial(p => [entry, ...p].slice(0, 50));
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1800);
+    }
+
+    const h = React.createElement;
+
+    return h("div", { style: { minHeight: "100vh", background: "#0d0d1a", fontFamily: "'Sora','Segoe UI',sans-serif", color: "#fff", paddingBottom: 48 } },
+      h("style", null, `@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&display=swap');*{box-sizing:border-box}`),
+
+      // Header
+      h("div", { style: { background: "linear-gradient(135deg,#0d0d1a,#1a1a2e)", borderBottom: "1px solid #1e1e3a", padding: "20px 16px 0" } },
+        h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 480, margin: "0 auto 16px" } },
+          h("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+            h("div", { style: { width: 34, height: 34, borderRadius: 9, background: "linear-gradient(135deg,#ff6b35,#f7c59f)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 } }, "💰"),
+            h("div", null,
+              h("div", { style: { fontSize: 17, fontWeight: 800 } }, "JotaPrecios"),
+              h("div", { style: { fontSize: 9, color: "#333", letterSpacing: "0.06em" } }, "CALCULADORA DE PRECIOS")
+            )
+          ),
+          h("a", { href: "/", style: { fontSize: 12, color: "#444", textDecoration: "none" } }, "← Inicio"),
+          perfil && h("div", { style: { background: "#4ade8018", border: "1px solid #4ade8033", color: "#4ade80", fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 100 } }, `⚙️ ${perfil.nombre}`)
+        ),
+        h("div", { style: { display: "flex", maxWidth: 480, margin: "0 auto" } },
+          ["🧮 Calcular", "🏭 Mi Taller", "📋 Historial"].map((s, i) =>
+            h("button", { key: s, onClick: () => setScreen(i), style: { flex: 1, padding: "12px 0", border: "none", background: "none", color: screen === i ? "#ff6b35" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: screen === i ? "2px solid #ff6b35" : "2px solid transparent" } }, s)
+          )
+        )
+      ),
+
+      h("div", { style: { padding: "14px 16px 0", maxWidth: 480, margin: "0 auto" } },
+
+        // CALCULADORA
+        screen === 0 && h(React.Fragment, null,
+          h("div", { style: { display: "flex", gap: 8, marginBottom: 14 } },
+            h("button", { style: tabStyle(activeTab === 0), onClick: () => setActiveTab(0) }, "🖨️ Impresión 3D"),
+            h("button", { style: tabStyle(activeTab === 1), onClick: () => setActiveTab(1) }, "🎨 Sublimación")
+          ),
+          perfiles.length > 0 && h("div", { style: { ...CARD, marginBottom: 10 } },
+            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, "⚙️ Perfil de taller"),
+            h("select", { value: selPerf, onChange: e => setSelPerf(e.target.value), style: { width: "100%", background: "#0a0a18", border: "1px solid #1e1e3a", borderRadius: 8, padding: "9px 12px", color: selPerf ? "#fff" : "#555", fontSize: 12, fontFamily: "inherit", outline: "none", cursor: "pointer" } },
+              h("option", { value: "" }, "— Sin perfil (manual) —"),
+              perfiles.map(p => h("option", { key: p.id, value: String(p.id) }, `${p.nombre} · Elect. ${fmt(p.electricidad)}/hr`))
+            )
+          ),
+          is3D && ins3D.length > 0 && h("div", { style: { ...CARD, marginBottom: 10 } },
+            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff6b35", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, "📦 Insumos guardados"),
+            h(QuickSelect, { label: "Filamento", color: "#ff6b35", value: selFil, onChange: setSelFil, options: ins3D, onSelect: (id) => { const i = insumos.find(x => String(x.id) === id); if (i) setV3D(p => ({ ...p, costoPorGramo: i.costo })); } })
+          ),
+          !is3D && insSub.length > 0 && h("div", { style: { ...CARD, marginBottom: 10 } },
+            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, "📦 Insumos guardados"),
+            h(QuickSelect, { label: "Sustrato", color: "#a78bfa", value: selSus, onChange: setSelSus, options: insSub, onSelect: (id) => { const i = insumos.find(x => String(x.id) === id); if (i) setVSub(p => ({ ...p, costoSustrato: i.costo })); } }),
+            h(QuickSelect, { label: "Tinta", color: "#a78bfa", value: selTin, onChange: setSelTin, options: insSub, onSelect: (id) => { const i = insumos.find(x => String(x.id) === id); if (i) setVSub(p => ({ ...p, costoTinta: i.costo })); } })
+          ),
+          h("div", { style: CARD },
+            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff6b35", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "📦 Producción"),
+            is3D ? h(React.Fragment, null,
+              h(NumInput, { label: "Peso del objeto", val: v3D.pesoGramos, onChange: set3D("pesoGramos"), step: 5, unit: "gr" }),
+              h(NumInput, { label: "Costo filamento/gr", val: v3D.costoPorGramo, onChange: set3D("costoPorGramo"), step: 1, unit: "$/gr", disabled: !!filamento }),
+              h(NumInput, { label: "Tiempo de impresión", val: v3D.tiempoHoras, onChange: set3D("tiempoHoras"), step: 0.5, unit: "hs" })
+            ) : h(React.Fragment, null,
+              h(NumInput, { label: "Costo del sustrato", val: vSub.costoSustrato, onChange: setSub("costoSustrato"), step: 100, unit: "$", disabled: !!sustrato }),
+              h(NumInput, { label: "Costo de tinta", val: vSub.costoTinta, onChange: setSub("costoTinta"), step: 50, unit: "$", disabled: !!tinta }),
+              h(NumInput, { label: "Tiempo de producción", val: vSub.tiempoMinutos, onChange: setSub("tiempoMinutos"), step: 5, unit: "min" })
+            ),
+            h(NumInput, { label: "Electricidad", val: vals.costoElectricidadHora, onChange: is3D ? set3D("costoElectricidadHora") : setSub("costoElectricidadHora"), step: 10, unit: "$/hr", disabled: !!perfil }),
+            h(NumInput, { label: "Costos fijos", val: vals.costosFijos, onChange: is3D ? set3D("costosFijos") : setSub("costosFijos"), step: 100, unit: "$/trabajo", disabled: !!perfil })
+          ),
+          h("div", { style: CARD },
+            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "⚙️ Venta"),
+            h(NumInput, { label: "Margen de ganancia", val: vals.margenDeseado, onChange: is3D ? set3D("margenDeseado") : setSub("margenDeseado"), step: 5, unit: "%" }),
+            h(NumInput, { label: "Cantidad", val: vals.cantidad, onChange: is3D ? set3D("cantidad") : setSub("cantidad"), step: 1, unit: "uds" })
+          ),
+          h("div", { style: { background: "linear-gradient(135deg,#1a0f00,#1a1a2e)", border: "1px solid #ff6b3530", borderRadius: 14, padding: 18, marginBottom: 12 } },
+            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff6b35", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "📊 Resultados"),
+            h(ResultRow, { label: "Materiales", value: fmt(is3D ? res.material : res.cSus + res.cTin) }),
+            h(ResultRow, { label: "Electricidad", value: fmt(res.electricidad) }),
+            h(ResultRow, { label: "Costos fijos", value: fmt(res.fijos) }),
+            h(ResultRow, { label: `Costo total × ${vals.cantidad}`, value: fmt(res.costoTotal) }),
+            h(ResultRow, { label: "Ganancia", value: fmt(res.ganancia), hi: true }),
+            h("div", { style: { height: 8 } }),
+            h(ResultRow, { label: "💸 Precio mínimo", value: fmt(res.costoTotal) }),
+            h(ResultRow, { label: "✅ Precio sugerido", value: fmt(res.precioSugerido), hi: true, big: true }),
+            h("div", { style: { marginTop: 14, paddingTop: 14, borderTop: "1px solid #1a1a2e" } },
+              [["Conservador 20%", res.costoTotal / 0.8, "#4ade80"], [`Tu margen ${vals.margenDeseado}%`, res.precioSugerido, "#ff6b35"], ["Agresivo 70%", res.costoTotal / 0.3, "#a78bfa"]].map(([l, p, c]) =>
+                h("div", { key: l, style: { marginBottom: 7 } },
+                  h("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 3 } },
+                    h("span", { style: { fontSize: 10, color: "#444" } }, l),
+                    h("span", { style: { fontSize: 11, fontFamily: "monospace", color: c } }, fmt(p))
+                  ),
+                  h("div", { style: { background: "#1a1a2e", borderRadius: 3 } }, h("div", { style: { height: 3, background: c, borderRadius: 3 } }))
+                )
+              )
+            ),
+            h("div", { style: { display: "flex", gap: 8, marginTop: 16 } },
+              h("button", { onClick: saveToHistorial, style: { ...BTN, flex: 1, background: savedFlash ? "#4ade80" : "#1e2a1e", border: "1px solid", borderColor: savedFlash ? "#4ade80" : "#2a4a2a", padding: 13, color: savedFlash ? "#0d0d1a" : "#4ade80", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s", borderRadius: 10 } }, savedFlash ? "✓ Guardado" : "💾 Guardar"),
+              h("button", { onClick: () => exportarPDF({ tipo: is3D ? "Impresión 3D" : "Sublimación", vals, res, is3D }), style: { ...BTN, flex: 2, background: "linear-gradient(135deg,#ff6b35,#ff5c1a)", padding: 13, color: "#fff", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 20px rgba(255,92,26,0.25)", borderRadius: 10 } }, "📄 Exportar PDF")
+            )
+          )
+        ),
+
+        // MI TALLER
+        screen === 1 && h(React.Fragment, null,
+          h("div", { style: { display: "flex", gap: 8, marginBottom: 14 } },
+            h("button", { style: tabStyle(tallerTab === 0), onClick: () => setTallerTab(0) }, "📦 Insumos"),
+            h("button", { style: tabStyle(tallerTab === 1), onClick: () => setTallerTab(1) }, "⚙️ Perfiles")
+          ),
+          tallerTab === 0 && h(React.Fragment, null,
+            h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
+              h("div", null, h("div", { style: { fontWeight: 700, fontSize: 15 } }, "Base de insumos"), h("div", { style: { fontSize: 11, color: "#444" } }, `${insumos.length} insumos`)),
+              h("button", { onClick: () => { setEditIns(null); setNewIns({ nombre: "", tipo: "3D", unidad: "gr", costo: 0 }); setShowInsumo(true); }, style: { ...BTN, background: "#ff6b35", color: "#fff", padding: "8px 14px", fontSize: 12 } }, "+ Agregar")
+            ),
+            h("div", { style: { display: "flex", gap: 6, marginBottom: 12 } },
+              ["Todos", "3D", "SUB", "General"].map(f =>
+                h("button", { key: f, onClick: () => setFilterTipo(f), style: { padding: "5px 10px", borderRadius: 100, border: "1px solid", borderColor: filterTipo === f ? "#ff6b35" : "#1e1e3a", background: filterTipo === f ? "#ff6b3518" : "transparent", color: filterTipo === f ? "#ff6b35" : "#444", fontFamily: "inherit", fontSize: 10, fontWeight: 700, cursor: "pointer" } }, f)
+              )
+            ),
+            insFiltered.map(ins =>
+              h("div", { key: ins.id, style: { ...CARD, opacity: ins.activo ? 1 : 0.4 } },
+                h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                  h("div", { style: { flex: 1 } },
+                    h("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" } },
+                      h("span", { style: { fontWeight: 700, fontSize: 13 } }, ins.nombre),
+                      h(Tag, { tipo: ins.tipo })
+                    ),
+                    h("span", { style: { fontSize: 18, fontWeight: 800, color: "#ff6b35", fontFamily: "monospace" } }, fmt(ins.costo)),
+                    h("span", { style: { fontSize: 11, color: "#444", marginLeft: 4 } }, `/${ins.unidad}`)
+                  ),
+                  h("div", { style: { display: "flex", gap: 4, marginLeft: 8 } },
+                    h("button", { onClick: () => setInsumos(p => p.map(i => i.id === ins.id ? { ...i, activo: !i.activo } : i)), style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: ins.activo ? "#4ade80" : "#333", padding: "5px 9px", fontSize: 13 } }, ins.activo ? "●" : "○"),
+                    h("button", { onClick: () => { setEditIns(ins); setNewIns({ nombre: ins.nombre, tipo: ins.tipo, unidad: ins.unidad, costo: ins.costo }); setShowInsumo(true); }, style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#666", padding: "5px 9px" } }, "✏️"),
+                    h("button", { onClick: () => setInsumos(p => p.filter(i => i.id !== ins.id)), style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#f87171", padding: "5px 9px" } }, "🗑")
+                  )
+                )
+              )
+            ),
+            insFiltered.length === 0 && h("div", { style: { textAlign: "center", padding: "40px 0", color: "#2a2a3a" } }, h("div", { style: { fontSize: 32, marginBottom: 10 } }, "📦"), h("p", { style: { fontSize: 13 } }, "Sin insumos en esta categoría"))
+          ),
+          tallerTab === 1 && h(React.Fragment, null,
+            h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
+              h("div", null, h("div", { style: { fontWeight: 700, fontSize: 15 } }, "Perfiles de costos"), h("div", { style: { fontSize: 11, color: "#444" } }, "Configuraciones de tu taller")),
+              h("button", { onClick: () => { setEditPerf(null); setNewPerf({ nombre: "", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500 }); setShowPerf(true); }, style: { ...BTN, background: "#4ade80", color: "#0d0d1a", padding: "8px 14px", fontSize: 12 } }, "+ Nuevo")
+            ),
+            perfiles.map(perf =>
+              h("div", { key: perf.id, style: { ...CARD, borderColor: selPerf === String(perf.id) ? "#4ade80" : "#1e1e3a" } },
+                h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                  h("div", { style: { flex: 1 } },
+                    h("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 } }, perf.nombre, selPerf === String(perf.id) && h("span", { style: { fontSize: 9, background: "#4ade8018", color: "#4ade80", padding: "2px 8px", borderRadius: 100, fontWeight: 700 } }, "ACTIVO")),
+                    h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 } },
+                      [["⚡ Elect.", fmt(perf.electricidad) + "/hr"], ["🖨️ Fijos 3D", fmt(perf.costosFijos3D)], ["🎨 Fijos Sub", fmt(perf.costosFijosSub)]].map(([k, v]) =>
+                        h("div", { key: k, style: { background: "#0a0a18", borderRadius: 8, padding: 8, textAlign: "center" } },
+                          h("div", { style: { fontSize: 8, color: "#333", marginBottom: 2 } }, k),
+                          h("div", { style: { fontSize: 10, fontWeight: 700, fontFamily: "monospace", color: "#777" } }, v)
+                        )
+                      )
+                    )
+                  ),
+                  h("div", { style: { display: "flex", flexDirection: "column", gap: 5, marginLeft: 10 } },
+                    h("button", { onClick: () => setSelPerf(selPerf === String(perf.id) ? "" : String(perf.id)), style: { ...BTN, background: "transparent", border: "1px solid", borderColor: selPerf === String(perf.id) ? "#4ade80" : "#2a2a4a", color: selPerf === String(perf.id) ? "#4ade80" : "#555", padding: "6px 10px", fontSize: 11 } }, selPerf === String(perf.id) ? "✓ Activo" : "Usar"),
+                    h("button", { onClick: () => { setEditPerf(perf); setNewPerf({ nombre: perf.nombre, electricidad: perf.electricidad, costosFijos3D: perf.costosFijos3D, costosFijosSub: perf.costosFijosSub }); setShowPerf(true); }, style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#666", padding: "6px 10px" } }, "✏️"),
+                    h("button", { onClick: () => { setPerfiles(p => p.filter(x => x.id !== perf.id)); if (selPerf === String(perf.id)) setSelPerf(""); }, style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#f87171", padding: "6px 10px" } }, "🗑")
+                  )
+                )
+              )
+            )
+          )
+        ),
+
+        // HISTORIAL
+        screen === 2 && h(React.Fragment, null,
+          h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
+            h("div", null, h("div", { style: { fontWeight: 700, fontSize: 15 } }, "Historial"), h("div", { style: { fontSize: 11, color: "#444" } }, `${historial.length} presupuestos guardados`)),
+            historial.length > 0 && h("button", { onClick: () => setHistorial([]), style: { ...BTN, background: "transparent", border: "1px solid #2a1a1a", color: "#f87171", padding: "6px 12px", fontSize: 11 } }, "Limpiar")
+          ),
+          historial.length === 0 && h("div", { style: { textAlign: "center", padding: "60px 0", color: "#2a2a3a" } },
+            h("div", { style: { fontSize: 40, marginBottom: 12 } }, "📋"),
+            h("p", { style: { fontSize: 13, marginBottom: 6 } }, "Todavía no guardaste presupuestos"),
+            h("p", { style: { fontSize: 11, color: "#222" } }, "Usá el botón 💾 Guardar en la calculadora")
+          ),
+          historial.map(entry =>
+            h("div", { key: entry.id, style: CARD },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 } },
+                h("div", null,
+                  h("div", { style: { fontSize: 12, fontWeight: 700, color: entry.tipo === "Impresión 3D" ? "#ff6b35" : "#a78bfa", marginBottom: 3 } }, `${entry.tipo === "Impresión 3D" ? "🖨️" : "🎨"} ${entry.tipo}`),
+                  h("div", { style: { fontSize: 10, color: "#333" } }, `${entry.fecha} · ${entry.hora}`)
+                ),
+                h("button", { onClick: () => setHistorial(p => p.filter(h => h.id !== entry.id)), style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#444", padding: "4px 8px", fontSize: 11 } }, "🗑")
+              ),
+              h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 10 } },
+                [["Costo", fmt(entry.costoTotal), "#888"], ["Ganancia", fmt(entry.ganancia), "#4ade80"], ["Margen", `${entry.margen}%`, "#a78bfa"]].map(([k, v, c]) =>
+                  h("div", { key: k, style: { background: "#0a0a18", borderRadius: 8, padding: 8, textAlign: "center" } },
+                    h("div", { style: { fontSize: 9, color: "#333", marginBottom: 2 } }, k),
+                    h("div", { style: { fontSize: 12, fontWeight: 700, fontFamily: "monospace", color: c } }, v)
+                  )
+                )
+              ),
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid #1a1a2e", marginBottom: 10 } },
+                h("span", { style: { fontSize: 12, color: "#666" } }, "Precio sugerido"),
+                h("span", { style: { fontSize: 20, fontWeight: 800, fontFamily: "monospace", color: "#ff6b35" } }, fmt(entry.precioSugerido))
+              ),
+              h("button", { onClick: () => exportarPDF({ tipo: entry.tipo, vals: entry.vals, res: { costoTotal: entry.costoTotal, precioSugerido: entry.precioSugerido, ganancia: entry.ganancia, electricidad: 0, fijos: 0 }, is3D: entry.tipo === "Impresión 3D" }), style: { ...BTN, width: "100%", background: "#1a1408", border: "1px solid #ff6b3530", color: "#ff6b35", padding: 10, fontSize: 12, borderRadius: 8 } }, "📄 Exportar PDF")
+            )
+          )
+        )
+      ),
+
+      // Modals
+      showInsumo && h(Modal, { title: editIns ? "Editar insumo" : "Nuevo insumo", onClose: () => { setShowInsumo(false); setEditIns(null); } },
+        h(Field, { label: "Nombre", value: newIns.nombre, onChange: v => setNewIns(p => ({ ...p, nombre: v })), placeholder: "Ej: Filamento PLA Negro" }),
+        h(DropSelect, { label: "Tipo", value: newIns.tipo, onChange: v => setNewIns(p => ({ ...p, tipo: v })), options: [{ value: "3D", label: "🖨️ Impresión 3D" }, { value: "SUB", label: "🎨 Sublimación" }, { value: "General", label: "⚙️ General" }] }),
+        h(Field, { label: "Unidad", value: newIns.unidad, onChange: v => setNewIns(p => ({ ...p, unidad: v })), placeholder: "gr, u, hoja..." }),
+        h(Field, { label: "Costo ($)", value: newIns.costo, onChange: v => setNewIns(p => ({ ...p, costo: v })), type: "number", step: 1, min: 0 }),
+        h("button", { onClick: saveInsumo, style: { ...BTN, background: "#ff6b35", color: "#fff", width: "100%", padding: 14, marginTop: 4, borderRadius: 10, fontSize: 14 } }, editIns ? "Guardar cambios" : "Agregar insumo")
+      ),
+      showPerf && h(Modal, { title: editPerf ? "Editar perfil" : "Nuevo perfil", onClose: () => { setShowPerf(false); setEditPerf(null); } },
+        h(Field, { label: "Nombre", value: newPerf.nombre, onChange: v => setNewPerf(p => ({ ...p, nombre: v })), placeholder: "Ej: Taller principal" }),
+        h(Field, { label: "Electricidad ($/hora)", value: newPerf.electricidad, onChange: v => setNewPerf(p => ({ ...p, electricidad: v })), type: "number", step: 10, min: 0 }),
+        h(Field, { label: "Costos fijos 3D ($/trabajo)", value: newPerf.costosFijos3D, onChange: v => setNewPerf(p => ({ ...p, costosFijos3D: v })), type: "number", step: 100, min: 0 }),
+        h(Field, { label: "Costos fijos Sub ($/trabajo)", value: newPerf.costosFijosSub, onChange: v => setNewPerf(p => ({ ...p, costosFijosSub: v })), type: "number", step: 100, min: 0 }),
+        h("button", { onClick: savePerfil, style: { ...BTN, background: "#4ade80", color: "#0d0d1a", width: "100%", padding: 14, marginTop: 4, borderRadius: 10, fontSize: 14 } }, editPerf ? "Guardar cambios" : "Crear perfil")
+      )
+    );
+  }
+
+  createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
