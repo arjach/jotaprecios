@@ -11,13 +11,14 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0d0d1a; font-family: sans-serif; }
   #root { min-height: 100vh; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="module">
   import { createRoot } from 'https://esm.sh/react-dom@18/client';
-  import React, { useState } from 'https://esm.sh/react@18';
+  import React, { useState, useRef } from 'https://esm.sh/react@18';
 
   // ─── PDF Export ─────────────────────────────────────────────────────
   function exportarPDF({ tipo, vals, res, is3D }) {
@@ -150,6 +151,12 @@
     const [activeTab, setActiveTab] = useState(0);
     const [tallerTab, setTallerTab] = useState(0);
     const [filterTipo, setFilterTipo] = useState("Todos");
+    const [proLoading, setProLoading] = useState(false);
+    const [proError, setProError] = useState(null);
+    const [proResultado, setProResultado] = useState(null);
+    const [proUrl, setProUrl] = useState("");
+    const [proModo, setProModo] = useState("pdf"); // "pdf" o "url"
+    const fileInputRef = useRef(null);
     const [insumos, setInsumos] = useState(DEFAULT_INSUMOS);
     const [perfiles, setPerfiles] = useState(DEFAULT_PERFILES);
     const [selPerf, setSelPerf] = useState("");
@@ -180,7 +187,83 @@
     const insSub = insumos.filter(i => (i.tipo === "SUB" || i.tipo === "General") && i.activo);
     const insFiltered = filterTipo === "Todos" ? insumos : insumos.filter(i => i.tipo === filterTipo);
 
-    const tabStyle = (active) => ({ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: active ? "#ff6b35" : "#1e1e3a", background: active ? "#ff6b3512" : "transparent", color: active ? "#ff6b35" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" });
+    // Función Pro — leer PDF
+    async function leerPDF(archivo) {
+      setProLoading(true); setProError(null); setProResultado(null);
+      try {
+        const base64 = await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = e => res(e.target.result.split(",")[1]);
+          reader.onerror = rej;
+          reader.readAsDataURL(archivo);
+        });
+
+        // Primero extraemos el texto del PDF usando pdf.js
+        const pdfjsLib = await import('https://esm.sh/pdfjs-dist@3.11.174');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+        const pdfData = atob(base64);
+        const pdfArray = new Uint8Array(pdfData.length);
+        for (let i = 0; i < pdfData.length; i++) pdfArray[i] = pdfData.charCodeAt(i);
+        const pdf = await pdfjsLib.getDocument({ data: pdfArray }).promise;
+        let texto = "";
+        for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          texto += content.items.map(item => item.str).join(" ") + "\n";
+        }
+
+        const res = await fetch("/.netlify/functions/extraer-precios", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tipo: "pdf", contenido: texto }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Error al procesar el PDF");
+        setProResultado(data);
+      } catch (e) {
+        setProError(e.message);
+      } finally {
+        setProLoading(false);
+      }
+    }
+
+    // Función Pro — leer URL
+    async function leerURL() {
+      if (!proUrl.trim()) return;
+      setProLoading(true); setProError(null); setProResultado(null);
+      try {
+        const res = await fetch("/.netlify/functions/extraer-precios", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tipo: "url", url: proUrl.trim() }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Error al procesar la URL");
+        setProResultado(data);
+      } catch (e) {
+        setProError(e.message);
+      } finally {
+        setProLoading(false);
+      }
+    }
+
+    // Importar insumos del resultado Pro a Mi Taller
+    function importarInsumos(insumosNuevos) {
+      const nuevos = insumosNuevos.map(ins => ({
+        id: Date.now() + Math.random(),
+        nombre: ins.nombre,
+        tipo: ins.tipo || "General",
+        unidad: ins.unidad || "u",
+        costo: ins.precio,
+        activo: true,
+        notas: ins.notas,
+      }));
+      setInsumos(p => [...nuevos, ...p]);
+      setScreen(1);
+      setTallerTab(0);
+    }
+
+    const tabStyle = (active) => ({ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: active ? "#ff6b35" : "#1e1e3a", background: active ? "#ff6b3512" : "transparent", color: active ? "#ff6b35" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 11, cursor: "pointer" });
 
     function saveInsumo() {
       if (!newIns.nombre.trim()) return;
@@ -220,8 +303,8 @@
           perfil && h("div", { style: { background: "#4ade8018", border: "1px solid #4ade8033", color: "#4ade80", fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 100 } }, `⚙️ ${perfil.nombre}`)
         ),
         h("div", { style: { display: "flex", maxWidth: 480, margin: "0 auto" } },
-          ["🧮 Calcular", "🏭 Mi Taller", "📋 Historial"].map((s, i) =>
-            h("button", { key: s, onClick: () => setScreen(i), style: { flex: 1, padding: "12px 0", border: "none", background: "none", color: screen === i ? "#ff6b35" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: screen === i ? "2px solid #ff6b35" : "2px solid transparent" } }, s)
+          ["🧮 Calcular", "🏭 Mi Taller", "📋 Historial", "⭐ Pro"].map((s, i) =>
+            h("button", { key: s, onClick: () => setScreen(i), style: { flex: 1, padding: "10px 0", border: "none", background: "none", color: screen === i ? (i === 3 ? "#fbbf24" : "#ff6b35") : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 11, cursor: "pointer", borderBottom: screen === i ? `2px solid ${i === 3 ? "#fbbf24" : "#ff6b35"}` : "2px solid transparent" } }, s)
           )
         )
       ),
@@ -402,7 +485,118 @@
         )
       ),
 
-      // Modals
+        // PRO SCREEN
+        screen === 3 && h(React.Fragment, null,
+          h("div", { style: { background: "linear-gradient(135deg,#1a1200,#0d0d1a)", border: "1px solid #fbbf2430", borderRadius: 14, padding: 20, marginBottom: 14, textAlign: "center" } },
+            h("div", { style: { fontSize: 28, marginBottom: 8 } }, "⭐"),
+            h("div", { style: { fontWeight: 800, fontSize: 18, marginBottom: 4 } }, "Importador de precios Pro"),
+            h("div", { style: { fontSize: 13, color: "#7a6f62", lineHeight: 1.5 } }, "Subí el PDF de tu proveedor o pegá la URL de su web y cargamos los precios automáticamente en Mi Taller.")
+          ),
+
+          // Selector PDF / URL
+          h("div", { style: { display: "flex", gap: 8, marginBottom: 14 } },
+            h("button", { onClick: () => { setProModo("pdf"); setProResultado(null); setProError(null); }, style: { flex: 1, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: proModo === "pdf" ? "#fbbf24" : "#1e1e3a", background: proModo === "pdf" ? "#fbbf2412" : "transparent", color: proModo === "pdf" ? "#fbbf24" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" } }, "📄 Subir PDF"),
+            h("button", { onClick: () => { setProModo("url"); setProResultado(null); setProError(null); }, style: { flex: 1, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: proModo === "url" ? "#fbbf24" : "#1e1e3a", background: proModo === "url" ? "#fbbf2412" : "transparent", color: proModo === "url" ? "#fbbf24" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" } }, "🌐 Pegar URL")
+          ),
+
+          // PDF uploader
+          proModo === "pdf" && h("div", null,
+            h("div", {
+              style: { background: "#111128", border: "2px dashed #1e1e3a", borderRadius: 14, padding: "36px 20px", textAlign: "center", cursor: "pointer", transition: "border-color 0.2s" },
+              onClick: () => fileInputRef.current?.click(),
+              onDragOver: e => { e.preventDefault(); e.currentTarget.style.borderColor = "#fbbf24"; },
+              onDragLeave: e => e.currentTarget.style.borderColor = "#1e1e3a",
+              onDrop: e => { e.preventDefault(); e.currentTarget.style.borderColor = "#1e1e3a"; const f = e.dataTransfer.files[0]; if (f?.type === "application/pdf") leerPDF(f); else setProError("El archivo debe ser un PDF"); }
+            },
+              h("div", { style: { fontSize: 36, marginBottom: 10 } }, "📄"),
+              h("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 4 } }, "Arrastrá el PDF acá"),
+              h("div", { style: { fontSize: 12, color: "#444" } }, "o hacé clic para seleccionarlo")
+            ),
+            h("input", { ref: fileInputRef, type: "file", accept: ".pdf", style: { display: "none" }, onChange: e => { const f = e.target.files[0]; if (f) leerPDF(f); } })
+          ),
+
+          // URL input
+          proModo === "url" && h("div", { style: { background: "#111128", border: "1px solid #1e1e3a", borderRadius: 14, padding: 20 } },
+            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, "🌐 URL de la página del proveedor"),
+            h("input", {
+              type: "url",
+              value: proUrl,
+              placeholder: "https://proveedor.com/lista-precios",
+              onChange: e => setProUrl(e.target.value),
+              onKeyDown: e => e.key === "Enter" && leerURL(),
+              style: { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "12px 14px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 12 },
+              onFocus: e => e.target.style.borderColor = "#fbbf24",
+              onBlur: e => e.target.style.borderColor = "#2a2a4a"
+            }),
+            h("button", {
+              onClick: leerURL,
+              disabled: !proUrl.trim() || proLoading,
+              style: { width: "100%", background: proUrl.trim() ? "#fbbf24" : "#2a2a2a", color: proUrl.trim() ? "#0d0d1a" : "#444", border: "none", borderRadius: 10, padding: 13, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: proUrl.trim() ? "pointer" : "not-allowed" }
+            }, "Analizar página →")
+          ),
+
+          // Loading
+          proLoading && h("div", { style: { textAlign: "center", padding: "40px 0" } },
+            h("div", { style: { fontSize: 36, marginBottom: 12, animation: "spin 1s linear infinite" } }, "⚙️"),
+            h("div", { style: { fontSize: 14, color: "#7a6f62" } }, "Analizando con IA..."),
+            h("div", { style: { fontSize: 12, color: "#333", marginTop: 4 } }, "Esto puede tardar unos segundos")
+          ),
+
+          // Error
+          proError && h("div", { style: { background: "#1a0808", border: "1px solid #f8717130", borderRadius: 12, padding: 16, marginTop: 14 } },
+            h("div", { style: { fontSize: 13, color: "#f87171", marginBottom: 4, fontWeight: 700 } }, "❌ Error"),
+            h("div", { style: { fontSize: 13, color: "#d4956a" } }, proError)
+          ),
+
+          // Resultado
+          proResultado && h("div", { style: { marginTop: 14 } },
+            h("div", { style: { background: "#0a1a0a", border: "1px solid #4ade8030", borderRadius: 12, padding: 16, marginBottom: 14 } },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
+                h("div", { style: { fontWeight: 700, fontSize: 14, color: "#4ade80" } }, "✓ " + (proResultado.insumos?.length || 0) + " precios encontrados"),
+                proResultado.proveedor && h("div", { style: { fontSize: 11, color: "#4ade80", opacity: 0.7 } }, proResultado.proveedor)
+              ),
+              proResultado.fecha && h("div", { style: { fontSize: 11, color: "#333" } }, "Fecha: " + proResultado.fecha)
+            ),
+
+            // Lista de insumos encontrados
+            proResultado.insumos?.map((ins, i) =>
+              h("div", { key: i, style: { background: "#111128", border: "1px solid #1e1e3a", borderRadius: 10, padding: "12px 14px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                h("div", null,
+                  h("div", { style: { fontWeight: 700, fontSize: 13, marginBottom: 2 } }, ins.nombre),
+                  h("div", { style: { display: "flex", gap: 6 } },
+                    h("span", { style: { fontSize: 10, background: (ins.tipo === "3D" ? "#ff6b35" : ins.tipo === "SUB" ? "#a78bfa" : "#4ade80") + "22", color: ins.tipo === "3D" ? "#ff6b35" : ins.tipo === "SUB" ? "#a78bfa" : "#4ade80", padding: "1px 7px", borderRadius: 100, fontWeight: 700 } }, ins.tipo),
+                    ins.notas && h("span", { style: { fontSize: 10, color: "#444" } }, ins.notas)
+                  )
+                ),
+                h("div", { style: { textAlign: "right" } },
+                  h("div", { style: { fontSize: 16, fontWeight: 800, fontFamily: "monospace", color: "#fbbf24" } }, "$" + Math.round(ins.precio).toLocaleString("es-AR")),
+                  h("div", { style: { fontSize: 10, color: "#444" } }, "/" + ins.unidad)
+                )
+              )
+            ),
+
+            // Botón importar
+            h("button", {
+              onClick: () => importarInsumos(proResultado.insumos || []),
+              style: { width: "100%", marginTop: 8, background: "linear-gradient(135deg,#fbbf24,#f59e0b)", border: "none", borderRadius: 10, padding: 14, color: "#0d0d1a", fontFamily: "inherit", fontWeight: 800, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }
+            }, "⬇️ Importar todos a Mi Taller")
+          ),
+
+          // Tip
+          !proLoading && !proResultado && h("div", { style: { background: "#0a0a18", border: "1px solid #1e1e3a", borderRadius: 12, padding: 16, marginTop: 14 } },
+            h("div", { style: { fontSize: 12, color: "#333", lineHeight: 1.7 } },
+              h("div", { style: { marginBottom: 6, color: "#555", fontWeight: 700 } }, "💡 ¿Cómo usarlo?"),
+              "1. Pedile a tu proveedor su lista de precios en PDF\n",
+              h("br"),
+              "2. Subila acá o pegá la URL de su web\n",
+              h("br"),
+              "3. La IA detecta los productos y precios automáticamente\n",
+              h("br"),
+              "4. Revisás y los importás a Mi Taller con un clic"
+            )
+          )
+        ),
+      
       showInsumo && h(Modal, { title: editIns ? "Editar insumo" : "Nuevo insumo", onClose: () => { setShowInsumo(false); setEditIns(null); } },
         h(Field, { label: "Nombre", value: newIns.nombre, onChange: v => setNewIns(p => ({ ...p, nombre: v })), placeholder: "Ej: Filamento PLA Negro" }),
         h(DropSelect, { label: "Tipo", value: newIns.tipo, onChange: v => setNewIns(p => ({ ...p, tipo: v })), options: [{ value: "3D", label: "🖨️ Impresión 3D" }, { value: "SUB", label: "🎨 Sublimación" }, { value: "General", label: "⚙️ General" }] }),
