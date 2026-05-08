@@ -187,6 +187,51 @@
     const insSub = insumos.filter(i => (i.tipo === "SUB" || i.tipo === "General") && i.activo);
     const insFiltered = filterTipo === "Todos" ? insumos : insumos.filter(i => i.tipo === filterTipo);
 
+    // API key — reemplazá AQUI_VA_TU_KEY con tu key de Anthropic
+    const CLAUDE_KEY = "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";
+
+    const PROMPT_BASE = (texto) => `Analizá esta lista de precios de proveedor y extraé todos los productos con sus precios.
+
+Contenido:
+${texto.substring(0, 8000)}
+
+Respondé SOLO con un JSON válido, sin texto adicional, sin backticks markdown, en este formato exacto:
+{
+  "proveedor": "nombre del proveedor o null",
+  "fecha": "fecha si aparece o null",
+  "insumos": [
+    {
+      "nombre": "nombre del producto",
+      "precio": 12345,
+      "unidad": "gr o kg o u o hoja o impresion",
+      "tipo": "3D o SUB o General",
+      "notas": "presentacion o aclaracion o null"
+    }
+  ]
+}
+Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/resinas, "SUB" para sustratos/tintas/papel sublimación, "General" para otros. Incluí solo productos con precio claro.`;
+
+    async function llamarClaude(texto) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": CLAUDE_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 2000,
+          messages: [{ role: "user", content: PROMPT_BASE(texto) }],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `Error ${res.status}`);
+      const txt = data.content[0].text.trim().replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      return JSON.parse(txt);
+    }
+
     // Función Pro — leer PDF
     async function leerPDF(archivo) {
       setProLoading(true); setProError(null); setProResultado(null);
@@ -197,8 +242,6 @@
           reader.onerror = rej;
           reader.readAsDataURL(archivo);
         });
-
-        // Primero extraemos el texto del PDF usando pdf.js
         const pdfjsLib = await import('https://esm.sh/pdfjs-dist@3.11.174');
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
         const pdfData = atob(base64);
@@ -211,15 +254,8 @@
           const content = await page.getTextContent();
           texto += content.items.map(item => item.str).join(" ") + "\n";
         }
-
-        const res = await fetch("/.netlify/functions/extraer-precios", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tipo: "pdf", contenido: texto }),
-        });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || "Error al procesar el PDF");
-        setProResultado(data);
+        const resultado = await llamarClaude(texto);
+        setProResultado({ ok: true, ...resultado });
       } catch (e) {
         setProError(e.message);
       } finally {
@@ -232,14 +268,21 @@
       if (!proUrl.trim()) return;
       setProLoading(true); setProError(null); setProResultado(null);
       try {
-        const res = await fetch("/.netlify/functions/extraer-precios", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tipo: "url", url: proUrl.trim() }),
-        });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || "Error al procesar la URL");
-        setProResultado(data);
+        // Usamos un proxy CORS para fetchear la URL
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(proUrl.trim())}`;
+        const pageRes = await fetch(proxyUrl);
+        if (!pageRes.ok) throw new Error("No se pudo acceder a la URL");
+        const pageData = await pageRes.json();
+        const html = pageData.contents || "";
+        const texto = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (!texto || texto.length < 20) throw new Error("La página no tiene contenido legible");
+        const resultado = await llamarClaude(texto);
+        setProResultado({ ok: true, ...resultado });
       } catch (e) {
         setProError(e.message);
       } finally {
