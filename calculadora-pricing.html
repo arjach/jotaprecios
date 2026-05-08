@@ -188,7 +188,7 @@
     const insFiltered = filterTipo === "Todos" ? insumos : insumos.filter(i => i.tipo === filterTipo);
 
     // API key — reemplazá AQUI_VA_TU_KEY con tu key de Anthropic
-    const CLAUDE_KEY = "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";
+    const CLAUDE_KEY = "AQUI_VA_TU_KEY";
 
     const PROMPT_BASE = (texto) => `Analizá esta lista de precios de proveedor y extraé todos los productos con sus precios.
 
@@ -242,8 +242,20 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
           reader.onerror = rej;
           reader.readAsDataURL(archivo);
         });
-        const pdfjsLib = await import('https://esm.sh/pdfjs-dist@3.11.174');
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+        // Cargar pdf.js desde CDN con versión estable
+        const pdfjsLib = await new Promise((resolve, reject) => {
+          if (window.pdfjsLib) { resolve(window.pdfjsLib); return; }
+          const script = document.createElement("script");
+          script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js";
+          script.onload = () => {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
+            resolve(window.pdfjsLib);
+          };
+          script.onerror = () => reject(new Error("No se pudo cargar el lector de PDF"));
+          document.head.appendChild(script);
+        });
+
         const pdfData = atob(base64);
         const pdfArray = new Uint8Array(pdfData.length);
         for (let i = 0; i < pdfData.length; i++) pdfArray[i] = pdfData.charCodeAt(i);
@@ -254,6 +266,8 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
           const content = await page.getTextContent();
           texto += content.items.map(item => item.str).join(" ") + "\n";
         }
+
+        if (!texto.trim()) throw new Error("No se pudo extraer texto del PDF — puede ser una imagen escaneada");
         const resultado = await llamarClaude(texto);
         setProResultado({ ok: true, ...resultado });
       } catch (e) {
