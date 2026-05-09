@@ -221,6 +221,21 @@ function App() {
   const [perfiles, setPerfilesR] = useState(()=>loadLS("jp_perfiles",DEF_PERFILES));
   const [historial, setHistorialR] = useState(()=>loadLS("jp_historial",[]));
   const [plantillas, setPlantillasR] = useState(()=>loadLS("jp_plantillas",[]));
+  const DEF_GASTOS = [
+    { id:1, nombre:"Alquiler / hipoteca", monto:0, pct:20, activo:true },
+    { id:2, nombre:"Electricidad", monto:0, pct:100, activo:true },
+    { id:3, nombre:"Internet", monto:0, pct:50, activo:true },
+    { id:4, nombre:"Seguro", monto:0, pct:20, activo:false },
+    { id:5, nombre:"Suscripciones / software", monto:0, pct:100, activo:false },
+  ];
+  const [gastosFijos, setGastosFijosR] = useState(()=>loadLS("jp_gastos_fijos", DEF_GASTOS));
+  const [trabajosMes, setTrabajosMes] = useState(()=>loadLS("jp_trabajos_mes", 20));
+  const setGastosFijos = fn => setGastosFijosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_gastos_fijos",n); return n; });
+
+  // Calcular costo fijo por trabajo automáticamente
+  const costoFijoPorTrabajo = Math.round(
+    gastosFijos.filter(g=>g.activo).reduce((s,g)=>s+(g.monto*(g.pct/100)),0) / Math.max(trabajosMes,1)
+  );
   const setInsumos = fn => setInsumosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_insumos",n); return n; });
   const setPerfiles = fn => setPerfilesR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_perfiles",n); return n; });
   const setHistorial = fn => setHistorialR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_historial",n); return n; });
@@ -460,6 +475,10 @@ function App() {
             )
           ),
           h(NumInput,{label:"Costos fijos",val:vals.costosFijos,onChange:mkV("costosFijos"),step:100,unit:"$/trabajo",disabled:!!perfil,tooltip:"Alquiler + internet + otros ÷ cantidad de trabajos por mes."}),
+          costoFijoPorTrabajo>0 && !perfil && h("button",{
+            onClick:()=>mkV("costosFijos")(costoFijoPorTrabajo),
+            style:{...BTN,width:"100%",background:"#22d07a12",border:"1px solid #22d07a30",color:"#22d07a",padding:"8px 14px",fontSize:11,borderRadius:8,marginTop:-8,marginBottom:12}
+          },"✓ Usar costo calculado: "+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo)+"$/trabajo → Configurar en Mi Taller"),
           h(NumInput,{label:"🧩 Otros gastos",val:vals.otrosGastos||0,onChange:mkV("otrosGastos"),step:50,unit:"$",tooltip:"Pegamento, lija, alcohol, guantes, sprays, etc."})
         ),
 
@@ -569,7 +588,8 @@ function App() {
       h("div",{style:{display:"flex",gap:8,marginBottom:20}},
         h("button",{style:tabBtn(tallerTab===0),onClick:()=>setTallerTab(0)},"📦 Insumos"),
         h("button",{style:tabBtn(tallerTab===1),onClick:()=>setTallerTab(1)},"⚙️ Perfiles"),
-        h("button",{style:tabBtn(tallerTab===2),onClick:()=>setTallerTab(2)},"📋 Plantillas")
+        h("button",{style:tabBtn(tallerTab===2),onClick:()=>setTallerTab(2)},"📋 Plantillas"),
+        h("button",{style:tabBtn(tallerTab===3,"#22d07a"),onClick:()=>setTallerTab(3)},"💸 Costos fijos")
       ),
 
       tallerTab===0 && h(React.Fragment,null,
@@ -635,6 +655,76 @@ function App() {
             h("button",{onClick:()=>setPlantillas(pl=>pl.filter(x=>x.id!==p.id)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"6px 10px"}},"🗑")
           )
         ))
+      ),
+
+      tallerTab===3 && h(React.Fragment,null,
+        // Header
+        h("div",{style:{marginBottom:20}},
+          h("div",{style:{fontWeight:700,fontSize:16,marginBottom:4}},"💸 Calculadora de costos fijos"),
+          h("div",{style:{fontSize:13,color:MUTED,lineHeight:1.6,maxWidth:600}},"Cargá tus gastos mensuales y el porcentaje que corresponde al taller. Si trabajás desde tu casa, no tenés que cargar el alquiler completo — solo la parte proporcional al espacio que usás.")
+        ),
+
+        // Tip alquiler hogar
+        h("div",{style:{background:"#22d07a12",border:"1px solid #22d07a30",borderRadius:12,padding:"14px 16px",marginBottom:20,fontSize:13,color:"#9ad4b0",lineHeight:1.6}},
+          "💡 ",h("strong",{style:{color:"#22d07a"}},"¿Trabajás desde tu casa?")," No cargues el alquiler completo. Si tu taller ocupa el 20% de tu casa, usá 20% en el porcentaje. Lo mismo con la electricidad — si la máquina representa el 30% del consumo, ponés 30%."
+        ),
+
+        // Trabajos por mes
+        h("div",{style:{...CARD,marginBottom:16}},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}},"📦 ¿Cuántos trabajos hacés por mes?"),
+          h("div",{style:{fontSize:12,color:MUTED,marginBottom:12,lineHeight:1.6}},"Este número divide el total de costos fijos para saber cuánto le corresponde a cada trabajo. Si recién empezás, podés poner un número conservador (ej: 10-20)."),
+          h("input",{type:"number",min:1,step:1,value:trabajosMes,onChange:e=>{const v=Math.max(1,parseInt(e.target.value)||1);setTrabajosMes(v);saveLS("jp_trabajos_mes",v);},style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:20,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},onFocus:e=>e.target.style.borderColor="#22d07a",onBlur:e=>e.target.style.borderColor="#2a2a4a"})
+        ),
+
+        // Lista de gastos
+        h("div",{style:CARD},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"📋 Gastos mensuales"),
+          gastosFijos.map(g=>h("div",{key:g.id,style:{padding:"14px 0",borderBottom:"1px solid #1a1a2e"}},
+            h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:10}},
+              h("button",{onClick:()=>setGastosFijos(p=>p.map(x=>x.id===g.id?{...x,activo:!x.activo}:x)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:g.activo?"#22d07a":"#333",padding:"4px 8px",fontSize:12,flexShrink:0}},g.activo?"●":"○"),
+              h("span",{style:{fontWeight:600,fontSize:14,flex:1,color:g.activo?"#f0eeff":MUTED}},g.nombre),
+              h("button",{onClick:()=>setGastosFijos(p=>p.filter(x=>x.id!==g.id)),style:{...BTN,background:"transparent",border:"none",color:"#f87171",fontSize:14,padding:"4px",flexShrink:0}},"×")
+            ),
+            g.activo && h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,paddingLeft:34}},
+              h("div",null,
+                h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:4}},"Monto mensual $"),
+                h("input",{type:"number",min:0,step:1000,value:g.monto,onChange:e=>setGastosFijos(p=>p.map(x=>x.id===g.id?{...x,monto:parseFloat(e.target.value)||0}:x)),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"9px 12px",color:"#fff",fontSize:14,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},onFocus:e=>e.target.style.borderColor="#22d07a",onBlur:e=>e.target.style.borderColor="#2a2a4a"})
+              ),
+              h("div",null,
+                h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:4}},"% que corresponde al taller"),
+                h("input",{type:"number",min:1,max:100,step:5,value:g.pct,onChange:e=>setGastosFijos(p=>p.map(x=>x.id===g.id?{...x,pct:Math.min(100,Math.max(1,parseFloat(e.target.value)||1))}:x)),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"9px 12px",color:"#fff",fontSize:14,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},onFocus:e=>e.target.style.borderColor="#22d07a",onBlur:e=>e.target.style.borderColor="#2a2a4a"}),
+                h("div",{style:{fontSize:11,color:"#22d07a",marginTop:4}},"= $"+new Intl.NumberFormat("es-AR").format(Math.round(g.monto*g.pct/100))+" del taller")
+              )
+            )
+          )),
+
+          // Agregar gasto
+          h("div",{style:{paddingTop:14}},
+            h("button",{onClick:()=>setGastosFijos(p=>[...p,{id:Date.now(),nombre:"Nuevo gasto",monto:0,pct:100,activo:true}]),style:{...BTN,background:"transparent",border:"1px dashed #2a2a4a",color:MUTED,padding:"10px 16px",fontSize:12,borderRadius:8,width:"100%"}},"+ Agregar gasto")
+          )
+        ),
+
+        // Resultado
+        h("div",{style:{background:"linear-gradient(135deg,#0a1a0a,#12121f)",border:"1px solid #22d07a40",borderRadius:16,padding:24,marginTop:4}},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"📊 Resultado"),
+          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}},
+            [
+              ["Total gastos mensuales","$"+new Intl.NumberFormat("es-AR").format(gastosFijos.filter(g=>g.activo).reduce((s,g)=>s+g.monto,0)),"#f0eeff"],
+              ["Total imputable al taller","$"+new Intl.NumberFormat("es-AR").format(gastosFijos.filter(g=>g.activo).reduce((s,g)=>s+Math.round(g.monto*g.pct/100),0)),"#fbbf24"],
+              ["Trabajos por mes",trabajosMes+" trabajos","#a78bfa"],
+              ["Costo fijo por trabajo","$"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo),"#22d07a"],
+            ].map(([l,v,c])=>
+              h("div",{key:l,style:{background:"#0a0a14",borderRadius:10,padding:14}},
+                h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},l),
+                h("div",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:c}},v)
+              )
+            )
+          ),
+          h("button",{
+            onClick:()=>{ ["costosFijos"].forEach(()=>{ if(is3D)setV3D(p=>({...p,costosFijos:costoFijoPorTrabajo})); else if(isSub)setVSub(p=>({...p,costosFijos:costoFijoPorTrabajo})); else if(isBor)setVBor(p=>({...p,costosFijos:costoFijoPorTrabajo})); else if(isVin)setVVin(p=>({...p,costosFijos:costoFijoPorTrabajo})); else setVLas(p=>({...p,costosFijos:costoFijoPorTrabajo})); }); setScreen(0); },
+            style:{...BTN,width:"100%",background:"#22d07a",color:"#0a0a14",padding:14,fontSize:14,borderRadius:10}
+          },"✓ Aplicar $"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo)+" a la calculadora →")
+        )
       )
     ),
 
