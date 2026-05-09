@@ -450,160 +450,205 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
 
     const h = React.createElement;
 
-    return h("div", { style: { minHeight: "100vh", background: "#0d0d1a", fontFamily: "'Sora','Segoe UI',sans-serif", color: "#fff", paddingBottom: 48 } },
-      h("style", null, `@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&display=swap');*{box-sizing:border-box}`),
+    return h("div", { style: { minHeight: "100vh", background: "#0a0a14", fontFamily: "'Sora','Segoe UI',sans-serif", color: "#fff" } },
+      h("style", null, `
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+        *{box-sizing:border-box}
+        .calc-grid { display: grid; grid-template-columns: 1fr 380px; gap: 24px; align-items: start; max-width: 1100px; margin: 0 auto; padding: 24px 24px 48px; }
+        .result-sticky { position: sticky; top: 80px; }
+        .inputs-col { min-width: 0; }
+        @media (max-width: 800px) { .calc-grid { grid-template-columns: 1fr; } .result-sticky { position: static; } }
+        @media (max-width: 640px) { .calc-grid { padding: 12px 12px 48px; gap: 12px; } }
+      `),
 
       // Header
-      h("div", { style: { background: "linear-gradient(135deg,#0d0d1a,#1a1a2e)", borderBottom: "1px solid #1e1e3a", padding: "20px 16px 0" } },
-        h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 480, margin: "0 auto 16px" } },
-          h("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
-            h("div", { style: { width: 34, height: 34, borderRadius: 9, background: "linear-gradient(135deg,#ff6b35,#f7c59f)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 } }, "💰"),
+      h("div", { style: { background: "#0d0d1e", borderBottom: "1px solid #1e1e35", padding: "0 24px", position: "sticky", top: 0, zIndex: 50 } },
+        h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 1100, margin: "0 auto", height: 60 } },
+          h("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+            h("div", { style: { width: 32, height: 32, borderRadius: 8, background: "#ff5c1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff" } }, "J"),
             h("div", null,
-              h("div", { style: { fontSize: 17, fontWeight: 800 } }, "JotaPrecios"),
-              h("div", { style: { fontSize: 9, color: "#333", letterSpacing: "0.06em" } }, "CALCULADORA DE PRECIOS")
+              h("div", { style: { fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" } }, "JotaPrecios"),
+              h("div", { style: { fontSize: 9, color: "#444", letterSpacing: "0.08em" } }, "CALCULADORA DE PRECIOS")
             )
           ),
-          h("a", { href: "/", style: { fontSize: 12, color: "#444", textDecoration: "none" } }, "← Inicio"),
+          h("div", { style: { display: "flex", alignItems: "center", gap: 4 } },
+            ["🧮 Calcular", "🏭 Mi Taller", "📋 Historial", "⭐ Pro"].map((s, i) =>
+              h("button", { key: s, onClick: () => setScreen(i), style: { padding: "8px 14px", border: "none", background: screen === i ? "#ff5c1a18" : "none", borderRadius: 8, color: screen === i ? (i === 3 ? "#fbbf24" : "#ff5c1a") : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: screen === i ? `2px solid ${i === 3 ? "#fbbf24" : "#ff5c1a"}` : "2px solid transparent" } }, s)
+            ),
+            h("a", { href: "/", style: { marginLeft: 12, fontSize: 12, color: "#444", textDecoration: "none", padding: "6px 12px", border: "1px solid #1e1e35", borderRadius: 8 } }, "← Inicio")
+          ),
           perfil && h("div", { style: { background: "#4ade8018", border: "1px solid #4ade8033", color: "#4ade80", fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 100 } }, `⚙️ ${perfil.nombre}`)
-        ),
-        h("div", { style: { display: "flex", maxWidth: 480, margin: "0 auto" } },
-          ["🧮 Calcular", "🏭 Mi Taller", "📋 Historial", "⭐ Pro"].map((s, i) =>
-            h("button", { key: s, onClick: () => setScreen(i), style: { flex: 1, padding: "10px 0", border: "none", background: "none", color: screen === i ? (i === 3 ? "#fbbf24" : "#ff6b35") : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 11, cursor: "pointer", borderBottom: screen === i ? `2px solid ${i === 3 ? "#fbbf24" : "#ff6b35"}` : "2px solid transparent" } }, s)
-          )
         )
       ),
 
-      h("div", { style: { padding: "14px 16px 0", maxWidth: 480, margin: "0 auto" } },
+      h("div", { style: { maxWidth: 1100, margin: "0 auto" } },
 
-        // CALCULADORA
-        screen === 0 && h(React.Fragment, null,
-          h("div", { style: { display: "flex", gap: 6, marginBottom: 14 } },
-            TABS_TRABAJO.map((t, i) =>
-              h("button", { key: t.id, style: tabStyle(activeTab === i, t.color), onClick: () => setActiveTab(i) }, t.label)
-            )
-          ),
-          perfiles.length > 0 && h("div", { style: { ...CARD, marginBottom: 10 } },
-            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, "⚙️ Perfil de taller"),
-            h("select", { value: selPerf, onChange: e => setSelPerf(e.target.value), style: { width: "100%", background: "#0a0a18", border: "1px solid #1e1e3a", borderRadius: 8, padding: "9px 12px", color: selPerf ? "#fff" : "#555", fontSize: 12, fontFamily: "inherit", outline: "none", cursor: "pointer" } },
-              h("option", { value: "" }, "— Sin perfil (manual) —"),
-              perfiles.map(p => h("option", { key: p.id, value: String(p.id) }, `${p.nombre} · Elect. ${fmt(p.electricidad)}/hr`))
-            )
-          ),
-          is3D && ins3D.length > 0 && h("div", { style: { ...CARD, marginBottom: 10 } },
-            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff6b35", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, "📦 Insumos guardados"),
-            h(QuickSelect, { label: "Filamento", color: "#ff6b35", value: selFil, onChange: setSelFil, options: ins3D, onSelect: (id) => { const i = insumos.find(x => String(x.id) === id); if (i) setV3D(p => ({ ...p, costoPorGramo: i.costo })); } })
-          ),
-          !is3D && insSub.length > 0 && h("div", { style: { ...CARD, marginBottom: 10 } },
-            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, "📦 Insumos guardados"),
-            h(QuickSelect, { label: "Sustrato", color: "#a78bfa", value: selSus, onChange: setSelSus, options: insSub, onSelect: (id) => { const i = insumos.find(x => String(x.id) === id); if (i) setVSub(p => ({ ...p, costoSustrato: i.costo })); } }),
-            h(QuickSelect, { label: "Tinta", color: "#a78bfa", value: selTin, onChange: setSelTin, options: insSub, onSelect: (id) => { const i = insumos.find(x => String(x.id) === id); if (i) setVSub(p => ({ ...p, costoTinta: i.costo })); } })
-          ),
-          h("div", { style: CARD },
-            h("div", { style: { fontSize: 10, fontWeight: 700, color: colorActivo, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "📦 Producción"),
-            is3D && h(React.Fragment, null,
-              h(NumInput, { label: "Peso del objeto", val: v3D.pesoGramos, onChange: mk3D("pesoGramos"), step: 5, unit: "gr", tooltip: "El peso de la pieza terminada en gramos. Lo ves en el slicer antes de imprimir. Sirve para calcular cuánto filamento usás." }),
-              h(NumInput, { label: "Costo filamento/gr", val: v3D.costoPorGramo, onChange: mk3D("costoPorGramo"), step: 1, unit: "$/gr", disabled: !!filamento, tooltip: "El precio del filamento dividido por 1000. Si el kilo cuesta $35.000, el gramo sale $35. Es el costo de materia prima más importante en 3D." }),
-              h(NumInput, { label: "Tiempo de impresión", val: v3D.tiempoHoras, onChange: mk3D("tiempoHoras"), step: 0.5, unit: "hs", tooltip: "Cuántas horas tarda la impresora en terminar la pieza. Lo ves en el slicer. Afecta el costo de electricidad y mano de obra." })
-            ),
-            isSub && h(React.Fragment, null,
-              h(NumInput, { label: "Costo del sustrato", val: vSub.costoSustrato, onChange: mkSub("costoSustrato"), step: 100, unit: "$", disabled: !!sustrato, tooltip: "El precio del objeto que vas a sublimar — taza, remera, almohada, etc. Es el costo de materia prima principal en sublimación." }),
-              h(NumInput, { label: "Costo de tinta", val: vSub.costoTinta, onChange: mkSub("costoTinta"), step: 50, unit: "$", disabled: !!tinta, tooltip: "Cuánto gastás de tinta por trabajo. Estimá según cuántas impresiones sacás de un juego de tintas y dividí el costo total." }),
-              h(NumInput, { label: "Tiempo de producción", val: vSub.tiempoMinutos, onChange: mkSub("tiempoMinutos"), step: 5, unit: "min", tooltip: "El tiempo total de trabajo — incluye preparación, prensado y enfriado. Afecta el costo de electricidad y mano de obra." })
-            ),
-            isBor && h(React.Fragment, null,
-              h(NumInput, { label: "Costo de hilo", val: vBor.costoHilo, onChange: mkBor("costoHilo"), step: 50, unit: "$", tooltip: "El costo del hilo usado en el bordado. Estimalo según cuántas madejas usás por trabajo y su precio unitario." }),
-              h(NumInput, { label: "Costo de entretela", val: vBor.costoEntretela, onChange: mkBor("costoEntretela"), step: 50, unit: "$", tooltip: "El costo de la entretela o estabilizador. Se gasta por cada trabajo y es un costo que muchos olvidan incluir." }),
-              h(NumInput, { label: "Tiempo de bordado", val: vBor.tiempoMinutos, onChange: mkBor("tiempoMinutos"), step: 5, unit: "min", tooltip: "El tiempo total desde que preparás la máquina hasta que terminás — incluye enhebrado, montaje y acabados." })
-            ),
-            isVin && h(React.Fragment, null,
-              h(NumInput, { label: "Costo del vinilo", val: vVin.costoVinilo, onChange: mkVin("costoVinilo"), step: 50, unit: "$", tooltip: "El costo del vinilo usado. Calculá cuántos centímetros cuadrados usás y multiplicá por el precio por hoja o metro." }),
-              h(NumInput, { label: "Costo transfer/papel", val: vVin.costoTransfer, onChange: mkVin("costoTransfer"), step: 50, unit: "$", tooltip: "El costo del papel transfer o papel de sublimación usado para aplicar el diseño al sustrato." }),
-              h(NumInput, { label: "Tiempo de aplicación", val: vVin.tiempoMinutos, onChange: mkVin("tiempoMinutos"), step: 5, unit: "min", tooltip: "El tiempo total de trabajo — corte, desmalezado y aplicación del vinilo. Es clave para calcular la mano de obra." })
-            ),
-            isLas && h(React.Fragment, null,
-              h(NumInput, { label: "Costo del material", val: vLas.costoMaterial, onChange: mkLas("costoMaterial"), step: 100, unit: "$", tooltip: "El costo del material que vas a cortar o grabar — MDF, acrílico, cuero, etc. Es el principal costo de materia prima." }),
-              h(NumInput, { label: "Tiempo de corte/grabado", val: vLas.tiempoMinutos, onChange: mkLas("tiempoMinutos"), step: 5, unit: "min", tooltip: "El tiempo que tarda el trabajo completo — incluye preparación del archivo, alineación y el proceso de corte o grabado." })
-            ),
-            h(NumInput, { label: "Electricidad", val: vals.costoElectricidadHora, onChange: is3D ? mk3D("costoElectricidadHora") : isSub ? mkSub("costoElectricidadHora") : isBor ? mkBor("costoElectricidadHora") : isVin ? mkVin("costoElectricidadHora") : mkLas("costoElectricidadHora"), step: 10, unit: "$/hr", disabled: !!perfil, tooltip: "Cuánto te cuesta tener la máquina encendida por hora. Si no lo sabés, calculalo dividiendo tu factura de luz mensual por las horas que usás las máquinas." }),
+        // CALCULADORA — two column layout
+        screen === 0 && h("div", { className: "calc-grid" },
 
-            is3D && h("div", { style: { marginBottom: 12 } },
-              h("div", { style: { fontSize: 10, color: "#444", marginBottom: 6 } }, "⚡ Presets Bambu Lab (consumo promedio real):"),
-              h("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
-                [["A1 mini", 70], ["A1", 90], ["P1S", 100], ["X1C", 150]].map(([m, w]) => {
-                  const tarifa = vals.costoElectricidadHora;
-                  return h("button", {
-                    key: m,
-                    onClick: () => {
-                      const cph = Math.round(w / 1000 * tarifa);
-                      mk3D("costoElectricidadHora")(cph || w);
-                    },
-                    style: { background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "5px 10px", color: "#888", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }
-                  }, `${m} ~${w}W`);
-                })
+          // LEFT — inputs
+          h("div", { className: "inputs-col" },
+
+            // Tipo tabs
+            h("div", { style: { display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" } },
+              TABS_TRABAJO.map((t, i) =>
+                h("button", { key: t.id, onClick: () => setActiveTab(i), style: { padding: "9px 18px", borderRadius: 100, border: "1px solid", borderColor: activeTab === i ? t.color : "#1e1e35", background: activeTab === i ? t.color + "18" : "#12121f", color: activeTab === i ? t.color : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" } }, t.label)
+              )
+            ),
+
+            // Perfil selector
+            perfiles.length > 0 && h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 18, marginBottom: 16 } },
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 } }, "⚙️ Perfil de taller"),
+              h("select", { value: selPerf, onChange: e => setSelPerf(e.target.value), style: { width: "100%", background: "#0a0a14", border: "1px solid #1e1e35", borderRadius: 8, padding: "10px 14px", color: selPerf ? "#fff" : "#555", fontSize: 13, fontFamily: "inherit", outline: "none", cursor: "pointer" } },
+                h("option", { value: "" }, "— Sin perfil (ingresar manualmente) —"),
+                perfiles.map(p => h("option", { key: p.id, value: String(p.id) }, `${p.nombre} · Elect. ${fmt(p.electricidad)}/hr`))
+              )
+            ),
+
+            // Insumos rápidos
+            is3D && ins3D.length > 0 && h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 18, marginBottom: 16 } },
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff5c1a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 } }, "📦 Insumos guardados"),
+              h(QuickSelect, { label: "Filamento", color: "#ff5c1a", value: selFil, onChange: setSelFil, options: ins3D, onSelect: id => { const i = insumos.find(x => String(x.id) === id); if (i) setV3D(p => ({ ...p, costoPorGramo: i.costo })); } })
+            ),
+            isSub && insSub.length > 0 && h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 18, marginBottom: 16 } },
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 } }, "📦 Insumos guardados"),
+              h(QuickSelect, { label: "Sustrato", color: "#a78bfa", value: selSus, onChange: setSelSus, options: insSub, onSelect: id => { const i = insumos.find(x => String(x.id) === id); if (i) setVSub(p => ({ ...p, costoSustrato: i.costo })); } }),
+              h(QuickSelect, { label: "Tinta", color: "#a78bfa", value: selTin, onChange: setSelTin, options: insSub, onSelect: id => { const i = insumos.find(x => String(x.id) === id); if (i) setVSub(p => ({ ...p, costoTinta: i.costo })); } })
+            ),
+
+            // Producción
+            h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 20, marginBottom: 16 } },
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: colorActivo, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 } }, "📦 Producción"),
+              is3D && h(React.Fragment, null,
+                h(NumInput, { label: "Peso del objeto", val: v3D.pesoGramos, onChange: mk3D("pesoGramos"), step: 5, unit: "gr", tooltip: "El peso de la pieza terminada en gramos. Lo ves en el slicer antes de imprimir." }),
+                h(NumInput, { label: "Costo filamento/gr", val: v3D.costoPorGramo, onChange: mk3D("costoPorGramo"), step: 1, unit: "$/gr", disabled: !!filamento, tooltip: "El precio del filamento dividido por 1000. Si el kilo cuesta $35.000, el gramo sale $35." }),
+                h(NumInput, { label: "Tiempo de impresión", val: v3D.tiempoHoras, onChange: mk3D("tiempoHoras"), step: 0.5, unit: "hs", tooltip: "Cuántas horas tarda la impresora. Lo ves en el slicer." })
               ),
-              h("div", { style: { fontSize: 10, color: "#2a2a4a", marginTop: 4 } }, "Fuente: Bambu Lab Wiki · consumo promedio en impresión normal")
-            ),
-
-            h(NumInput, { label: "Costos fijos", val: vals.costosFijos, onChange: is3D ? mk3D("costosFijos") : isSub ? mkSub("costosFijos") : isBor ? mkBor("costosFijos") : isVin ? mkVin("costosFijos") : mkLas("costosFijos"), step: 100, unit: "$/trabajo", disabled: !!perfil, tooltip: "La parte de tus gastos fijos que corresponde a cada trabajo — alquiler, internet, suscripciones. Dividí tus gastos fijos mensuales por la cantidad de trabajos que hacés por mes." }),
-
-            h(NumInput, { label: "🧩 Otros gastos", val: vals.otrosGastos || 0, onChange: is3D ? mk3D("otrosGastos") : isSub ? mkSub("otrosGastos") : isBor ? mkBor("otrosGastos") : isVin ? mkVin("otrosGastos") : mkLas("otrosGastos"), step: 50, unit: "$", tooltip: "Insumos varios que usás en el trabajo pero no son el material principal — pegamento, lija, alcohol isopropílico, sprays, guantes, etc. Sumá el costo aproximado de todo lo que consumís en este trabajo." }),
-
-            h("div", { style: { ...CARD, background: "#0a0a18", border: "1px solid #1e1e3a", marginTop: 4 } },
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "🔧 Amortización de máquina"),
-              h("div", { style: { fontSize: 12, color: "#555", marginBottom: 14, lineHeight: 1.6 } }, "Distribuí el costo de tu máquina en cada trabajo. Así la recuperás con el tiempo sin darte cuenta."),
-              h(NumInput, { label: "Precio de la máquina", val: vals.precioMaquina || 0, onChange: is3D ? mk3D("precioMaquina") : isSub ? mkSub("precioMaquina") : isBor ? mkBor("precioMaquina") : isVin ? mkVin("precioMaquina") : mkLas("precioMaquina"), step: 10000, unit: "$", tooltip: "Cuánto pagaste por tu máquina. Se divide por la vida útil y las horas de uso para calcular cuánto cuesta usarla por hora." }),
-              h(NumInput, { label: "Vida útil estimada", val: vals.vidaUtilAnios || 3, onChange: is3D ? mk3D("vidaUtilAnios") : isSub ? mkSub("vidaUtilAnios") : isBor ? mkBor("vidaUtilAnios") : isVin ? mkVin("vidaUtilAnios") : mkLas("vidaUtilAnios"), step: 1, unit: "años", tooltip: "Cuántos años estimás que va a durar la máquina. Para impresoras 3D de uso intensivo, 3-5 años es razonable." }),
-              h(NumInput, { label: "Uso comercial diario", val: vals.horasUsoDiario || 8, onChange: is3D ? mk3D("horasUsoDiario") : isSub ? mkSub("horasUsoDiario") : isBor ? mkBor("horasUsoDiario") : isVin ? mkVin("horasUsoDiario") : mkLas("horasUsoDiario"), step: 1, unit: "hs/día", tooltip: "Cuántas horas por día usás la máquina en promedio. Afecta cuánto de la amortización le corresponde a cada hora de trabajo." }),
-              h(NumInput, { label: "% reparaciones estimadas", val: vals.pctReparaciones || 5, onChange: is3D ? mk3D("pctReparaciones") : isSub ? mkSub("pctReparaciones") : isBor ? mkBor("pctReparaciones") : isVin ? mkVin("pctReparaciones") : mkLas("pctReparaciones"), step: 1, unit: "%", tooltip: "Porcentaje del precio de la máquina que estimás gastar en reparaciones durante su vida útil. 5-10% es un valor razonable para la mayoría de las máquinas." }),
-              vals.precioMaquina > 0 && h("div", { style: { background: "#fbbf2412", border: "1px solid #fbbf2430", borderRadius: 8, padding: "10px 12px", marginTop: 8, fontSize: 12 } },
-                h("div", { style: { color: "#fbbf24", fontWeight: 700, marginBottom: 2 } }, "Costo de amortización por hora:"),
-                h("div", { style: { color: "#d4a82a", fontSize: 16, fontWeight: 800, fontFamily: "monospace" } },
-                  fmt((vals.precioMaquina * (1 + (vals.pctReparaciones || 5) / 100)) / ((vals.vidaUtilAnios || 3) * 365 * (vals.horasUsoDiario || 8))) + "/hr"
-                )
+              isSub && h(React.Fragment, null,
+                h(NumInput, { label: "Costo del sustrato", val: vSub.costoSustrato, onChange: mkSub("costoSustrato"), step: 100, unit: "$", disabled: !!sustrato, tooltip: "El precio del objeto que vas a sublimar — taza, remera, etc." }),
+                h(NumInput, { label: "Costo de tinta", val: vSub.costoTinta, onChange: mkSub("costoTinta"), step: 50, unit: "$", disabled: !!tinta, tooltip: "Cuánto gastás de tinta por trabajo." }),
+                h(NumInput, { label: "Tiempo de producción", val: vSub.tiempoMinutos, onChange: mkSub("tiempoMinutos"), step: 5, unit: "min", tooltip: "Tiempo total incluyendo preparación y prensado." })
+              ),
+              isBor && h(React.Fragment, null,
+                h(NumInput, { label: "Costo de hilo", val: vBor.costoHilo, onChange: mkBor("costoHilo"), step: 50, unit: "$", tooltip: "Costo del hilo usado en el bordado." }),
+                h(NumInput, { label: "Costo de entretela", val: vBor.costoEntretela, onChange: mkBor("costoEntretela"), step: 50, unit: "$", tooltip: "Costo del estabilizador o entretela." }),
+                h(NumInput, { label: "Tiempo de bordado", val: vBor.tiempoMinutos, onChange: mkBor("tiempoMinutos"), step: 5, unit: "min", tooltip: "Tiempo total incluyendo preparación y acabados." })
+              ),
+              isVin && h(React.Fragment, null,
+                h(NumInput, { label: "Costo del vinilo", val: vVin.costoVinilo, onChange: mkVin("costoVinilo"), step: 50, unit: "$", tooltip: "Costo del vinilo usado." }),
+                h(NumInput, { label: "Costo transfer/papel", val: vVin.costoTransfer, onChange: mkVin("costoTransfer"), step: 50, unit: "$", tooltip: "Costo del papel transfer usado." }),
+                h(NumInput, { label: "Tiempo de aplicación", val: vVin.tiempoMinutos, onChange: mkVin("tiempoMinutos"), step: 5, unit: "min", tooltip: "Tiempo total de corte y aplicación." })
+              ),
+              isLas && h(React.Fragment, null,
+                h(NumInput, { label: "Costo del material", val: vLas.costoMaterial, onChange: mkLas("costoMaterial"), step: 100, unit: "$", tooltip: "Costo del material a cortar o grabar." }),
+                h(NumInput, { label: "Tiempo de corte/grabado", val: vLas.tiempoMinutos, onChange: mkLas("tiempoMinutos"), step: 5, unit: "min", tooltip: "Tiempo total incluyendo preparación." })
               )
             ),
 
-            h(NumInput, { label: "🧑‍🔧 Mano de obra", val: vals.manoObraHora || 0, onChange: is3D ? mk3D("manoObraHora") : isSub ? mkSub("manoObraHora") : isBor ? mkBor("manoObraHora") : isVin ? mkVin("manoObraHora") : mkLas("manoObraHora"), step: 100, unit: "$/hr", tooltip: "⚠️ El costo más olvidado. Tu tiempo vale dinero. Si trabajás 3 hs en algo, esas 3 hs tienen un costo. Calculá cuánto querés ganar por hora de tu tiempo y ponelo acá. Si lo dejás en 0, estás trabajando gratis." })
-          ),
-          h("div", { style: CARD },
-            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "⚙️ Venta"),
-            h(NumInput, { label: "Margen de ganancia", val: vals.margenDeseado, onChange: is3D ? mk3D("margenDeseado") : isSub ? mkSub("margenDeseado") : isBor ? mkBor("margenDeseado") : isVin ? mkVin("margenDeseado") : mkLas("margenDeseado"), step: 5, unit: "%" }),
-            h(NumInput, { label: "Cantidad", val: vals.cantidad, onChange: is3D ? mk3D("cantidad") : isSub ? mkSub("cantidad") : isBor ? mkBor("cantidad") : isVin ? mkVin("cantidad") : mkLas("cantidad"), step: 1, unit: "uds" })
-          ),
-          h("div", { style: { background: "linear-gradient(135deg,#1a0f00,#1a1a2e)", border: "1px solid #ff6b3530", borderRadius: 14, padding: 18, marginBottom: 12 } },
-            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff6b35", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "📊 Resultados"),
-            h(ResultRow, { label: "Materiales", value: fmt(is3D ? res.material : isSub ? res.cSus + res.cTin : res.material) }),
-            h(ResultRow, { label: "Electricidad", value: fmt(res.electricidad) }),
-            h(ResultRow, { label: "Costos fijos", value: fmt(res.fijos) }),
-            res.otrosGastos > 0 && h(ResultRow, { label: "🧩 Otros gastos", value: fmt(res.otrosGastos) }),
-            res.amortizacion > 0 && h(ResultRow, { label: "🔧 Amortización", value: fmt(res.amortizacion) }),
-            res.manoObra > 0 && h(ResultRow, { label: "🧑‍🔧 Mano de obra", value: fmt(res.manoObra) }),
-            h(ResultRow, { label: `Costo total × ${vals.cantidad}`, value: fmt(res.costoTotal) }),
-            h(ResultRow, { label: "Ganancia", value: fmt(res.ganancia), hi: true }),
-            h("div", { style: { height: 8 } }),
-            h(ResultRow, { label: "💸 Precio mínimo", value: fmt(res.costoTotal) }),
-            h(ResultRow, { label: "✅ Precio sugerido", value: fmt(res.precioSugerido), hi: true, big: true }),
-            h("div", { style: { marginTop: 14, paddingTop: 14, borderTop: "1px solid #1a1a2e" } },
-              [["Conservador 20%", res.costoTotal / 0.8, "#4ade80"], [`Tu margen ${vals.margenDeseado}%`, res.precioSugerido, "#ff6b35"], ["Agresivo 70%", res.costoTotal / 0.3, "#a78bfa"]].map(([l, p, c]) =>
-                h("div", { key: l, style: { marginBottom: 7 } },
-                  h("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 3 } },
-                    h("span", { style: { fontSize: 10, color: "#444" } }, l),
-                    h("span", { style: { fontSize: 11, fontFamily: "monospace", color: c } }, fmt(p))
-                  ),
-                  h("div", { style: { background: "#1a1a2e", borderRadius: 3 } }, h("div", { style: { height: 3, background: c, borderRadius: 3 } }))
+            // Electricidad y fijos
+            h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 20, marginBottom: 16 } },
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#38bdf8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 } }, "⚡ Electricidad y costos fijos"),
+              h(NumInput, { label: "Electricidad", val: vals.costoElectricidadHora, onChange: is3D ? mk3D("costoElectricidadHora") : isSub ? mkSub("costoElectricidadHora") : isBor ? mkBor("costoElectricidadHora") : isVin ? mkVin("costoElectricidadHora") : mkLas("costoElectricidadHora"), step: 10, unit: "$/hr", disabled: !!perfil, tooltip: "Costo por hora de máquina encendida." }),
+              is3D && h("div", { style: { marginBottom: 14 } },
+                h("div", { style: { fontSize: 10, color: "#444", marginBottom: 8 } }, "⚡ Presets Bambu Lab:"),
+                h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+                  [["A1 mini", 70], ["A1", 90], ["P1S", 100], ["X1C", 150]].map(([m, w]) =>
+                    h("button", { key: m, onClick: () => mk3D("costoElectricidadHora")(Math.round(w / 1000 * (vals.costoElectricidadHora || 120))), style: { background: "#0a0a14", border: "1px solid #1e1e35", borderRadius: 8, padding: "6px 12px", color: "#666", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" } }, `${m} ~${w}W`)
+                  )
                 )
+              ),
+              h(NumInput, { label: "Costos fijos", val: vals.costosFijos, onChange: is3D ? mk3D("costosFijos") : isSub ? mkSub("costosFijos") : isBor ? mkBor("costosFijos") : isVin ? mkVin("costosFijos") : mkLas("costosFijos"), step: 100, unit: "$/trabajo", disabled: !!perfil, tooltip: "Alquiler + internet + otros gastos fijos mensuales ÷ cantidad de trabajos por mes." }),
+              h(NumInput, { label: "🧩 Otros gastos", val: vals.otrosGastos || 0, onChange: is3D ? mk3D("otrosGastos") : isSub ? mkSub("otrosGastos") : isBor ? mkBor("otrosGastos") : isVin ? mkVin("otrosGastos") : mkLas("otrosGastos"), step: 50, unit: "$", tooltip: "Pegamento, lija, alcohol, guantes, sprays — todo lo que consumís en el trabajo." })
+            ),
+
+            // Amortización
+            h("div", { style: { background: "#12121f", border: "1px solid #fbbf2425", borderRadius: 14, padding: 20, marginBottom: 16 } },
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 } }, "🔧 Amortización de máquina"),
+              h("div", { style: { fontSize: 12, color: "#555", marginBottom: 14, lineHeight: 1.6 } }, "Distribuí el costo de tu máquina en cada trabajo para recuperarla con el tiempo."),
+              h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
+                h(NumInput, { label: "Precio de la máquina", val: vals.precioMaquina || 0, onChange: is3D ? mk3D("precioMaquina") : isSub ? mkSub("precioMaquina") : isBor ? mkBor("precioMaquina") : isVin ? mkVin("precioMaquina") : mkLas("precioMaquina"), step: 10000, unit: "$", tooltip: "Cuánto pagaste por tu máquina." }),
+                h(NumInput, { label: "Vida útil", val: vals.vidaUtilAnios || 3, onChange: is3D ? mk3D("vidaUtilAnios") : isSub ? mkSub("vidaUtilAnios") : isBor ? mkBor("vidaUtilAnios") : isVin ? mkVin("vidaUtilAnios") : mkLas("vidaUtilAnios"), step: 1, unit: "años", tooltip: "Cuántos años estimás que va a durar." }),
+                h(NumInput, { label: "Uso diario", val: vals.horasUsoDiario || 8, onChange: is3D ? mk3D("horasUsoDiario") : isSub ? mkSub("horasUsoDiario") : isBor ? mkBor("horasUsoDiario") : isVin ? mkVin("horasUsoDiario") : mkLas("horasUsoDiario"), step: 1, unit: "hs/día", tooltip: "Horas por día que usás la máquina en promedio." }),
+                h(NumInput, { label: "% Reparaciones", val: vals.pctReparaciones || 5, onChange: is3D ? mk3D("pctReparaciones") : isSub ? mkSub("pctReparaciones") : isBor ? mkBor("pctReparaciones") : isVin ? mkVin("pctReparaciones") : mkLas("pctReparaciones"), step: 1, unit: "%", tooltip: "% del precio que estimás gastar en reparaciones durante su vida útil." })
+              ),
+              vals.precioMaquina > 0 && h("div", { style: { background: "#fbbf2412", border: "1px solid #fbbf2430", borderRadius: 8, padding: "10px 14px", marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                h("span", { style: { fontSize: 12, color: "#fbbf24" } }, "Costo amortización/hora:"),
+                h("span", { style: { fontSize: 18, fontWeight: 800, fontFamily: "monospace", color: "#fbbf24" } }, fmt((vals.precioMaquina * (1 + (vals.pctReparaciones || 5) / 100)) / ((vals.vidaUtilAnios || 3) * 365 * (vals.horasUsoDiario || 8))) + "/hr")
               )
             ),
-            h("div", { style: { display: "flex", gap: 8, marginTop: 16 } },
-              h("button", { onClick: saveToHistorial, style: { ...BTN, flex: 1, background: savedFlash ? "#4ade80" : "#1e2a1e", border: "1px solid", borderColor: savedFlash ? "#4ade80" : "#2a4a2a", padding: 13, color: savedFlash ? "#0d0d1a" : "#4ade80", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s", borderRadius: 10 } }, savedFlash ? "✓ Guardado" : "💾 Guardar"),
-              h("button", { onClick: () => exportarPDF({ tipo: TABS_TRABAJO[activeTab].label, vals, res, is3D }), style: { ...BTN, flex: 2, background: "linear-gradient(135deg,#ff6b35,#ff5c1a)", padding: 13, color: "#fff", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 20px rgba(255,92,26,0.25)", borderRadius: 10 } }, "📄 Exportar PDF")
+
+            // Mano de obra
+            h("div", { style: { background: "#12121f", border: "1px solid #7c5cfc25", borderRadius: 14, padding: 20, marginBottom: 16 } },
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 } }, "🧑‍🔧 Mano de obra"),
+              h("div", { style: { background: "#7c5cfc12", border: "1px solid #7c5cfc30", borderRadius: 10, padding: "12px 14px", marginBottom: 14, fontSize: 12, color: "#9d8eff", lineHeight: 1.6 } },
+                "⚠️ ", h("strong", { style: { color: "#c4b5fd" } }, "El costo más olvidado."), " Tu tiempo vale dinero. Si lo dejás en $0 estás trabajando gratis."
+              ),
+              h(NumInput, { label: "Valor hora de tu trabajo", val: vals.manoObraHora || 0, onChange: is3D ? mk3D("manoObraHora") : isSub ? mkSub("manoObraHora") : isBor ? mkBor("manoObraHora") : isVin ? mkVin("manoObraHora") : mkLas("manoObraHora"), step: 100, unit: "$/hr" })
+            ),
+
+            // Venta
+            h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 20 } },
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 } }, "💰 Venta"),
+              h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
+                h(NumInput, { label: "Margen de ganancia", val: vals.margenDeseado, onChange: is3D ? mk3D("margenDeseado") : isSub ? mkSub("margenDeseado") : isBor ? mkBor("margenDeseado") : isVin ? mkVin("margenDeseado") : mkLas("margenDeseado"), step: 5, unit: "%" }),
+                h(NumInput, { label: "Cantidad", val: vals.cantidad, onChange: is3D ? mk3D("cantidad") : isSub ? mkSub("cantidad") : isBor ? mkBor("cantidad") : isVin ? mkVin("cantidad") : mkLas("cantidad"), step: 1, unit: "uds" })
+              )
+            )
+          ),
+
+          // RIGHT — resultado sticky
+          h("div", { className: "result-sticky" },
+            h("div", { style: { background: "linear-gradient(145deg,#1a0d00,#12121f)", border: "1px solid #ff5c1a30", borderRadius: 20, padding: 28 } },
+
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff5c1a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 20 } }, "📊 Resultado en tiempo real"),
+
+              // Precio grande
+              h("div", { style: { textAlign: "center", padding: "24px 0", marginBottom: 20, background: "#ff5c1a08", borderRadius: 14, border: "1px solid #ff5c1a15" } },
+                h("div", { style: { fontSize: 11, color: "#666", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 } }, "✅ Precio sugerido"),
+                h("div", { style: { fontSize: 52, fontWeight: 900, color: "#ff5c1a", fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 } }, fmt(res.precioSugerido)),
+                h("div", { style: { fontSize: 13, color: "#444", marginTop: 6 } }, `Precio mínimo: ${fmt(res.costoTotal)}`)
+              ),
+
+              // Desglose
+              h("div", { style: { marginBottom: 20 } },
+                h(ResultRow, { label: "Materiales", value: fmt(is3D ? res.material : isSub ? res.cSus + res.cTin : res.material) }),
+                h(ResultRow, { label: "Electricidad", value: fmt(res.electricidad) }),
+                h(ResultRow, { label: "Costos fijos", value: fmt(res.fijos) }),
+                res.otrosGastos > 0 && h(ResultRow, { label: "🧩 Otros gastos", value: fmt(res.otrosGastos) }),
+                res.amortizacion > 0 && h(ResultRow, { label: "🔧 Amortización", value: fmt(res.amortizacion) }),
+                res.manoObra > 0 && h(ResultRow, { label: "🧑‍🔧 Mano de obra", value: fmt(res.manoObra) }),
+                h(ResultRow, { label: `Costo total × ${vals.cantidad}`, value: fmt(res.costoTotal) }),
+                h(ResultRow, { label: "Ganancia", value: fmt(res.ganancia), hi: true })
+              ),
+
+              // Escenarios
+              h("div", { style: { marginBottom: 20 } },
+                h("div", { style: { fontSize: 10, color: "#444", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "Escenarios"),
+                [["Conservador 20%", res.costoTotal / 0.8, "#22d07a"], [`Tu margen ${vals.margenDeseado}%`, res.precioSugerido, "#ff5c1a"], ["Agresivo 70%", res.costoTotal / 0.3, "#a78bfa"]].map(([l, p, c]) =>
+                  h("div", { key: l, style: { marginBottom: 10 } },
+                    h("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 } },
+                      h("span", { style: { color: c } }, l),
+                      h("span", { style: { fontFamily: "monospace", fontWeight: 700, color: c } }, fmt(p))
+                    ),
+                    h("div", { style: { background: "#1a1a2e", borderRadius: 3, height: 5 } },
+                      h("div", { style: { height: 5, background: c, borderRadius: 3, width: l.includes("Conservador") ? "55%" : l.includes("Tu") ? "75%" : "100%" } })
+                    )
+                  )
+                )
+              ),
+
+              // Botones
+              h("div", { style: { display: "flex", gap: 8 } },
+                h("button", { onClick: saveToHistorial, style: { ...BTN, flex: 1, background: savedFlash ? "#22d07a" : "#22d07a12", border: "1px solid", borderColor: savedFlash ? "#22d07a" : "#22d07a40", padding: 13, color: savedFlash ? "#0a0a14" : "#22d07a", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s", borderRadius: 10 } }, savedFlash ? "✓ Guardado" : "💾 Guardar"),
+                h("button", { onClick: () => exportarPDF({ tipo: TABS_TRABAJO[activeTab].label, vals, res, is3D }), style: { ...BTN, flex: 2, background: "#ff5c1a", border: "none", padding: 13, color: "#fff", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10 } }, "📄 Exportar PDF")
+              )
             )
           )
         ),
 
         // MI TALLER
-        screen === 1 && h(React.Fragment, null,
-          h("div", { style: { display: "flex", gap: 8, marginBottom: 14 } },
+        screen === 1 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
+          h("div", { style: { display: "flex", gap: 8, marginBottom: 20 } },
             h("button", { style: tabStyle(tallerTab === 0), onClick: () => setTallerTab(0) }, "📦 Insumos"),
             h("button", { style: tabStyle(tallerTab === 1), onClick: () => setTallerTab(1) }, "⚙️ Perfiles")
           ),
@@ -669,7 +714,7 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
         ),
 
         // HISTORIAL
-        screen === 2 && h(React.Fragment, null,
+        screen === 2 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
           h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
             h("div", null, h("div", { style: { fontWeight: 700, fontSize: 15 } }, "Historial"), h("div", { style: { fontSize: 11, color: "#444" } }, `${historial.length} presupuestos guardados`)),
             historial.length > 0 && h("button", { onClick: () => setHistorial([]), style: { ...BTN, background: "transparent", border: "1px solid #2a1a1a", color: "#f87171", padding: "6px 12px", fontSize: 11 } }, "Limpiar")
@@ -707,7 +752,7 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
       ),
 
         // PRO SCREEN
-        screen === 3 && h(React.Fragment, null,
+        screen === 3 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
           h("div", { style: { background: "linear-gradient(135deg,#1a1200,#0d0d1a)", border: "1px solid #fbbf2430", borderRadius: 14, padding: 20, marginBottom: 14, textAlign: "center" } },
             h("div", { style: { fontSize: 28, marginBottom: 8 } }, "⭐"),
             h("div", { style: { fontWeight: 800, fontSize: 18, marginBottom: 4 } }, "Importador de precios Pro"),
@@ -817,7 +862,8 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
             )
           )
         ),
-      
+
+      // Modals
       showInsumo && h(Modal, { title: editIns ? "Editar insumo" : "Nuevo insumo", onClose: () => { setShowInsumo(false); setEditIns(null); } },
         h(Field, { label: "Nombre", value: newIns.nombre, onChange: v => setNewIns(p => ({ ...p, nombre: v })), placeholder: "Ej: Filamento PLA Negro" }),
         h(DropSelect, { label: "Tipo", value: newIns.tipo, onChange: v => setNewIns(p => ({ ...p, tipo: v })), options: [{ value: "3D", label: "🖨️ Impresión 3D" }, { value: "SUB", label: "🎨 Sublimación" }, { value: "General", label: "⚙️ General" }] }),
