@@ -19,11 +19,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script>
-  console.log("✓ React cargado:", typeof React);
-  console.log("✓ ReactDOM cargado:", typeof ReactDOM);
   const { useState, useRef, createElement: h } = React;
   const { createRoot } = ReactDOM;
-  console.log("✓ useState:", typeof useState);
 
   // ─── PDF Export ─────────────────────────────────────────────────────
   function exportarPDF({ tipo, vals, res, is3D, cliente }) {
@@ -249,7 +246,6 @@ ${clienteHtml || ""}
   ];
 
   function App() {
-    console.log("✓ App() ejecutándose");
     const [screen, setScreen] = useState(0);
     const [activeTab, setActiveTab] = useState(0);
     const [tallerTab, setTallerTab] = useState(0);
@@ -520,7 +516,6 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
 
     const h = React.createElement;
 
-    console.log("✓ App llegó al return");
     try {
     return h("div", { style: { minHeight: "100vh", background: "#0a0a14", fontFamily: "'Sora','Segoe UI',sans-serif", color: "#fff" } },
       h("style", null, `
@@ -1239,19 +1234,8 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
     }
   }
 
-  console.log("✓ Llegó al createRoot");
   
-  // Test render primero
-  try {
-    createRoot(document.getElementById("root")).render(
-      React.createElement(App)
-    );
-    console.log("✓ render ejecutado");
-  } catch(e) {
-    console.error("✗ Error en render:", e);
-    document.getElementById("root").innerHTML = '<div style="color:red;padding:20px">Error: ' + e.message + '</div>';
-  }
-  // fin del script
+  createRoot(document.getElementById("root")).render(React.createElement(App));
 </script>
 </body>
 </html>
