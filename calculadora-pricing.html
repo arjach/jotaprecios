@@ -89,7 +89,7 @@
     const fijos = perf ? perf.costosFijos3D : v.costosFijos;
     const material = v.pesoGramos * cxg;
     const electricidad = v.tiempoHoras * elec;
-    const manoObra = (v.manoObraHora || 0) * v.tiempoHoras;
+    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
     const otrosGastos = v.otrosGastos || 0;
     // Amortización: costo máquina / (años vida útil * días * horas uso diario) * horas trabajo
     const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
@@ -104,7 +104,7 @@
     const elec = perf ? perf.electricidad : v.costoElectricidadHora;
     const fijos = perf ? perf.costosFijosSub : v.costosFijos;
     const electricidad = (v.tiempoMinutos / 60) * elec;
-    const manoObra = (v.manoObraHora || 0) * (v.tiempoMinutos / 60);
+    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
     const otrosGastos = v.otrosGastos || 0;
     const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
     const amortizacion = amortHora * (v.tiempoMinutos / 60);
@@ -117,7 +117,7 @@
     const fijos = perf ? perf.costosFijosBor : v.costosFijos;
     const material = v.costoHilo + v.costoEntretela;
     const electricidad = (v.tiempoMinutos / 60) * elec;
-    const manoObra = (v.manoObraHora || 0) * (v.tiempoMinutos / 60);
+    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
     const otrosGastos = v.otrosGastos || 0;
     const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
     const amortizacion = amortHora * (v.tiempoMinutos / 60);
@@ -130,7 +130,7 @@
     const fijos = perf ? perf.costosFijosVin : v.costosFijos;
     const material = v.costoVinilo + v.costoTransfer;
     const electricidad = (v.tiempoMinutos / 60) * elec;
-    const manoObra = (v.manoObraHora || 0) * (v.tiempoMinutos / 60);
+    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
     const otrosGastos = v.otrosGastos || 0;
     const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
     const amortizacion = amortHora * (v.tiempoMinutos / 60);
@@ -143,7 +143,7 @@
     const fijos = perf ? perf.costosFijosLas : v.costosFijos;
     const material = v.costoMaterial;
     const electricidad = (v.tiempoMinutos / 60) * elec;
-    const manoObra = (v.manoObraHora || 0) * (v.tiempoMinutos / 60);
+    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
     const otrosGastos = v.otrosGastos || 0;
     const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
     const amortizacion = amortHora * (v.tiempoMinutos / 60);
@@ -247,11 +247,11 @@
     const setHistorial = (fn) => { setHistorialRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_historial", next); return next; }); };
 
     // Estados calculadora por tipo
-    const [v3D, setV3D] = useState(() => loadLS("jp_v3D", { pesoGramos: 50, costoPorGramo: 35, tiempoHoras: 3, costoElectricidadHora: 120, costosFijos: 800, manoObraHora: 0, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 40, cantidad: 1 }));
-    const [vSub, setVSub] = useState(() => loadLS("jp_vSub", { costoSustrato: 1500, costoTinta: 380, tiempoMinutos: 20, costoElectricidadHora: 120, costosFijos: 500, manoObraHora: 0, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
-    const [vBor, setVBor] = useState(() => loadLS("jp_vBor", { costoHilo: 350, costoEntretela: 200, tiempoMinutos: 30, costoElectricidadHora: 120, costosFijos: 600, manoObraHora: 800, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
-    const [vVin, setVVin] = useState(() => loadLS("jp_vVin", { costoVinilo: 300, costoTransfer: 150, tiempoMinutos: 15, costoElectricidadHora: 120, costosFijos: 400, manoObraHora: 600, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 45, cantidad: 1 }));
-    const [vLas, setVLas] = useState(() => loadLS("jp_vLas", { costoMaterial: 500, tiempoMinutos: 20, costoElectricidadHora: 150, costosFijos: 700, manoObraHora: 700, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
+    const [v3D, setV3D] = useState(() => loadLS("jp_v3D", { pesoGramos: 50, costoPorGramo: 35, tiempoHoras: 3, costoElectricidadHora: 120, costosFijos: 800, manoObraHora: 0, horasManoObra: 0, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 40, cantidad: 1 }));
+    const [vSub, setVSub] = useState(() => loadLS("jp_vSub", { costoSustrato: 1500, costoTinta: 380, tiempoMinutos: 20, costoElectricidadHora: 120, costosFijos: 500, manoObraHora: 0, horasManoObra: 0, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
+    const [vBor, setVBor] = useState(() => loadLS("jp_vBor", { costoHilo: 350, costoEntretela: 200, tiempoMinutos: 30, costoElectricidadHora: 120, costosFijos: 600, manoObraHora: 800, horasManoObra: 1, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
+    const [vVin, setVVin] = useState(() => loadLS("jp_vVin", { costoVinilo: 300, costoTransfer: 150, tiempoMinutos: 15, costoElectricidadHora: 120, costosFijos: 400, manoObraHora: 600, horasManoObra: 0.5, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 45, cantidad: 1 }));
+    const [vLas, setVLas] = useState(() => loadLS("jp_vLas", { costoMaterial: 500, tiempoMinutos: 20, costoElectricidadHora: 150, costosFijos: 700, manoObraHora: 700, horasManoObra: 0.5, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
 
     // Guardar valores automáticamente
     const mk3D = (k) => (v) => { setV3D(p => { const n = {...p, [k]: v}; saveLS("jp_v3D", n); return n; }); };
@@ -581,9 +581,16 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
             h("div", { style: { background: "#12121f", border: "1px solid #7c5cfc25", borderRadius: 14, padding: 20, marginBottom: 16 } },
               h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 } }, "🧑‍🔧 Mano de obra"),
               h("div", { style: { background: "#7c5cfc12", border: "1px solid #7c5cfc30", borderRadius: 10, padding: "12px 14px", marginBottom: 14, fontSize: 12, color: "#9d8eff", lineHeight: 1.6 } },
-                "⚠️ ", h("strong", { style: { color: "#c4b5fd" } }, "El costo más olvidado."), " Tu tiempo vale dinero. Si lo dejás en $0 estás trabajando gratis."
+                "⚠️ ", h("strong", { style: { color: "#c4b5fd" } }, "El costo más olvidado."), " Incluí el tiempo que dedicás vos a cada trabajo: diseño, preparación, post-procesado, comunicación con el cliente, etc."
               ),
-              h(NumInput, { label: "Valor hora de tu trabajo", val: vals.manoObraHora || 0, onChange: is3D ? mk3D("manoObraHora") : isSub ? mkSub("manoObraHora") : isBor ? mkBor("manoObraHora") : isVin ? mkVin("manoObraHora") : mkLas("manoObraHora"), step: 100, unit: "$/hr" })
+              h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
+                h(NumInput, { label: "Valor hora de tu trabajo", val: vals.manoObraHora || 0, onChange: is3D ? mk3D("manoObraHora") : isSub ? mkSub("manoObraHora") : isBor ? mkBor("manoObraHora") : isVin ? mkVin("manoObraHora") : mkLas("manoObraHora"), step: 100, unit: "$/hr", tooltip: "Cuánto querés ganar por hora de tu tiempo. Pensalo como tu sueldo hora." }),
+                h(NumInput, { label: "Horas trabajadas", val: vals.horasManoObra || 0, onChange: is3D ? mk3D("horasManoObra") : isSub ? mkSub("horasManoObra") : isBor ? mkBor("horasManoObra") : isVin ? mkVin("horasManoObra") : mkLas("horasManoObra"), step: 0.5, unit: "hs", tooltip: "Horas que vos trabajaste en este pedido: diseño del archivo, preparación de la máquina, post-procesado (lija, pintura, pegamento), empaque, comunicación con el cliente, etc." })
+              ),
+              vals.manoObraHora > 0 && vals.horasManoObra > 0 && h("div", { style: { background: "#a78bfa12", border: "1px solid #a78bfa30", borderRadius: 8, padding: "10px 14px", marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                h("span", { style: { fontSize: 12, color: "#a78bfa" } }, `${vals.horasManoObra}hs × ${fmt(vals.manoObraHora)}/hr =`),
+                h("span", { style: { fontSize: 18, fontWeight: 800, fontFamily: "monospace", color: "#a78bfa" } }, fmt(vals.manoObraHora * vals.horasManoObra))
+              )
             ),
 
             // Venta
