@@ -230,23 +230,15 @@
     const mkVin = (k) => (v) => { setVVin(p => { const n = {...p, [k]: v}; saveLS("jp_vVin", n); return n; }); };
     const mkLas = (k) => (v) => { setVLas(p => { const n = {...p, [k]: v}; saveLS("jp_vLas", n); return n; }); };
 
-    const [selFil, setSelFil] = useState("");
-    const [selSus, setSelSus] = useState("");
-    const [selTin, setSelTin] = useState("");
-    const [insumos, setInsumos] = useState(DEFAULT_INSUMOS);
-    const [perfiles, setPerfiles] = useState(DEFAULT_PERFILES);
-    const [selPerf, setSelPerf] = useState("");
-    const [selFil, setSelFil] = useState("");
-    const [selSus, setSelSus] = useState("");
-    const [selTin, setSelTin] = useState("");
-    const [v3D, setV3D] = useState({ pesoGramos: 50, costoPorGramo: 35, tiempoHoras: 3, costoElectricidadHora: 120, costosFijos: 800, margenDeseado: 40, cantidad: 1 });
-    const [vSub, setVSub] = useState({ costoSustrato: 1500, costoTinta: 380, tiempoMinutos: 20, costoElectricidadHora: 120, costosFijos: 500, margenDeseado: 50, cantidad: 1 });
     const [showInsumo, setShowInsumo] = useState(false);
     const [showPerf, setShowPerf] = useState(false);
     const [editIns, setEditIns] = useState(null);
     const [editPerf, setEditPerf] = useState(null);
     const [newIns, setNewIns] = useState({ nombre: "", tipo: "3D", unidad: "gr", costo: 0 });
     const [newPerf, setNewPerf] = useState({ nombre: "", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500, costosFijosBor: 600, costosFijosVin: 400, costosFijosLas: 700 });
+    const [selFil, setSelFil] = useState("");
+    const [selSus, setSelSus] = useState("");
+    const [selTin, setSelTin] = useState("");
 
     const tipoActivo = TABS_TRABAJO[activeTab].id;
     const is3D = tipoActivo === "3D";
