@@ -21,10 +21,16 @@
   import React, { useState, useRef } from 'https://esm.sh/react@18';
 
   // ─── PDF Export ─────────────────────────────────────────────────────
-  function exportarPDF({ tipo, vals, res, is3D }) {
+  function exportarPDF({ tipo, vals, res, is3D, cliente }) {
     const fecha = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
-    const nro = Math.floor(Math.random() * 9000) + 1000;
+    const nro = cliente?.nroPedido || Math.floor(Math.random() * 9000) + 1000;
     const f = (v) => `$${Math.round(v).toLocaleString("es-AR")}`;
+    const clienteHtml = cliente?.nombre ? `
+      <div style="background:#f8f8f8;border-radius:8px;padding:14px 16px;margin-bottom:20px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#ff5c1a;margin-bottom:8px">Cliente</div>
+        ${cliente.nombre ? `<div style="font-weight:700;font-size:15px;margin-bottom:2px">${cliente.nombre}</div>` : ""}
+        ${cliente.descripcion ? `<div style="font-size:13px;color:#666">${cliente.descripcion}</div>` : ""}
+      </div>` : "";
     const detalles = is3D
       ? `<tr><td>Peso</td><td>${vals.pesoGramos} gr</td></tr><tr><td>Filamento</td><td>${f(vals.pesoGramos * vals.costoPorGramo)}</td></tr><tr><td>Tiempo</td><td>${vals.tiempoHoras} hs</td></tr>`
       : `<tr><td>Sustrato</td><td>${f(vals.costoSustrato)}</td></tr><tr><td>Tinta</td><td>${f(vals.costoTinta)}</td></tr><tr><td>Tiempo</td><td>${vals.tiempoMinutos} min</td></tr>`;
@@ -33,6 +39,7 @@
 </head><body>
 <div class="hdr"><div><div class="logo">JotaPrecios</div><p style="font-size:11px;color:#888">jotaprecios.com.ar</p></div>
 <div style="text-align:right"><h2 style="font-size:17px">Presupuesto #${nro}</h2><p style="font-size:12px;color:#888">${fecha}</p><p style="color:#ff5c1a;font-weight:600;font-size:13px">${tipo}</p></div></div>
+${clienteHtml || ""}
 <div class="sec">Detalle</div>
 <table><tbody>${detalles}<tr><td>Electricidad</td><td>${f(res.electricidad)}</td></tr><tr><td>Costos fijos</td><td>${f(res.fijos)}</td></tr><tr style="color:#aaa"><td>Costo total × ${vals.cantidad}</td><td>${f(res.costoTotal)}</td></tr></tbody></table>
 <div class="sec">Precio final</div>
@@ -270,6 +277,27 @@
     const [selSus, setSelSus] = useState("");
     const [selTin, setSelTin] = useState("");
 
+    // Panel lateral dashboard
+    const [panelOpen, setPanelOpen] = useState(false);
+    const [panelTab, setPanelTab] = useState(0); // 0=rentabilidad 1=punto equilibrio
+
+    // Modal datos cliente para PDF
+    const [showClienteModal, setShowClienteModal] = useState(false);
+    const [cliente, setCliente] = useState({ nombre: "", descripcion: "", nroPedido: "" });
+
+    // Plantillas
+    const [plantillas, setPlantillasRaw] = useState(() => loadLS("jp_plantillas", []));
+    const setPlantillas = (fn) => { setPlantillasRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_plantillas", next); return next; }); };
+    const [showPlantillaModal, setShowPlantillaModal] = useState(false);
+    const [newPlantillaNombre, setNewPlantillaNombre] = useState("");
+
+    // Costos fijos mensuales para punto de equilibrio
+    const [gastosMensuales, setGastosMensuales] = useState(() => loadLS("jp_gastos", 50000));
+
+    // Dashboard - screen numbers shift: 0=calc, 1=taller, 2=historial, 3=dashboard, 4=pro
+    const SCREEN_DASHBOARD = 3;
+    const SCREEN_PRO = 4;
+
     const tipoActivo = TABS_TRABAJO[activeTab].id;
     const is3D = tipoActivo === "3D";
     const isSub = tipoActivo === "SUB";
@@ -459,23 +487,32 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
         .inputs-col { min-width: 0; }
         @media (max-width: 800px) { .calc-grid { grid-template-columns: 1fr; } .result-sticky { position: static; } }
         @media (max-width: 640px) { .calc-grid { padding: 12px 12px 48px; gap: 12px; } }
+        .slide-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 95vw; background: #0d0d1e; border-left: 1px solid #1e1e35; z-index: 200; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); overflow-y: auto; }
+        .slide-panel.open { transform: translateX(0); }
+        .slide-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .slide-overlay.open { opacity: 1; pointer-events: all; }
+        .stat-card { background: #12121f; border: 1px solid #1e1e35; border-radius: 12px; padding: 16px 20px; }
+        .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .chart-bar { background: #ff5c1a; border-radius: 4px 4px 0 0; min-height: 4px; transition: height 0.5s; }
       `),
 
       // Header
       h("div", { style: { background: "#0d0d1e", borderBottom: "1px solid #1e1e35", padding: "0 24px", position: "sticky", top: 0, zIndex: 50 } },
         h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 1100, margin: "0 auto", height: 60 } },
           h("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
-            h("div", { style: { width: 32, height: 32, borderRadius: 8, background: "#ff5c1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff" } }, "J"),
-            h("div", null,
-              h("div", { style: { fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" } }, "JotaPrecios"),
-              h("div", { style: { fontSize: 9, color: "#444", letterSpacing: "0.08em" } }, "CALCULADORA DE PRECIOS")
+            h("a", { href: "/", style: { display: "flex", alignItems: "center", gap: 12, textDecoration: "none" } },
+              h("div", { style: { width: 32, height: 32, borderRadius: 8, background: "#ff5c1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff" } }, "J"),
+              h("div", null,
+                h("div", { style: { fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" } }, "JotaPrecios"),
+                h("div", { style: { fontSize: 9, color: "#444", letterSpacing: "0.08em" } }, "CALCULADORA DE PRECIOS")
+              )
             )
           ),
           h("div", { style: { display: "flex", alignItems: "center", gap: 4 } },
-            ["🧮 Calcular", "🏭 Mi Taller", "📋 Historial", "⭐ Pro"].map((s, i) =>
-              h("button", { key: s, onClick: () => setScreen(i), style: { padding: "8px 14px", border: "none", background: screen === i ? "#ff5c1a18" : "none", borderRadius: 8, color: screen === i ? (i === 3 ? "#fbbf24" : "#ff5c1a") : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer", borderBottom: screen === i ? `2px solid ${i === 3 ? "#fbbf24" : "#ff5c1a"}` : "2px solid transparent" } }, s)
+            ["🧮 Calcular", "🏭 Mi Taller", "📋 Historial", "📊 Dashboard", "⭐ Pro"].map((s, i) =>
+              h("button", { key: s, onClick: () => setScreen(i), style: { padding: "8px 12px", border: "none", background: screen === i ? "#ff5c1a18" : "none", borderRadius: 8, color: screen === i ? (i === 4 ? "#fbbf24" : "#ff5c1a") : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 11, cursor: "pointer", borderBottom: screen === i ? `2px solid ${i === 4 ? "#fbbf24" : "#ff5c1a"}` : "2px solid transparent" } }, s)
             ),
-            h("a", { href: "/", style: { marginLeft: 12, fontSize: 12, color: "#444", textDecoration: "none", padding: "6px 12px", border: "1px solid #1e1e35", borderRadius: 8 } }, "← Inicio")
+            h("a", { href: "/", style: { marginLeft: 8, fontSize: 12, color: "#444", textDecoration: "none", padding: "6px 12px", border: "1px solid #1e1e35", borderRadius: 8 } }, "← Inicio")
           ),
           perfil && h("div", { style: { background: "#4ade8018", border: "1px solid #4ade8033", color: "#4ade80", fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 100 } }, `⚙️ ${perfil.nombre}`)
         )
@@ -647,7 +684,7 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
               // Botones
               h("div", { style: { display: "flex", gap: 8 } },
                 h("button", { onClick: saveToHistorial, style: { ...BTN, flex: 1, background: savedFlash ? "#22d07a" : "#22d07a12", border: "1px solid", borderColor: savedFlash ? "#22d07a" : "#22d07a40", padding: 13, color: savedFlash ? "#0a0a14" : "#22d07a", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s", borderRadius: 10 } }, savedFlash ? "✓ Guardado" : "💾 Guardar"),
-                h("button", { onClick: () => exportarPDF({ tipo: TABS_TRABAJO[activeTab].label, vals, res, is3D }), style: { ...BTN, flex: 2, background: "#ff5c1a", border: "none", padding: 13, color: "#fff", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10 } }, "📄 Exportar PDF")
+                h("button", { onClick: () => setShowClienteModal(true), style: { ...BTN, flex: 2, background: "#ff5c1a", border: "none", padding: 13, color: "#fff", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10 } }, "📄 Exportar PDF")
               )
             )
           )
@@ -657,7 +694,8 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
         screen === 1 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
           h("div", { style: { display: "flex", gap: 8, marginBottom: 20 } },
             h("button", { style: tabStyle(tallerTab === 0), onClick: () => setTallerTab(0) }, "📦 Insumos"),
-            h("button", { style: tabStyle(tallerTab === 1), onClick: () => setTallerTab(1) }, "⚙️ Perfiles")
+            h("button", { style: tabStyle(tallerTab === 1), onClick: () => setTallerTab(1) }, "⚙️ Perfiles"),
+            h("button", { style: tabStyle(tallerTab === 2), onClick: () => setTallerTab(2) }, "📋 Plantillas")
           ),
           tallerTab === 0 && h(React.Fragment, null,
             h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
@@ -717,6 +755,51 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
                 )
               )
             )
+          ),
+
+          // PLANTILLAS tab
+          tallerTab === 2 && h(React.Fragment, null,
+            h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
+              h("div", null,
+                h("div", { style: { fontWeight: 700, fontSize: 15 } }, "Plantillas de trabajo"),
+                h("div", { style: { fontSize: 11, color: "#444" } }, "Guardá configuraciones completas para reutilizar con un clic")
+              ),
+              h("button", {
+                onClick: () => { setNewPlantillaNombre(""); setShowPlantillaModal(true); },
+                style: { ...BTN, background: "#ff5c1a", color: "#fff", padding: "8px 14px", fontSize: 12 }
+              }, "+ Guardar actual")
+            ),
+            plantillas.length === 0 && h("div", { style: { textAlign: "center", padding: "48px 0", color: "#2a2a3a" } },
+              h("div", { style: { fontSize: 36, marginBottom: 12 } }, "📋"),
+              h("p", { style: { fontSize: 13, marginBottom: 6 } }, "No tenés plantillas guardadas"),
+              h("p", { style: { fontSize: 11, color: "#222" } }, "Configurá la calculadora y guardá la configuración como plantilla")
+            ),
+            plantillas.map(pl =>
+              h("div", { key: pl.id, style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 12, padding: 16, marginBottom: 10 } },
+                h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                  h("div", null,
+                    h("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 4 } }, pl.nombre),
+                    h("div", { style: { fontSize: 11, color: "#444" } }, `${TABS_TRABAJO.find(t => t.id === pl.tipo)?.label || pl.tipo} · Margen ${pl.vals.margenDeseado}% · ${new Date(pl.id).toLocaleDateString("es-AR")}`)
+                  ),
+                  h("div", { style: { display: "flex", gap: 6 } },
+                    h("button", {
+                      onClick: () => {
+                        const idx = TABS_TRABAJO.findIndex(t => t.id === pl.tipo);
+                        if (idx >= 0) setActiveTab(idx);
+                        if (pl.tipo === "3D") setV3D(pl.vals);
+                        else if (pl.tipo === "SUB") setVSub(pl.vals);
+                        else if (pl.tipo === "BOR") setVBor(pl.vals);
+                        else if (pl.tipo === "VIN") setVVin(pl.vals);
+                        else setVLas(pl.vals);
+                        setScreen(0);
+                      },
+                      style: { ...BTN, background: "#ff5c1a18", border: "1px solid #ff5c1a40", color: "#ff5c1a", padding: "7px 14px", fontSize: 12 }
+                    }, "Usar"),
+                    h("button", { onClick: () => setPlantillas(p => p.filter(x => x.id !== pl.id)), style: { ...BTN, background: "transparent", border: "1px solid #1e1e35", color: "#f87171", padding: "7px 10px" } }, "🗑")
+                  )
+                )
+              )
+            )
           )
         ),
 
@@ -758,8 +841,82 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
         )
       ),
 
+        // DASHBOARD
+        screen === 3 && h("div", { style: { maxWidth: 1100, margin: "0 auto", padding: "24px 24px 48px" } },
+          h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 } },
+            h("div", null,
+              h("div", { style: { fontSize: 22, fontWeight: 800, marginBottom: 4 } }, "📊 Dashboard"),
+              h("div", { style: { fontSize: 13, color: "#444" } }, `${historial.length} presupuestos · ${historial.filter(h => h.ganancia > 0).length} rentables`)
+            ),
+            h("button", {
+              onClick: () => setPanelOpen(true),
+              style: { ...BTN, background: "#ff5c1a", color: "#fff", padding: "10px 20px", fontSize: 13 }
+            }, "📈 Ver análisis detallado →")
+          ),
+
+          // Stats cards
+          h("div", { className: "dash-grid" },
+            [
+              ["Total presupuestado", fmt(historial.reduce((a, h) => a + h.precioSugerido, 0)), "#ff5c1a"],
+              ["Ganancia total", fmt(historial.reduce((a, h) => a + h.ganancia, 0)), "#22d07a"],
+              ["Margen promedio", `${historial.length ? Math.round(historial.reduce((a, h) => a + h.margen, 0) / historial.length) : 0}%`, "#a78bfa"],
+              ["Presupuestos", historial.length, "#38bdf8"],
+            ].map(([label, val, color]) =>
+              h("div", { key: label, className: "stat-card" },
+                h("div", { style: { fontSize: 11, color: "#444", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, label),
+                h("div", { style: { fontSize: 28, fontWeight: 800, fontFamily: "monospace", color } }, val)
+              )
+            )
+          ),
+
+          // Comparador de rentabilidad
+          h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 16, padding: 24, marginBottom: 20 } },
+            h("div", { style: { fontSize: 14, fontWeight: 700, marginBottom: 16, color: "#ff5c1a" } }, "🏆 Comparador de rentabilidad"),
+            historial.length === 0
+              ? h("div", { style: { textAlign: "center", padding: "32px 0", color: "#2a2a3a", fontSize: 13 } }, "Guardá presupuestos en la calculadora para verlos acá")
+              : h(React.Fragment, null,
+                  [...historial].sort((a, b) => b.margen - a.margen).slice(0, 10).map((entry, i) => {
+                    const pct = entry.margen;
+                    const color = pct >= 50 ? "#22d07a" : pct >= 30 ? "#ff5c1a" : "#f87171";
+                    return h("div", { key: entry.id, style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12 } },
+                      h("div", { style: { width: 24, fontSize: 12, color: "#444", textAlign: "right", flexShrink: 0 } }, `#${i+1}`),
+                      h("div", { style: { flex: 1, minWidth: 0 } },
+                        h("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 } },
+                          h("span", { style: { color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, `${entry.tipo} · ${entry.fecha}`),
+                          h("span", { style: { color, fontWeight: 700, fontFamily: "monospace", flexShrink: 0, marginLeft: 8 } }, `${pct}% · ${fmt(entry.ganancia)}`)
+                        ),
+                        h("div", { style: { background: "#1e1e35", borderRadius: 3, height: 6 } },
+                          h("div", { style: { height: 6, borderRadius: 3, background: color, width: `${Math.min(pct / 80 * 100, 100)}%`, transition: "width 0.5s" } })
+                        )
+                      )
+                    );
+                  })
+                )
+          ),
+
+          // Gráfico por tipo
+          historial.length > 0 && h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 16, padding: 24 } },
+            h("div", { style: { fontSize: 14, fontWeight: 700, marginBottom: 20, color: "#38bdf8" } }, "📦 Ganancia por tipo de trabajo"),
+            h("div", { style: { display: "flex", gap: 16, alignItems: "flex-end", height: 120 } },
+              TABS_TRABAJO.map(t => {
+                const entries = historial.filter(e => e.tipo && e.tipo.includes(t.id));
+                const total = entries.reduce((a, e) => a + e.ganancia, 0);
+                const maxTotal = Math.max(...TABS_TRABAJO.map(tt => historial.filter(e => e.tipo && e.tipo.includes(tt.id)).reduce((a, e) => a + e.ganancia, 0)), 1);
+                const height = Math.max((total / maxTotal) * 100, total > 0 ? 8 : 0);
+                return h("div", { key: t.id, style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 } },
+                  h("div", { style: { fontSize: 11, color: t.color, fontFamily: "monospace", fontWeight: 700 } }, total > 0 ? fmt(total) : ""),
+                  h("div", { style: { width: "100%", background: "#1e1e35", borderRadius: "4px 4px 0 0", height: 100, display: "flex", alignItems: "flex-end" } },
+                    h("div", { style: { width: "100%", background: t.color, borderRadius: "4px 4px 0 0", height: `${height}%`, transition: "height 0.5s" } })
+                  ),
+                  h("div", { style: { fontSize: 10, color: "#444", textAlign: "center" } }, t.label)
+                );
+              })
+            )
+          )
+        ),
+
         // PRO SCREEN
-        screen === 3 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
+        screen === 4 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
           h("div", { style: { background: "linear-gradient(135deg,#1a1200,#0d0d1a)", border: "1px solid #fbbf2430", borderRadius: 14, padding: 20, marginBottom: 14, textAlign: "center" } },
             h("div", { style: { fontSize: 28, marginBottom: 8 } }, "⭐"),
             h("div", { style: { fontWeight: 800, fontSize: 18, marginBottom: 4 } }, "Importador de precios Pro"),
@@ -869,6 +1026,107 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
             )
           )
         ),
+
+      // Overlay + Sliding Panel Dashboard
+      h("div", { className: `slide-overlay${panelOpen ? " open" : ""}`, onClick: () => setPanelOpen(false) }),
+      h("div", { className: `slide-panel${panelOpen ? " open" : ""}` },
+        h("div", { style: { padding: 24 } },
+          h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 } },
+            h("div", { style: { fontWeight: 800, fontSize: 18 } }, "📈 Análisis detallado"),
+            h("button", { onClick: () => setPanelOpen(false), style: { ...BTN, background: "none", color: "#666", fontSize: 24, padding: "0 4px" } }, "×")
+          ),
+          h("div", { style: { display: "flex", gap: 8, marginBottom: 24 } },
+            h("button", { onClick: () => setPanelTab(0), style: { flex: 1, padding: "9px", borderRadius: 10, border: "1px solid", borderColor: panelTab === 0 ? "#ff5c1a" : "#1e1e35", background: panelTab === 0 ? "#ff5c1a18" : "transparent", color: panelTab === 0 ? "#ff5c1a" : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" } }, "🏆 Rentabilidad"),
+            h("button", { onClick: () => setPanelTab(1), style: { flex: 1, padding: "9px", borderRadius: 10, border: "1px solid", borderColor: panelTab === 1 ? "#22d07a" : "#1e1e35", background: panelTab === 1 ? "#22d07a18" : "transparent", color: panelTab === 1 ? "#22d07a" : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" } }, "⚖️ Punto equilibrio")
+          ),
+
+          panelTab === 0 && h(React.Fragment, null,
+            h("div", { style: { fontSize: 13, color: "#444", marginBottom: 16 } }, "Tus trabajos ordenados de mayor a menor margen"),
+            historial.length === 0
+              ? h("div", { style: { textAlign: "center", padding: "40px 0", color: "#2a2a3a", fontSize: 13 } }, "Guardá presupuestos para ver el análisis")
+              : [...historial].sort((a, b) => b.margen - a.margen).map((entry, i) => {
+                  const color = entry.margen >= 50 ? "#22d07a" : entry.margen >= 30 ? "#ff5c1a" : "#f87171";
+                  return h("div", { key: entry.id, style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 10, padding: 14, marginBottom: 8 } },
+                    h("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 8 } },
+                      h("div", null,
+                        h("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 2 } }, `#${i+1} · ${entry.tipo}`),
+                        h("div", { style: { fontSize: 11, color: "#444" } }, `${entry.fecha} · ${entry.hora}`)
+                      ),
+                      h("div", { style: { textAlign: "right" } },
+                        h("div", { style: { fontSize: 16, fontWeight: 800, color, fontFamily: "monospace" } }, `${entry.margen}%`),
+                        h("div", { style: { fontSize: 11, color: "#22d07a" } }, `+${fmt(entry.ganancia)}`)
+                      )
+                    ),
+                    h("div", { style: { background: "#1e1e35", borderRadius: 3, height: 4 } },
+                      h("div", { style: { height: 4, borderRadius: 3, background: color, width: `${Math.min(entry.margen / 80 * 100, 100)}%` } })
+                    )
+                  );
+                })
+          ),
+
+          panelTab === 1 && h(React.Fragment, null,
+            h("div", { style: { background: "#0a1a0a", border: "1px solid #22d07a30", borderRadius: 12, padding: 16, marginBottom: 20, fontSize: 12, color: "#9ad4b0", lineHeight: 1.6 } },
+              "El punto de equilibrio es cuántos trabajos necesitás hacer por mes para cubrir todos tus gastos fijos. Si hacés menos que eso, perdés plata."
+            ),
+            h(Field, { label: "Gastos fijos mensuales ($)", value: gastosMensuales, onChange: v => { setGastosMensuales(parseFloat(v) || 0); saveLS("jp_gastos", parseFloat(v) || 0); }, type: "number", step: 1000 }),
+            historial.length > 0 && h(React.Fragment, null,
+              (() => {
+                const avgGanancia = historial.reduce((a, e) => a + e.ganancia, 0) / historial.length;
+                const puntoEq = avgGanancia > 0 ? Math.ceil(gastosMensuales / avgGanancia) : 0;
+                const avgPrecio = historial.reduce((a, e) => a + e.precioSugerido, 0) / historial.length;
+                return h(React.Fragment, null,
+                  h("div", { style: { background: "#12121f", border: "1px solid #22d07a30", borderRadius: 12, padding: 20, marginBottom: 16, textAlign: "center" } },
+                    h("div", { style: { fontSize: 11, color: "#444", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 } }, "Trabajos necesarios por mes"),
+                    h("div", { style: { fontSize: 52, fontWeight: 900, color: "#22d07a", fontFamily: "monospace", lineHeight: 1 } }, puntoEq),
+                    h("div", { style: { fontSize: 12, color: "#444", marginTop: 6 } }, `Para cubrir ${fmt(gastosMensuales)}/mes`)
+                  ),
+                  h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
+                    h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 10, padding: 14, textAlign: "center" } },
+                      h("div", { style: { fontSize: 10, color: "#444", marginBottom: 4 } }, "Ganancia promedio/trabajo"),
+                      h("div", { style: { fontSize: 20, fontWeight: 800, color: "#ff5c1a", fontFamily: "monospace" } }, fmt(avgGanancia))
+                    ),
+                    h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 10, padding: 14, textAlign: "center" } },
+                      h("div", { style: { fontSize: 10, color: "#444", marginBottom: 4 } }, "Precio promedio/trabajo"),
+                      h("div", { style: { fontSize: 20, fontWeight: 800, color: "#a78bfa", fontFamily: "monospace" } }, fmt(avgPrecio))
+                    )
+                  )
+                );
+              })()
+            ),
+            historial.length === 0 && h("div", { style: { textAlign: "center", padding: "32px 0", color: "#2a2a3a", fontSize: 13 } }, "Necesitás al menos un presupuesto guardado para calcular el punto de equilibrio")
+          )
+        )
+      ),
+
+      // Modal datos cliente para PDF
+      showClienteModal && h(Modal, { title: "Datos del cliente", onClose: () => setShowClienteModal(false) },
+        h("div", { style: { fontSize: 12, color: "#555", marginBottom: 16, lineHeight: 1.6 } }, "Estos datos aparecerán en el PDF del presupuesto. Podés dejar los campos vacíos."),
+        h(Field, { label: "Nombre del cliente", value: cliente.nombre, onChange: v => setCliente(p => ({ ...p, nombre: v })), placeholder: "Ej: María García" }),
+        h(Field, { label: "Descripción del trabajo", value: cliente.descripcion, onChange: v => setCliente(p => ({ ...p, descripcion: v })), placeholder: "Ej: Taza cerámica con foto" }),
+        h(Field, { label: "Nro de pedido (opcional)", value: cliente.nroPedido, onChange: v => setCliente(p => ({ ...p, nroPedido: v })), placeholder: "Ej: #001" }),
+        h("button", {
+          onClick: () => {
+            setShowClienteModal(false);
+            exportarPDF({ tipo: TABS_TRABAJO[activeTab].label, vals, res, is3D, cliente });
+          },
+          style: { ...BTN, background: "#ff5c1a", color: "#fff", width: "100%", padding: 14, marginTop: 4, borderRadius: 10, fontSize: 14 }
+        }, "📄 Generar PDF →")
+      ),
+
+      // Modal guardar plantilla
+      showPlantillaModal && h(Modal, { title: "Guardar como plantilla", onClose: () => setShowPlantillaModal(false) },
+        h("div", { style: { fontSize: 12, color: "#555", marginBottom: 16, lineHeight: 1.6 } }, `Guardás la configuración actual de ${TABS_TRABAJO[activeTab].label} como plantilla reutilizable.`),
+        h(Field, { label: "Nombre de la plantilla", value: newPlantillaNombre, onChange: setNewPlantillaNombre, placeholder: "Ej: Taza cerámica estándar" }),
+        h("button", {
+          onClick: () => {
+            if (!newPlantillaNombre.trim()) return;
+            setPlantillas(p => [{ id: Date.now(), nombre: newPlantillaNombre, tipo: tipoActivo, vals: { ...vals } }, ...p]);
+            setShowPlantillaModal(false);
+            setNewPlantillaNombre("");
+          },
+          style: { ...BTN, background: "#ff5c1a", color: "#fff", width: "100%", padding: 14, marginTop: 4, borderRadius: 10, fontSize: 14 }
+        }, "💾 Guardar plantilla")
+      ),
 
       // Modals
       showInsumo && h(Modal, { title: editIns ? "Editar insumo" : "Nuevo insumo", onClose: () => { setShowInsumo(false); setEditIns(null); } },
