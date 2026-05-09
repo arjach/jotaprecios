@@ -520,6 +520,12 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
 
     const h = React.createElement;
 
+    console.log("✓ App llegó al return");
+    // TEST MINIMO
+    return h("div", { style: { background: "#0a0a14", color: "white", padding: 40, minHeight: "100vh" } },
+      h("h1", null, "JotaPrecios cargando..."),
+      h("p", null, "Si ves esto React funciona")
+    );
     return h("div", { style: { minHeight: "100vh", background: "#0a0a14", fontFamily: "'Sora','Segoe UI',sans-serif", color: "#fff" } },
       h("style", null, `
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
