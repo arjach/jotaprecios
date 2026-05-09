@@ -89,9 +89,14 @@
     const fijos = perf ? perf.costosFijos3D : v.costosFijos;
     const material = v.pesoGramos * cxg;
     const electricidad = v.tiempoHoras * elec;
-    const costoTotal = (material + electricidad + fijos) * v.cantidad;
+    const manoObra = (v.manoObraHora || 0) * v.tiempoHoras;
+    const otrosGastos = v.otrosGastos || 0;
+    // Amortización: costo máquina / (años vida útil * días * horas uso diario) * horas trabajo
+    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
+    const amortizacion = amortHora * v.tiempoHoras;
+    const costoTotal = (material + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
     const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { material, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+    return { material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
   }
   function calcularSub(v, sus, tin, perf) {
     const cSus = sus ? sus.costo : v.costoSustrato;
@@ -99,36 +104,52 @@
     const elec = perf ? perf.electricidad : v.costoElectricidadHora;
     const fijos = perf ? perf.costosFijosSub : v.costosFijos;
     const electricidad = (v.tiempoMinutos / 60) * elec;
-    const costoTotal = (cSus + cTin + electricidad + fijos) * v.cantidad;
+    const manoObra = (v.manoObraHora || 0) * (v.tiempoMinutos / 60);
+    const otrosGastos = v.otrosGastos || 0;
+    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
+    const amortizacion = amortHora * (v.tiempoMinutos / 60);
+    const costoTotal = (cSus + cTin + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
     const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { cSus, cTin, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+    return { cSus, cTin, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
   }
   function calcularBordado(v, perf) {
     const elec = perf ? perf.electricidad : v.costoElectricidadHora;
     const fijos = perf ? perf.costosFijosBor : v.costosFijos;
     const material = v.costoHilo + v.costoEntretela;
     const electricidad = (v.tiempoMinutos / 60) * elec;
-    const costoTotal = (material + electricidad + fijos) * v.cantidad;
+    const manoObra = (v.manoObraHora || 0) * (v.tiempoMinutos / 60);
+    const otrosGastos = v.otrosGastos || 0;
+    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
+    const amortizacion = amortHora * (v.tiempoMinutos / 60);
+    const costoTotal = (material + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
     const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { material, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+    return { material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
   }
   function calcularVinilo(v, perf) {
     const elec = perf ? perf.electricidad : v.costoElectricidadHora;
     const fijos = perf ? perf.costosFijosVin : v.costosFijos;
     const material = v.costoVinilo + v.costoTransfer;
     const electricidad = (v.tiempoMinutos / 60) * elec;
-    const costoTotal = (material + electricidad + fijos) * v.cantidad;
+    const manoObra = (v.manoObraHora || 0) * (v.tiempoMinutos / 60);
+    const otrosGastos = v.otrosGastos || 0;
+    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
+    const amortizacion = amortHora * (v.tiempoMinutos / 60);
+    const costoTotal = (material + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
     const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { material, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+    return { material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
   }
   function calcularLaser(v, perf) {
     const elec = perf ? perf.electricidad : v.costoElectricidadHora;
     const fijos = perf ? perf.costosFijosLas : v.costosFijos;
     const material = v.costoMaterial;
     const electricidad = (v.tiempoMinutos / 60) * elec;
-    const costoTotal = (material + electricidad + fijos) * v.cantidad;
+    const manoObra = (v.manoObraHora || 0) * (v.tiempoMinutos / 60);
+    const otrosGastos = v.otrosGastos || 0;
+    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
+    const amortizacion = amortHora * (v.tiempoMinutos / 60);
+    const costoTotal = (material + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
     const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { material, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+    return { material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
   }
 
   const CARD = { background: "#111128", border: "1px solid #1e1e3a", borderRadius: 12, padding: 16, marginBottom: 10 };
@@ -167,12 +188,21 @@
     );
   }
 
-  function NumInput({ label, val, onChange, step = 1, unit = "", disabled = false }) {
-    return React.createElement("div", { style: { marginBottom: 11, opacity: disabled ? 0.4 : 1 } },
-      React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 } },
-        label, " ", React.createElement("span", { style: { color: "#ff6b35" } }, unit)
+  function NumInput({ label, val, onChange, step = 1, unit = "", disabled = false, tooltip = null }) {
+    const [showTip, setShowTip] = useState(false);
+    const h = React.createElement;
+    return h("div", { style: { marginBottom: 11, opacity: disabled ? 0.4 : 1, position: "relative" } },
+      h("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 4 } },
+        h("label", { style: { fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: "0.07em", textTransform: "uppercase" } },
+          label, " ", h("span", { style: { color: "#ff6b35" } }, unit)
+        ),
+        tooltip && h("button", {
+          onClick: () => setShowTip(p => !p),
+          style: { background: "none", border: "1px solid #2a2a4a", borderRadius: "50%", width: 16, height: 16, color: "#555", fontSize: 9, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }
+        }, "?")
       ),
-      React.createElement("input", { type: "number", step, min: 0, value: val, disabled, onChange: e => onChange(parseFloat(e.target.value) || 0), style: { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "9px 12px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }, onFocus: e => { if (!disabled) e.target.style.borderColor = "#ff6b35"; }, onBlur: e => e.target.style.borderColor = "#2a2a4a" })
+      tooltip && showTip && h("div", { style: { background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "10px 12px", marginBottom: 8, fontSize: 12, color: "#9d9db8", lineHeight: 1.6 } }, tooltip),
+      h("input", { type: "number", step, min: 0, value: val, disabled, onChange: e => onChange(parseFloat(e.target.value) || 0), style: { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "9px 12px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }, onFocus: e => { if (!disabled) e.target.style.borderColor = "#ff6b35"; }, onBlur: e => e.target.style.borderColor = "#2a2a4a" })
     );
   }
 
@@ -217,11 +247,11 @@
     const setHistorial = (fn) => { setHistorialRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_historial", next); return next; }); };
 
     // Estados calculadora por tipo
-    const [v3D, setV3D] = useState(() => loadLS("jp_v3D", { pesoGramos: 50, costoPorGramo: 35, tiempoHoras: 3, costoElectricidadHora: 120, costosFijos: 800, margenDeseado: 40, cantidad: 1 }));
-    const [vSub, setVSub] = useState(() => loadLS("jp_vSub", { costoSustrato: 1500, costoTinta: 380, tiempoMinutos: 20, costoElectricidadHora: 120, costosFijos: 500, margenDeseado: 50, cantidad: 1 }));
-    const [vBor, setVBor] = useState(() => loadLS("jp_vBor", { costoHilo: 350, costoEntretela: 200, tiempoMinutos: 30, costoElectricidadHora: 120, costosFijos: 600, margenDeseado: 50, cantidad: 1 }));
-    const [vVin, setVVin] = useState(() => loadLS("jp_vVin", { costoVinilo: 300, costoTransfer: 150, tiempoMinutos: 15, costoElectricidadHora: 120, costosFijos: 400, margenDeseado: 45, cantidad: 1 }));
-    const [vLas, setVLas] = useState(() => loadLS("jp_vLas", { costoMaterial: 500, tiempoMinutos: 20, costoElectricidadHora: 150, costosFijos: 700, margenDeseado: 50, cantidad: 1 }));
+    const [v3D, setV3D] = useState(() => loadLS("jp_v3D", { pesoGramos: 50, costoPorGramo: 35, tiempoHoras: 3, costoElectricidadHora: 120, costosFijos: 800, manoObraHora: 0, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 40, cantidad: 1 }));
+    const [vSub, setVSub] = useState(() => loadLS("jp_vSub", { costoSustrato: 1500, costoTinta: 380, tiempoMinutos: 20, costoElectricidadHora: 120, costosFijos: 500, manoObraHora: 0, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
+    const [vBor, setVBor] = useState(() => loadLS("jp_vBor", { costoHilo: 350, costoEntretela: 200, tiempoMinutos: 30, costoElectricidadHora: 120, costosFijos: 600, manoObraHora: 800, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
+    const [vVin, setVVin] = useState(() => loadLS("jp_vVin", { costoVinilo: 300, costoTransfer: 150, tiempoMinutos: 15, costoElectricidadHora: 120, costosFijos: 400, manoObraHora: 600, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 45, cantidad: 1 }));
+    const [vLas, setVLas] = useState(() => loadLS("jp_vLas", { costoMaterial: 500, tiempoMinutos: 20, costoElectricidadHora: 150, costosFijos: 700, manoObraHora: 700, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
 
     // Guardar valores automáticamente
     const mk3D = (k) => (v) => { setV3D(p => { const n = {...p, [k]: v}; saveLS("jp_v3D", n); return n; }); };
@@ -471,31 +501,69 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
           h("div", { style: CARD },
             h("div", { style: { fontSize: 10, fontWeight: 700, color: colorActivo, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "📦 Producción"),
             is3D && h(React.Fragment, null,
-              h(NumInput, { label: "Peso del objeto", val: v3D.pesoGramos, onChange: mk3D("pesoGramos"), step: 5, unit: "gr" }),
-              h(NumInput, { label: "Costo filamento/gr", val: v3D.costoPorGramo, onChange: mk3D("costoPorGramo"), step: 1, unit: "$/gr", disabled: !!filamento }),
-              h(NumInput, { label: "Tiempo de impresión", val: v3D.tiempoHoras, onChange: mk3D("tiempoHoras"), step: 0.5, unit: "hs" })
+              h(NumInput, { label: "Peso del objeto", val: v3D.pesoGramos, onChange: mk3D("pesoGramos"), step: 5, unit: "gr", tooltip: "El peso de la pieza terminada en gramos. Lo ves en el slicer antes de imprimir. Sirve para calcular cuánto filamento usás." }),
+              h(NumInput, { label: "Costo filamento/gr", val: v3D.costoPorGramo, onChange: mk3D("costoPorGramo"), step: 1, unit: "$/gr", disabled: !!filamento, tooltip: "El precio del filamento dividido por 1000. Si el kilo cuesta $35.000, el gramo sale $35. Es el costo de materia prima más importante en 3D." }),
+              h(NumInput, { label: "Tiempo de impresión", val: v3D.tiempoHoras, onChange: mk3D("tiempoHoras"), step: 0.5, unit: "hs", tooltip: "Cuántas horas tarda la impresora en terminar la pieza. Lo ves en el slicer. Afecta el costo de electricidad y mano de obra." })
             ),
             isSub && h(React.Fragment, null,
-              h(NumInput, { label: "Costo del sustrato", val: vSub.costoSustrato, onChange: mkSub("costoSustrato"), step: 100, unit: "$", disabled: !!sustrato }),
-              h(NumInput, { label: "Costo de tinta", val: vSub.costoTinta, onChange: mkSub("costoTinta"), step: 50, unit: "$", disabled: !!tinta }),
-              h(NumInput, { label: "Tiempo de producción", val: vSub.tiempoMinutos, onChange: mkSub("tiempoMinutos"), step: 5, unit: "min" })
+              h(NumInput, { label: "Costo del sustrato", val: vSub.costoSustrato, onChange: mkSub("costoSustrato"), step: 100, unit: "$", disabled: !!sustrato, tooltip: "El precio del objeto que vas a sublimar — taza, remera, almohada, etc. Es el costo de materia prima principal en sublimación." }),
+              h(NumInput, { label: "Costo de tinta", val: vSub.costoTinta, onChange: mkSub("costoTinta"), step: 50, unit: "$", disabled: !!tinta, tooltip: "Cuánto gastás de tinta por trabajo. Estimá según cuántas impresiones sacás de un juego de tintas y dividí el costo total." }),
+              h(NumInput, { label: "Tiempo de producción", val: vSub.tiempoMinutos, onChange: mkSub("tiempoMinutos"), step: 5, unit: "min", tooltip: "El tiempo total de trabajo — incluye preparación, prensado y enfriado. Afecta el costo de electricidad y mano de obra." })
             ),
             isBor && h(React.Fragment, null,
-              h(NumInput, { label: "Costo de hilo", val: vBor.costoHilo, onChange: mkBor("costoHilo"), step: 50, unit: "$" }),
-              h(NumInput, { label: "Costo de entretela", val: vBor.costoEntretela, onChange: mkBor("costoEntretela"), step: 50, unit: "$" }),
-              h(NumInput, { label: "Tiempo de bordado", val: vBor.tiempoMinutos, onChange: mkBor("tiempoMinutos"), step: 5, unit: "min" })
+              h(NumInput, { label: "Costo de hilo", val: vBor.costoHilo, onChange: mkBor("costoHilo"), step: 50, unit: "$", tooltip: "El costo del hilo usado en el bordado. Estimalo según cuántas madejas usás por trabajo y su precio unitario." }),
+              h(NumInput, { label: "Costo de entretela", val: vBor.costoEntretela, onChange: mkBor("costoEntretela"), step: 50, unit: "$", tooltip: "El costo de la entretela o estabilizador. Se gasta por cada trabajo y es un costo que muchos olvidan incluir." }),
+              h(NumInput, { label: "Tiempo de bordado", val: vBor.tiempoMinutos, onChange: mkBor("tiempoMinutos"), step: 5, unit: "min", tooltip: "El tiempo total desde que preparás la máquina hasta que terminás — incluye enhebrado, montaje y acabados." })
             ),
             isVin && h(React.Fragment, null,
-              h(NumInput, { label: "Costo del vinilo", val: vVin.costoVinilo, onChange: mkVin("costoVinilo"), step: 50, unit: "$" }),
-              h(NumInput, { label: "Costo transfer/papel", val: vVin.costoTransfer, onChange: mkVin("costoTransfer"), step: 50, unit: "$" }),
-              h(NumInput, { label: "Tiempo de aplicación", val: vVin.tiempoMinutos, onChange: mkVin("tiempoMinutos"), step: 5, unit: "min" })
+              h(NumInput, { label: "Costo del vinilo", val: vVin.costoVinilo, onChange: mkVin("costoVinilo"), step: 50, unit: "$", tooltip: "El costo del vinilo usado. Calculá cuántos centímetros cuadrados usás y multiplicá por el precio por hoja o metro." }),
+              h(NumInput, { label: "Costo transfer/papel", val: vVin.costoTransfer, onChange: mkVin("costoTransfer"), step: 50, unit: "$", tooltip: "El costo del papel transfer o papel de sublimación usado para aplicar el diseño al sustrato." }),
+              h(NumInput, { label: "Tiempo de aplicación", val: vVin.tiempoMinutos, onChange: mkVin("tiempoMinutos"), step: 5, unit: "min", tooltip: "El tiempo total de trabajo — corte, desmalezado y aplicación del vinilo. Es clave para calcular la mano de obra." })
             ),
             isLas && h(React.Fragment, null,
-              h(NumInput, { label: "Costo del material", val: vLas.costoMaterial, onChange: mkLas("costoMaterial"), step: 100, unit: "$" }),
-              h(NumInput, { label: "Tiempo de corte/grabado", val: vLas.tiempoMinutos, onChange: mkLas("tiempoMinutos"), step: 5, unit: "min" })
+              h(NumInput, { label: "Costo del material", val: vLas.costoMaterial, onChange: mkLas("costoMaterial"), step: 100, unit: "$", tooltip: "El costo del material que vas a cortar o grabar — MDF, acrílico, cuero, etc. Es el principal costo de materia prima." }),
+              h(NumInput, { label: "Tiempo de corte/grabado", val: vLas.tiempoMinutos, onChange: mkLas("tiempoMinutos"), step: 5, unit: "min", tooltip: "El tiempo que tarda el trabajo completo — incluye preparación del archivo, alineación y el proceso de corte o grabado." })
             ),
-            h(NumInput, { label: "Electricidad", val: vals.costoElectricidadHora, onChange: is3D ? mk3D("costoElectricidadHora") : isSub ? mkSub("costoElectricidadHora") : isBor ? mkBor("costoElectricidadHora") : isVin ? mkVin("costoElectricidadHora") : mkLas("costoElectricidadHora"), step: 10, unit: "$/hr", disabled: !!perfil }),
-            h(NumInput, { label: "Costos fijos", val: vals.costosFijos, onChange: is3D ? mk3D("costosFijos") : isSub ? mkSub("costosFijos") : isBor ? mkBor("costosFijos") : isVin ? mkVin("costosFijos") : mkLas("costosFijos"), step: 100, unit: "$/trabajo", disabled: !!perfil })
+            h(NumInput, { label: "Electricidad", val: vals.costoElectricidadHora, onChange: is3D ? mk3D("costoElectricidadHora") : isSub ? mkSub("costoElectricidadHora") : isBor ? mkBor("costoElectricidadHora") : isVin ? mkVin("costoElectricidadHora") : mkLas("costoElectricidadHora"), step: 10, unit: "$/hr", disabled: !!perfil, tooltip: "Cuánto te cuesta tener la máquina encendida por hora. Si no lo sabés, calculalo dividiendo tu factura de luz mensual por las horas que usás las máquinas." }),
+
+            is3D && h("div", { style: { marginBottom: 12 } },
+              h("div", { style: { fontSize: 10, color: "#444", marginBottom: 6 } }, "⚡ Presets Bambu Lab (consumo promedio real):"),
+              h("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+                [["A1 mini", 70], ["A1", 90], ["P1S", 100], ["X1C", 150]].map(([m, w]) => {
+                  const tarifa = vals.costoElectricidadHora;
+                  return h("button", {
+                    key: m,
+                    onClick: () => {
+                      const cph = Math.round(w / 1000 * tarifa);
+                      mk3D("costoElectricidadHora")(cph || w);
+                    },
+                    style: { background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "5px 10px", color: "#888", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }
+                  }, `${m} ~${w}W`);
+                })
+              ),
+              h("div", { style: { fontSize: 10, color: "#2a2a4a", marginTop: 4 } }, "Fuente: Bambu Lab Wiki · consumo promedio en impresión normal")
+            ),
+
+            h(NumInput, { label: "Costos fijos", val: vals.costosFijos, onChange: is3D ? mk3D("costosFijos") : isSub ? mkSub("costosFijos") : isBor ? mkBor("costosFijos") : isVin ? mkVin("costosFijos") : mkLas("costosFijos"), step: 100, unit: "$/trabajo", disabled: !!perfil, tooltip: "La parte de tus gastos fijos que corresponde a cada trabajo — alquiler, internet, suscripciones. Dividí tus gastos fijos mensuales por la cantidad de trabajos que hacés por mes." }),
+
+            h(NumInput, { label: "🧩 Otros gastos", val: vals.otrosGastos || 0, onChange: is3D ? mk3D("otrosGastos") : isSub ? mkSub("otrosGastos") : isBor ? mkBor("otrosGastos") : isVin ? mkVin("otrosGastos") : mkLas("otrosGastos"), step: 50, unit: "$", tooltip: "Insumos varios que usás en el trabajo pero no son el material principal — pegamento, lija, alcohol isopropílico, sprays, guantes, etc. Sumá el costo aproximado de todo lo que consumís en este trabajo." }),
+
+            h("div", { style: { ...CARD, background: "#0a0a18", border: "1px solid #1e1e3a", marginTop: 4 } },
+              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "🔧 Amortización de máquina"),
+              h("div", { style: { fontSize: 12, color: "#555", marginBottom: 14, lineHeight: 1.6 } }, "Distribuí el costo de tu máquina en cada trabajo. Así la recuperás con el tiempo sin darte cuenta."),
+              h(NumInput, { label: "Precio de la máquina", val: vals.precioMaquina || 0, onChange: is3D ? mk3D("precioMaquina") : isSub ? mkSub("precioMaquina") : isBor ? mkBor("precioMaquina") : isVin ? mkVin("precioMaquina") : mkLas("precioMaquina"), step: 10000, unit: "$", tooltip: "Cuánto pagaste por tu máquina. Se divide por la vida útil y las horas de uso para calcular cuánto cuesta usarla por hora." }),
+              h(NumInput, { label: "Vida útil estimada", val: vals.vidaUtilAnios || 3, onChange: is3D ? mk3D("vidaUtilAnios") : isSub ? mkSub("vidaUtilAnios") : isBor ? mkBor("vidaUtilAnios") : isVin ? mkVin("vidaUtilAnios") : mkLas("vidaUtilAnios"), step: 1, unit: "años", tooltip: "Cuántos años estimás que va a durar la máquina. Para impresoras 3D de uso intensivo, 3-5 años es razonable." }),
+              h(NumInput, { label: "Uso comercial diario", val: vals.horasUsoDiario || 8, onChange: is3D ? mk3D("horasUsoDiario") : isSub ? mkSub("horasUsoDiario") : isBor ? mkBor("horasUsoDiario") : isVin ? mkVin("horasUsoDiario") : mkLas("horasUsoDiario"), step: 1, unit: "hs/día", tooltip: "Cuántas horas por día usás la máquina en promedio. Afecta cuánto de la amortización le corresponde a cada hora de trabajo." }),
+              h(NumInput, { label: "% reparaciones estimadas", val: vals.pctReparaciones || 5, onChange: is3D ? mk3D("pctReparaciones") : isSub ? mkSub("pctReparaciones") : isBor ? mkBor("pctReparaciones") : isVin ? mkVin("pctReparaciones") : mkLas("pctReparaciones"), step: 1, unit: "%", tooltip: "Porcentaje del precio de la máquina que estimás gastar en reparaciones durante su vida útil. 5-10% es un valor razonable para la mayoría de las máquinas." }),
+              vals.precioMaquina > 0 && h("div", { style: { background: "#fbbf2412", border: "1px solid #fbbf2430", borderRadius: 8, padding: "10px 12px", marginTop: 8, fontSize: 12 } },
+                h("div", { style: { color: "#fbbf24", fontWeight: 700, marginBottom: 2 } }, "Costo de amortización por hora:"),
+                h("div", { style: { color: "#d4a82a", fontSize: 16, fontWeight: 800, fontFamily: "monospace" } },
+                  fmt((vals.precioMaquina * (1 + (vals.pctReparaciones || 5) / 100)) / ((vals.vidaUtilAnios || 3) * 365 * (vals.horasUsoDiario || 8))) + "/hr"
+                )
+              )
+            ),
+
+            h(NumInput, { label: "🧑‍🔧 Mano de obra", val: vals.manoObraHora || 0, onChange: is3D ? mk3D("manoObraHora") : isSub ? mkSub("manoObraHora") : isBor ? mkBor("manoObraHora") : isVin ? mkVin("manoObraHora") : mkLas("manoObraHora"), step: 100, unit: "$/hr", tooltip: "⚠️ El costo más olvidado. Tu tiempo vale dinero. Si trabajás 3 hs en algo, esas 3 hs tienen un costo. Calculá cuánto querés ganar por hora de tu tiempo y ponelo acá. Si lo dejás en 0, estás trabajando gratis." })
           ),
           h("div", { style: CARD },
             h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "⚙️ Venta"),
@@ -504,9 +572,12 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
           ),
           h("div", { style: { background: "linear-gradient(135deg,#1a0f00,#1a1a2e)", border: "1px solid #ff6b3530", borderRadius: 14, padding: 18, marginBottom: 12 } },
             h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff6b35", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "📊 Resultados"),
-            h(ResultRow, { label: "Materiales", value: fmt(is3D ? res.material : res.cSus + res.cTin) }),
+            h(ResultRow, { label: "Materiales", value: fmt(is3D ? res.material : isSub ? res.cSus + res.cTin : res.material) }),
             h(ResultRow, { label: "Electricidad", value: fmt(res.electricidad) }),
             h(ResultRow, { label: "Costos fijos", value: fmt(res.fijos) }),
+            res.otrosGastos > 0 && h(ResultRow, { label: "🧩 Otros gastos", value: fmt(res.otrosGastos) }),
+            res.amortizacion > 0 && h(ResultRow, { label: "🔧 Amortización", value: fmt(res.amortizacion) }),
+            res.manoObra > 0 && h(ResultRow, { label: "🧑‍🔧 Mano de obra", value: fmt(res.manoObra) }),
             h(ResultRow, { label: `Costo total × ${vals.cantidad}`, value: fmt(res.costoTotal) }),
             h(ResultRow, { label: "Ganancia", value: fmt(res.ganancia), hi: true }),
             h("div", { style: { height: 8 } }),
