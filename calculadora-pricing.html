@@ -53,15 +53,35 @@
     { id: 6, nombre: "Remera algodón", tipo: "SUB", unidad: "u", costo: 2800, activo: true },
     { id: 7, nombre: "Tinta sublimación", tipo: "SUB", unidad: "impresión", costo: 380, activo: true },
     { id: 8, nombre: "Papel sublimación A4", tipo: "SUB", unidad: "hoja", costo: 45, activo: true },
+    { id: 9, nombre: "Hilo bordado (madeja)", tipo: "BOR", unidad: "u", costo: 350, activo: true },
+    { id: 10, nombre: "Vinilo adhesivo A4", tipo: "VIN", unidad: "hoja", costo: 180, activo: true },
+    { id: 11, nombre: "Vinilo termotransferible A4", tipo: "VIN", unidad: "hoja", costo: 320, activo: true },
   ];
   const DEFAULT_PERFILES = [
-    { id: 1, nombre: "Taller pequeño", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500 },
-    { id: 2, nombre: "Taller mediano", electricidad: 200, costosFijos3D: 1500, costosFijosSub: 900 },
+    { id: 1, nombre: "Taller pequeño", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500, costosFijosBor: 600, costosFijosVin: 400, costosFijosLas: 700 },
+    { id: 2, nombre: "Taller mediano", electricidad: 200, costosFijos3D: 1500, costosFijosSub: 900, costosFijosBor: 1000, costosFijosVin: 700, costosFijosLas: 1200 },
   ];
 
+  // localStorage helpers
+  function loadLS(key, def) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
+  }
+  function saveLS(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+  }
+
   const fmt = (v) => `$${Math.round(v).toLocaleString("es-AR")}`;
-  const TIPO_COLOR = { "3D": "#ff6b35", SUB: "#a78bfa", General: "#4ade80" };
-  const TIPO_LABEL = { "3D": "🖨️ 3D", SUB: "🎨 Sub", General: "⚙️ Gral" };
+  const TIPO_COLOR = { "3D": "#ff6b35", SUB: "#a78bfa", General: "#4ade80", BOR: "#f472b6", VIN: "#38bdf8", LAS: "#fb923c" };
+  const TIPO_LABEL = { "3D": "🖨️ 3D", SUB: "🎨 Sub", General: "⚙️ Gral", BOR: "🧵 Bord", VIN: "🎨 Vinilo", LAS: "⚡ Láser" };
+
+  // TABS de trabajo
+  const TABS_TRABAJO = [
+    { id: "3D", label: "🖨️ 3D", color: "#ff6b35" },
+    { id: "SUB", label: "🎨 Sub", color: "#a78bfa" },
+    { id: "BOR", label: "🧵 Bord", color: "#f472b6" },
+    { id: "VIN", label: "🎨 Vinilo", color: "#38bdf8" },
+    { id: "LAS", label: "⚡ Láser", color: "#fb923c" },
+  ];
 
   function calcular3D(v, fil, perf) {
     const cxg = fil ? fil.costo : v.costoPorGramo;
@@ -82,6 +102,33 @@
     const costoTotal = (cSus + cTin + electricidad + fijos) * v.cantidad;
     const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
     return { cSus, cTin, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+  }
+  function calcularBordado(v, perf) {
+    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+    const fijos = perf ? perf.costosFijosBor : v.costosFijos;
+    const material = v.costoHilo + v.costoEntretela;
+    const electricidad = (v.tiempoMinutos / 60) * elec;
+    const costoTotal = (material + electricidad + fijos) * v.cantidad;
+    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
+    return { material, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+  }
+  function calcularVinilo(v, perf) {
+    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+    const fijos = perf ? perf.costosFijosVin : v.costosFijos;
+    const material = v.costoVinilo + v.costoTransfer;
+    const electricidad = (v.tiempoMinutos / 60) * elec;
+    const costoTotal = (material + electricidad + fijos) * v.cantidad;
+    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
+    return { material, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
+  }
+  function calcularLaser(v, perf) {
+    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+    const fijos = perf ? perf.costosFijosLas : v.costosFijos;
+    const material = v.costoMaterial;
+    const electricidad = (v.tiempoMinutos / 60) * elec;
+    const costoTotal = (material + electricidad + fijos) * v.cantidad;
+    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
+    return { material, electricidad, fijos, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
   }
 
   const CARD = { background: "#111128", border: "1px solid #1e1e3a", borderRadius: 12, padding: 16, marginBottom: 10 };
@@ -155,8 +202,37 @@
     const [proError, setProError] = useState(null);
     const [proResultado, setProResultado] = useState(null);
     const [proUrl, setProUrl] = useState("");
-    const [proModo, setProModo] = useState("pdf"); // "pdf" o "url"
+    const [proModo, setProModo] = useState("pdf");
     const fileInputRef = useRef(null);
+
+    const [insumos, setInsumosRaw] = useState(() => loadLS("jp_insumos", DEFAULT_INSUMOS));
+    const [perfiles, setPerfilesRaw] = useState(() => loadLS("jp_perfiles", DEFAULT_PERFILES));
+    const [historial, setHistorialRaw] = useState(() => loadLS("jp_historial", []));
+    const [selPerf, setSelPerf] = useState(() => loadLS("jp_selPerf", ""));
+    const [savedFlash, setSavedFlash] = useState(false);
+
+    // Wrappers que guardan en localStorage automáticamente
+    const setInsumos = (fn) => { setInsumosRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_insumos", next); return next; }); };
+    const setPerfiles = (fn) => { setPerfilesRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_perfiles", next); return next; }); };
+    const setHistorial = (fn) => { setHistorialRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_historial", next); return next; }); };
+
+    // Estados calculadora por tipo
+    const [v3D, setV3D] = useState(() => loadLS("jp_v3D", { pesoGramos: 50, costoPorGramo: 35, tiempoHoras: 3, costoElectricidadHora: 120, costosFijos: 800, margenDeseado: 40, cantidad: 1 }));
+    const [vSub, setVSub] = useState(() => loadLS("jp_vSub", { costoSustrato: 1500, costoTinta: 380, tiempoMinutos: 20, costoElectricidadHora: 120, costosFijos: 500, margenDeseado: 50, cantidad: 1 }));
+    const [vBor, setVBor] = useState(() => loadLS("jp_vBor", { costoHilo: 350, costoEntretela: 200, tiempoMinutos: 30, costoElectricidadHora: 120, costosFijos: 600, margenDeseado: 50, cantidad: 1 }));
+    const [vVin, setVVin] = useState(() => loadLS("jp_vVin", { costoVinilo: 300, costoTransfer: 150, tiempoMinutos: 15, costoElectricidadHora: 120, costosFijos: 400, margenDeseado: 45, cantidad: 1 }));
+    const [vLas, setVLas] = useState(() => loadLS("jp_vLas", { costoMaterial: 500, tiempoMinutos: 20, costoElectricidadHora: 150, costosFijos: 700, margenDeseado: 50, cantidad: 1 }));
+
+    // Guardar valores automáticamente
+    const mk3D = (k) => (v) => { setV3D(p => { const n = {...p, [k]: v}; saveLS("jp_v3D", n); return n; }); };
+    const mkSub = (k) => (v) => { setVSub(p => { const n = {...p, [k]: v}; saveLS("jp_vSub", n); return n; }); };
+    const mkBor = (k) => (v) => { setVBor(p => { const n = {...p, [k]: v}; saveLS("jp_vBor", n); return n; }); };
+    const mkVin = (k) => (v) => { setVVin(p => { const n = {...p, [k]: v}; saveLS("jp_vVin", n); return n; }); };
+    const mkLas = (k) => (v) => { setVLas(p => { const n = {...p, [k]: v}; saveLS("jp_vLas", n); return n; }); };
+
+    const [selFil, setSelFil] = useState("");
+    const [selSus, setSelSus] = useState("");
+    const [selTin, setSelTin] = useState("");
     const [insumos, setInsumos] = useState(DEFAULT_INSUMOS);
     const [perfiles, setPerfiles] = useState(DEFAULT_PERFILES);
     const [selPerf, setSelPerf] = useState("");
@@ -170,25 +246,34 @@
     const [editIns, setEditIns] = useState(null);
     const [editPerf, setEditPerf] = useState(null);
     const [newIns, setNewIns] = useState({ nombre: "", tipo: "3D", unidad: "gr", costo: 0 });
-    const [newPerf, setNewPerf] = useState({ nombre: "", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500 });
-    const [historial, setHistorial] = useState([]);
-    const [savedFlash, setSavedFlash] = useState(false);
+    const [newPerf, setNewPerf] = useState({ nombre: "", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500, costosFijosBor: 600, costosFijosVin: 400, costosFijosLas: 700 });
 
-    const is3D = activeTab === 0;
-    const vals = is3D ? v3D : vSub;
-    const set3D = (k) => (v) => setV3D(p => ({ ...p, [k]: v }));
-    const setSub = (k) => (v) => setVSub(p => ({ ...p, [k]: v }));
+    const tipoActivo = TABS_TRABAJO[activeTab].id;
+    const is3D = tipoActivo === "3D";
+    const isSub = tipoActivo === "SUB";
+    const isBor = tipoActivo === "BOR";
+    const isVin = tipoActivo === "VIN";
+    const isLas = tipoActivo === "LAS";
+
+    const vals = is3D ? v3D : isSub ? vSub : isBor ? vBor : isVin ? vVin : vLas;
+    const perfil = perfiles.find(p => String(p.id) === selPerf);
     const filamento = insumos.find(i => String(i.id) === selFil);
     const sustrato = insumos.find(i => String(i.id) === selSus);
     const tinta = insumos.find(i => String(i.id) === selTin);
-    const perfil = perfiles.find(p => String(p.id) === selPerf);
-    const res = is3D ? calcular3D(v3D, filamento, perfil) : calcularSub(vSub, sustrato, tinta, perfil);
+
+    const res = is3D ? calcular3D(v3D, filamento, perfil)
+      : isSub ? calcularSub(vSub, sustrato, tinta, perfil)
+      : isBor ? calcularBordado(vBor, perfil)
+      : isVin ? calcularVinilo(vVin, perfil)
+      : calcularLaser(vLas, perfil);
+
     const ins3D = insumos.filter(i => (i.tipo === "3D" || i.tipo === "General") && i.activo);
     const insSub = insumos.filter(i => (i.tipo === "SUB" || i.tipo === "General") && i.activo);
     const insFiltered = filterTipo === "Todos" ? insumos : insumos.filter(i => i.tipo === filterTipo);
+    const colorActivo = TABS_TRABAJO[activeTab].color;
 
     // API key — reemplazá AQUI_VA_TU_KEY con tu key de Anthropic
-    const CLAUDE_KEY = "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";
+    const CLAUDE_KEY = "AQUI_VA_TU_KEY";
 
     const PROMPT_BASE = (texto) => `Analizá esta lista de precios de proveedor y extraé todos los productos con sus precios.
 
@@ -335,7 +420,7 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
       setShowPerf(false); setEditPerf(null);
     }
     function saveToHistorial() {
-      const entry = { id: Date.now(), fecha: new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" }), hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), tipo: is3D ? "Impresión 3D" : "Sublimación", vals: { ...vals }, costoTotal: res.costoTotal, precioSugerido: res.precioSugerido, ganancia: res.ganancia, margen: vals.margenDeseado };
+      const entry = { id: Date.now(), fecha: new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" }), hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), tipo: TABS_TRABAJO[activeTab].label + " " + tipoActivo, vals: { ...vals }, costoTotal: res.costoTotal, precioSugerido: res.precioSugerido, ganancia: res.ganancia, margen: vals.margenDeseado };
       setHistorial(p => [entry, ...p].slice(0, 50));
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1800);
@@ -370,9 +455,10 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
 
         // CALCULADORA
         screen === 0 && h(React.Fragment, null,
-          h("div", { style: { display: "flex", gap: 8, marginBottom: 14 } },
-            h("button", { style: tabStyle(activeTab === 0), onClick: () => setActiveTab(0) }, "🖨️ Impresión 3D"),
-            h("button", { style: tabStyle(activeTab === 1), onClick: () => setActiveTab(1) }, "🎨 Sublimación")
+          h("div", { style: { display: "flex", gap: 6, marginBottom: 14 } },
+            TABS_TRABAJO.map((t, i) =>
+              h("button", { key: t.id, style: tabStyle(activeTab === i, t.color), onClick: () => setActiveTab(i) }, t.label)
+            )
           ),
           perfiles.length > 0 && h("div", { style: { ...CARD, marginBottom: 10 } },
             h("div", { style: { fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, "⚙️ Perfil de taller"),
@@ -391,23 +477,38 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
             h(QuickSelect, { label: "Tinta", color: "#a78bfa", value: selTin, onChange: setSelTin, options: insSub, onSelect: (id) => { const i = insumos.find(x => String(x.id) === id); if (i) setVSub(p => ({ ...p, costoTinta: i.costo })); } })
           ),
           h("div", { style: CARD },
-            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff6b35", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "📦 Producción"),
-            is3D ? h(React.Fragment, null,
-              h(NumInput, { label: "Peso del objeto", val: v3D.pesoGramos, onChange: set3D("pesoGramos"), step: 5, unit: "gr" }),
-              h(NumInput, { label: "Costo filamento/gr", val: v3D.costoPorGramo, onChange: set3D("costoPorGramo"), step: 1, unit: "$/gr", disabled: !!filamento }),
-              h(NumInput, { label: "Tiempo de impresión", val: v3D.tiempoHoras, onChange: set3D("tiempoHoras"), step: 0.5, unit: "hs" })
-            ) : h(React.Fragment, null,
-              h(NumInput, { label: "Costo del sustrato", val: vSub.costoSustrato, onChange: setSub("costoSustrato"), step: 100, unit: "$", disabled: !!sustrato }),
-              h(NumInput, { label: "Costo de tinta", val: vSub.costoTinta, onChange: setSub("costoTinta"), step: 50, unit: "$", disabled: !!tinta }),
-              h(NumInput, { label: "Tiempo de producción", val: vSub.tiempoMinutos, onChange: setSub("tiempoMinutos"), step: 5, unit: "min" })
+            h("div", { style: { fontSize: 10, fontWeight: 700, color: colorActivo, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "📦 Producción"),
+            is3D && h(React.Fragment, null,
+              h(NumInput, { label: "Peso del objeto", val: v3D.pesoGramos, onChange: mk3D("pesoGramos"), step: 5, unit: "gr" }),
+              h(NumInput, { label: "Costo filamento/gr", val: v3D.costoPorGramo, onChange: mk3D("costoPorGramo"), step: 1, unit: "$/gr", disabled: !!filamento }),
+              h(NumInput, { label: "Tiempo de impresión", val: v3D.tiempoHoras, onChange: mk3D("tiempoHoras"), step: 0.5, unit: "hs" })
             ),
-            h(NumInput, { label: "Electricidad", val: vals.costoElectricidadHora, onChange: is3D ? set3D("costoElectricidadHora") : setSub("costoElectricidadHora"), step: 10, unit: "$/hr", disabled: !!perfil }),
-            h(NumInput, { label: "Costos fijos", val: vals.costosFijos, onChange: is3D ? set3D("costosFijos") : setSub("costosFijos"), step: 100, unit: "$/trabajo", disabled: !!perfil })
+            isSub && h(React.Fragment, null,
+              h(NumInput, { label: "Costo del sustrato", val: vSub.costoSustrato, onChange: mkSub("costoSustrato"), step: 100, unit: "$", disabled: !!sustrato }),
+              h(NumInput, { label: "Costo de tinta", val: vSub.costoTinta, onChange: mkSub("costoTinta"), step: 50, unit: "$", disabled: !!tinta }),
+              h(NumInput, { label: "Tiempo de producción", val: vSub.tiempoMinutos, onChange: mkSub("tiempoMinutos"), step: 5, unit: "min" })
+            ),
+            isBor && h(React.Fragment, null,
+              h(NumInput, { label: "Costo de hilo", val: vBor.costoHilo, onChange: mkBor("costoHilo"), step: 50, unit: "$" }),
+              h(NumInput, { label: "Costo de entretela", val: vBor.costoEntretela, onChange: mkBor("costoEntretela"), step: 50, unit: "$" }),
+              h(NumInput, { label: "Tiempo de bordado", val: vBor.tiempoMinutos, onChange: mkBor("tiempoMinutos"), step: 5, unit: "min" })
+            ),
+            isVin && h(React.Fragment, null,
+              h(NumInput, { label: "Costo del vinilo", val: vVin.costoVinilo, onChange: mkVin("costoVinilo"), step: 50, unit: "$" }),
+              h(NumInput, { label: "Costo transfer/papel", val: vVin.costoTransfer, onChange: mkVin("costoTransfer"), step: 50, unit: "$" }),
+              h(NumInput, { label: "Tiempo de aplicación", val: vVin.tiempoMinutos, onChange: mkVin("tiempoMinutos"), step: 5, unit: "min" })
+            ),
+            isLas && h(React.Fragment, null,
+              h(NumInput, { label: "Costo del material", val: vLas.costoMaterial, onChange: mkLas("costoMaterial"), step: 100, unit: "$" }),
+              h(NumInput, { label: "Tiempo de corte/grabado", val: vLas.tiempoMinutos, onChange: mkLas("tiempoMinutos"), step: 5, unit: "min" })
+            ),
+            h(NumInput, { label: "Electricidad", val: vals.costoElectricidadHora, onChange: is3D ? mk3D("costoElectricidadHora") : isSub ? mkSub("costoElectricidadHora") : isBor ? mkBor("costoElectricidadHora") : isVin ? mkVin("costoElectricidadHora") : mkLas("costoElectricidadHora"), step: 10, unit: "$/hr", disabled: !!perfil }),
+            h(NumInput, { label: "Costos fijos", val: vals.costosFijos, onChange: is3D ? mk3D("costosFijos") : isSub ? mkSub("costosFijos") : isBor ? mkBor("costosFijos") : isVin ? mkVin("costosFijos") : mkLas("costosFijos"), step: 100, unit: "$/trabajo", disabled: !!perfil })
           ),
           h("div", { style: CARD },
             h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "⚙️ Venta"),
-            h(NumInput, { label: "Margen de ganancia", val: vals.margenDeseado, onChange: is3D ? set3D("margenDeseado") : setSub("margenDeseado"), step: 5, unit: "%" }),
-            h(NumInput, { label: "Cantidad", val: vals.cantidad, onChange: is3D ? set3D("cantidad") : setSub("cantidad"), step: 1, unit: "uds" })
+            h(NumInput, { label: "Margen de ganancia", val: vals.margenDeseado, onChange: is3D ? mk3D("margenDeseado") : isSub ? mkSub("margenDeseado") : isBor ? mkBor("margenDeseado") : isVin ? mkVin("margenDeseado") : mkLas("margenDeseado"), step: 5, unit: "%" }),
+            h(NumInput, { label: "Cantidad", val: vals.cantidad, onChange: is3D ? mk3D("cantidad") : isSub ? mkSub("cantidad") : isBor ? mkBor("cantidad") : isVin ? mkVin("cantidad") : mkLas("cantidad"), step: 1, unit: "uds" })
           ),
           h("div", { style: { background: "linear-gradient(135deg,#1a0f00,#1a1a2e)", border: "1px solid #ff6b3530", borderRadius: 14, padding: 18, marginBottom: 12 } },
             h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff6b35", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "📊 Resultados"),
@@ -432,7 +533,7 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
             ),
             h("div", { style: { display: "flex", gap: 8, marginTop: 16 } },
               h("button", { onClick: saveToHistorial, style: { ...BTN, flex: 1, background: savedFlash ? "#4ade80" : "#1e2a1e", border: "1px solid", borderColor: savedFlash ? "#4ade80" : "#2a4a2a", padding: 13, color: savedFlash ? "#0d0d1a" : "#4ade80", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s", borderRadius: 10 } }, savedFlash ? "✓ Guardado" : "💾 Guardar"),
-              h("button", { onClick: () => exportarPDF({ tipo: is3D ? "Impresión 3D" : "Sublimación", vals, res, is3D }), style: { ...BTN, flex: 2, background: "linear-gradient(135deg,#ff6b35,#ff5c1a)", padding: 13, color: "#fff", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 20px rgba(255,92,26,0.25)", borderRadius: 10 } }, "📄 Exportar PDF")
+              h("button", { onClick: () => exportarPDF({ tipo: TABS_TRABAJO[activeTab].label, vals, res, is3D }), style: { ...BTN, flex: 2, background: "linear-gradient(135deg,#ff6b35,#ff5c1a)", padding: 13, color: "#fff", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 20px rgba(255,92,26,0.25)", borderRadius: 10 } }, "📄 Exportar PDF")
             )
           )
         ),
