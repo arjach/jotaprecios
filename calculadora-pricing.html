@@ -13,15 +13,17 @@
   #root { min-height: 100vh; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script>
-  window.addEventListener('load', function() {
+  console.log("✓ React cargado:", typeof React);
+  console.log("✓ ReactDOM cargado:", typeof ReactDOM);
   const { useState, useRef, createElement: h } = React;
   const { createRoot } = ReactDOM;
+  console.log("✓ useState:", typeof useState);
 
   // ─── PDF Export ─────────────────────────────────────────────────────
   function exportarPDF({ tipo, vals, res, is3D, cliente }) {
@@ -1226,8 +1228,9 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
     );
   }
 
+  console.log("✓ Llegó al createRoot");
   createRoot(document.getElementById("root")).render(React.createElement(App));
-  }); // end window.onload
+  // fin del script
 </script>
 </body>
 </html>
