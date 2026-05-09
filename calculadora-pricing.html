@@ -230,6 +230,20 @@ ${clienteHtml || ""}
     );
   }
 
+  // ─── Códigos Pro ────────────────────────────────────────────────────
+  // Agregá acá los códigos que le mandás a cada usuario que paga
+  // Podés poner los que quieras — ejemplo: JP-2026-001, JP-MAYO-42, etc.
+  const CODIGOS_PRO = [
+    "JP-2026-001",
+    "JP-2026-002",
+    "JP-2026-003",
+    "JP-BETA-001",
+    "JP-BETA-002",
+    "JP-BETA-003",
+    "JP-BETA-004",
+    "JP-BETA-005",
+  ];
+
   function App() {
     const [screen, setScreen] = useState(0);
     const [activeTab, setActiveTab] = useState(0);
@@ -294,6 +308,15 @@ ${clienteHtml || ""}
     // Costos fijos mensuales para punto de equilibrio
     const [gastosMensuales, setGastosMensuales] = useState(() => loadLS("jp_gastos", 50000));
 
+    // Sistema de acceso Pro
+    const [esPro, setEsPro] = useState(() => {
+      const codigo = loadLS("jp_codigo_pro", "");
+      return CODIGOS_PRO.includes(codigo);
+    });
+    const [showCodigoModal, setShowCodigoModal] = useState(false);
+    const [codigoInput, setCodigoInput] = useState("");
+    const [codigoError, setCodigoError] = useState("");
+
     // Dashboard - screen numbers shift: 0=calc, 1=taller, 2=historial, 3=dashboard, 4=pro
     const SCREEN_DASHBOARD = 3;
     const SCREEN_PRO = 4;
@@ -322,10 +345,12 @@ ${clienteHtml || ""}
     const insFiltered = filterTipo === "Todos" ? insumos : insumos.filter(i => i.tipo === filterTipo);
     const colorActivo = TABS_TRABAJO[activeTab].color;
 
-    // API key — reemplazá AQUI_VA_TU_KEY con tu key de Anthropic
-    const CLAUDE_KEY = "AQUI_VA_TU_KEY";
+    // Gemini API
+    const GEMINI_KEY = "AIzaSyCpauJWlfsHDxMAjZE6EnVgmAYYi-tSCnY";
+    const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_KEY;
 
-    const PROMPT_BASE = (texto) => `Analizá esta lista de precios de proveedor y extraé todos los productos con sus precios.
+    async function llamarClaude(texto) {
+      const prompt = `Analizá esta lista de precios de proveedor y extraé todos los productos con sus precios.
 
 Contenido:
 ${texto.substring(0, 8000)}
@@ -346,24 +371,18 @@ Respondé SOLO con un JSON válido, sin texto adicional, sin backticks markdown,
 }
 Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/resinas, "SUB" para sustratos/tintas/papel sublimación, "General" para otros. Incluí solo productos con precio claro.`;
 
-    async function llamarClaude(texto) {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch(GEMINI_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": CLAUDE_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 2000,
-          messages: [{ role: "user", content: PROMPT_BASE(texto) }],
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.1 }
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || `Error ${res.status}`);
-      const txt = data.content[0].text.trim().replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      if (!res.ok) throw new Error(data.error?.message || "Error " + res.status);
+      const txt = data.candidates[0].content.parts[0].text.trim()
+        .replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       return JSON.parse(txt);
     }
 
@@ -455,6 +474,24 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
       setTallerTab(0);
     }
 
+    function activarPro() {
+      const codigo = codigoInput.trim().toUpperCase();
+      if (CODIGOS_PRO.includes(codigo)) {
+        saveLS("jp_codigo_pro", codigo);
+        setEsPro(true);
+        setShowCodigoModal(false);
+        setCodigoInput("");
+        setCodigoError("");
+      } else {
+        setCodigoError("Código inválido. Verificá que esté bien escrito.");
+      }
+    }
+
+    function desactivarPro() {
+      saveLS("jp_codigo_pro", "");
+      setEsPro(false);
+    }
+
     const tabStyle = (active) => ({ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: active ? "#ff6b35" : "#1e1e3a", background: active ? "#ff6b3512" : "transparent", color: active ? "#ff6b35" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 11, cursor: "pointer" });
 
     function saveInsumo() {
@@ -512,6 +549,9 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
             ["🧮 Calcular", "🏭 Mi Taller", "📋 Historial", "📊 Dashboard", "⭐ Pro"].map((s, i) =>
               h("button", { key: s, onClick: () => setScreen(i), style: { padding: "8px 12px", border: "none", background: screen === i ? "#ff5c1a18" : "none", borderRadius: 8, color: screen === i ? (i === 4 ? "#fbbf24" : "#ff5c1a") : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 11, cursor: "pointer", borderBottom: screen === i ? `2px solid ${i === 4 ? "#fbbf24" : "#ff5c1a"}` : "2px solid transparent" } }, s)
             ),
+            esPro
+              ? h("div", { title: "Clic para desactivar", onClick: desactivarPro, style: { marginLeft: 6, background: "#fbbf2418", border: "1px solid #fbbf2440", color: "#fbbf24", fontSize: 10, fontWeight: 800, padding: "5px 10px", borderRadius: 100, cursor: "pointer" } }, "⭐ PRO")
+              : h("button", { onClick: () => setShowCodigoModal(true), style: { marginLeft: 6, background: "#fbbf2412", border: "1px solid #fbbf2430", color: "#fbbf24", fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 100, cursor: "pointer", fontFamily: "inherit" } }, "⭐ Activar Pro"),
             h("a", { href: "/", style: { marginLeft: 8, fontSize: 12, color: "#444", textDecoration: "none", padding: "6px 12px", border: "1px solid #1e1e35", borderRadius: 8 } }, "← Inicio")
           ),
           perfil && h("div", { style: { background: "#4ade8018", border: "1px solid #4ade8033", color: "#4ade80", fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 100 } }, `⚙️ ${perfil.nombre}`)
@@ -683,7 +723,7 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
 
               // Botones
               h("div", { style: { display: "flex", gap: 8 } },
-                h("button", { onClick: saveToHistorial, style: { ...BTN, flex: 1, background: savedFlash ? "#22d07a" : "#22d07a12", border: "1px solid", borderColor: savedFlash ? "#22d07a" : "#22d07a40", padding: 13, color: savedFlash ? "#0a0a14" : "#22d07a", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s", borderRadius: 10 } }, savedFlash ? "✓ Guardado" : "💾 Guardar"),
+                h("button", { onClick: esPro ? saveToHistorial : () => setShowCodigoModal(true), style: { ...BTN, flex: 1, background: savedFlash ? "#22d07a" : esPro ? "#22d07a12" : "#1a1a2e", border: "1px solid", borderColor: savedFlash ? "#22d07a" : esPro ? "#22d07a40" : "#2a2a4a", padding: 13, color: savedFlash ? "#0a0a14" : esPro ? "#22d07a" : "#444", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s", borderRadius: 10, title: esPro ? "" : "Función Pro — Activar para guardar" } }, savedFlash ? "✓ Guardado" : esPro ? "💾 Guardar" : "🔒 Guardar"),
                 h("button", { onClick: () => setShowClienteModal(true), style: { ...BTN, flex: 2, background: "#ff5c1a", border: "none", padding: 13, color: "#fff", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10 } }, "📄 Exportar PDF")
               )
             )
@@ -801,7 +841,8 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
               )
             )
           )
-        ),
+        ),  // end esPro dashboard
+        ),  // end dashboard screen
 
         // HISTORIAL
         screen === 2 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
@@ -843,6 +884,16 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
 
         // DASHBOARD
         screen === 3 && h("div", { style: { maxWidth: 1100, margin: "0 auto", padding: "24px 24px 48px" } },
+          !esPro && h("div", { style: { textAlign: "center", padding: "60px 24px" } },
+            h("div", { style: { fontSize: 56, marginBottom: 16 } }, "📊"),
+            h("div", { style: { fontSize: 22, fontWeight: 800, marginBottom: 8 } }, "Dashboard Pro"),
+            h("div", { style: { fontSize: 15, color: "#666", marginBottom: 32, lineHeight: 1.6, maxWidth: 400, margin: "0 auto 32px" } }, "El dashboard de rentabilidad y el punto de equilibrio son exclusivos del plan Pro."),
+            h("div", { style: { display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" } },
+              h("button", { onClick: () => setShowCodigoModal(true), style: { background: "#fbbf24", border: "none", borderRadius: 10, padding: "14px 28px", color: "#0a0a14", fontFamily: "inherit", fontWeight: 800, fontSize: 15, cursor: "pointer" } }, "🔑 Tengo un código"),
+              h("a", { href: "/precios.html", style: { background: "#ff5c1a", border: "none", borderRadius: 10, padding: "14px 28px", color: "#fff", fontFamily: "inherit", fontWeight: 800, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" } }, "💳 Suscribirme →")
+            )
+          ),
+          esPro && h(React.Fragment, null,
           h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 } },
             h("div", null,
               h("div", { style: { fontSize: 22, fontWeight: 800, marginBottom: 4 } }, "📊 Dashboard"),
@@ -917,6 +968,16 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
 
         // PRO SCREEN
         screen === 4 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
+          !esPro && h("div", { style: { textAlign: "center", padding: "60px 24px" } },
+            h("div", { style: { fontSize: 56, marginBottom: 16 } }, "⭐"),
+            h("div", { style: { fontSize: 22, fontWeight: 800, marginBottom: 8 } }, "Función Pro"),
+            h("div", { style: { fontSize: 15, color: "#666", marginBottom: 32, lineHeight: 1.6, maxWidth: 400, margin: "0 auto 32px" } }, "El lector de precios desde PDF y URL es exclusivo del plan Pro. Suscribite para acceder."),
+            h("div", { style: { display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" } },
+              h("button", { onClick: () => setShowCodigoModal(true), style: { background: "#fbbf24", border: "none", borderRadius: 10, padding: "14px 28px", color: "#0a0a14", fontFamily: "inherit", fontWeight: 800, fontSize: 15, cursor: "pointer" } }, "🔑 Tengo un código"),
+              h("a", { href: "/precios.html", style: { background: "#ff5c1a", border: "none", borderRadius: 10, padding: "14px 28px", color: "#fff", fontFamily: "inherit", fontWeight: 800, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" } }, "💳 Suscribirme →")
+            )
+          ),
+          esPro && h(React.Fragment, null,
           h("div", { style: { background: "linear-gradient(135deg,#1a1200,#0d0d1a)", border: "1px solid #fbbf2430", borderRadius: 14, padding: 20, marginBottom: 14, textAlign: "center" } },
             h("div", { style: { fontSize: 28, marginBottom: 8 } }, "⭐"),
             h("div", { style: { fontWeight: 800, fontSize: 18, marginBottom: 4 } }, "Importador de precios Pro"),
@@ -1096,6 +1157,7 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
             historial.length === 0 && h("div", { style: { textAlign: "center", padding: "32px 0", color: "#2a2a3a", fontSize: 13 } }, "Necesitás al menos un presupuesto guardado para calcular el punto de equilibrio")
           )
         )
+        ) // end esPro React.Fragment Pro screen
       ),
 
       // Modal datos cliente para PDF
@@ -1126,6 +1188,22 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
           },
           style: { ...BTN, background: "#ff5c1a", color: "#fff", width: "100%", padding: 14, marginTop: 4, borderRadius: 10, fontSize: 14 }
         }, "💾 Guardar plantilla")
+      ),
+
+      // Modal código Pro
+      showCodigoModal && h(Modal, { title: "⭐ Activar Plan Pro", onClose: () => { setShowCodigoModal(false); setCodigoError(""); setCodigoInput(""); } },
+        h("div", { style: { marginBottom: 16 } },
+          h("div", { style: { background: "#fbbf2412", border: "1px solid #fbbf2430", borderRadius: 10, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "#d4a82a", lineHeight: 1.6 } },
+            "Ingresá el código que recibiste al suscribirte al plan Pro. Si todavía no tenés uno, hacé clic en Suscribirme."
+          ),
+          h(Field, { label: "Código de acceso", value: codigoInput, onChange: v => { setCodigoInput(v.toUpperCase()); setCodigoError(""); }, placeholder: "Ej: JP-2026-001" }),
+          codigoError && h("div", { style: { color: "#f87171", fontSize: 13, marginBottom: 12, background: "#f8717115", border: "1px solid #f8717130", borderRadius: 8, padding: "8px 12px" } }, "❌ " + codigoError),
+          h("button", {
+            onClick: activarPro,
+            style: { ...BTN, background: "#fbbf24", color: "#0a0a14", width: "100%", padding: 14, borderRadius: 10, fontSize: 14, marginBottom: 10 }
+          }, "🔑 Activar Pro"),
+          h("a", { href: "/precios.html", style: { display: "block", textAlign: "center", fontSize: 13, color: "#666", textDecoration: "none", padding: "10px" } }, "¿No tenés código? Suscribite acá →")
+        )
       ),
 
       // Modals
