@@ -1,1241 +1,815 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Calculadora — JotaPrecios</title>
-<meta name="description" content="Calculá el precio justo de cada trabajo de impresión 3D y sublimación en segundos." />
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0d0d1a; font-family: sans-serif; }
-  #root { min-height: 100vh; }
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; }
+#root { min-height:100vh; }
+.calc-grid { display:grid; grid-template-columns:1fr 380px; gap:24px; align-items:start; max-width:1100px; margin:0 auto; padding:24px; }
+.result-sticky { position:sticky; top:80px; }
+@media(max-width:800px){ .calc-grid{grid-template-columns:1fr;} .result-sticky{position:static;} }
+@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+input:focus { outline:none; border-color:#ff5c1a !important; }
+select:focus { outline:none; }
 </style>
 </head>
 <body>
 <div id="root"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script>
-  const { useState, useRef, createElement: h } = React;
-  const { createRoot } = ReactDOM;
+const { useState, useRef, createElement: h } = React;
+const { createRoot } = ReactDOM;
 
-  // ─── PDF Export ─────────────────────────────────────────────────────
-  function exportarPDF({ tipo, vals, res, is3D, cliente }) {
-    const fecha = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
-    const nro = cliente?.nroPedido || Math.floor(Math.random() * 9000) + 1000;
-    const f = (v) => `$${Math.round(v).toLocaleString("es-AR")}`;
-    const clienteHtml = cliente?.nombre ? `
-      <div style="background:#f8f8f8;border-radius:8px;padding:14px 16px;margin-bottom:20px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#ff5c1a;margin-bottom:8px">Cliente</div>
-        ${cliente.nombre ? `<div style="font-weight:700;font-size:15px;margin-bottom:2px">${cliente.nombre}</div>` : ""}
-        ${cliente.descripcion ? `<div style="font-size:13px;color:#666">${cliente.descripcion}</div>` : ""}
-      </div>` : "";
-    const detalles = is3D
-      ? `<tr><td>Peso</td><td>${vals.pesoGramos} gr</td></tr><tr><td>Filamento</td><td>${f(vals.pesoGramos * vals.costoPorGramo)}</td></tr><tr><td>Tiempo</td><td>${vals.tiempoHoras} hs</td></tr>`
-      : `<tr><td>Sustrato</td><td>${f(vals.costoSustrato)}</td></tr><tr><td>Tinta</td><td>${f(vals.costoTinta)}</td></tr><tr><td>Tiempo</td><td>${vals.tiempoMinutos} min</td></tr>`;
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Presupuesto #${nro}</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;padding:48px;max-width:660px;margin:0 auto;color:#1a1a1a}.hdr{display:flex;justify-content:space-between;margin-bottom:36px;padding-bottom:20px;border-bottom:2px solid #ff5c1a}.logo{font-size:24px;font-weight:800;color:#ff5c1a}.sec{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#ff5c1a;margin:24px 0 10px}table{width:100%;border-collapse:collapse}td{padding:9px 12px;font-size:14px;border-bottom:1px solid #f0f0f0}td:last-child{text-align:right;font-weight:600}.tot td{font-size:15px;font-weight:700;padding:14px 12px;background:#fff8f5;border:none}.tot td:last-child{color:#ff5c1a;font-size:20px}.foot{margin-top:40px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:11px;color:#aaa}</style>
-</head><body>
-<div class="hdr"><div><div class="logo">JotaPrecios</div><p style="font-size:11px;color:#888">jotaprecios.com.ar</p></div>
-<div style="text-align:right"><h2 style="font-size:17px">Presupuesto #${nro}</h2><p style="font-size:12px;color:#888">${fecha}</p><p style="color:#ff5c1a;font-weight:600;font-size:13px">${tipo}</p></div></div>
-${clienteHtml || ""}
-<div class="sec">Detalle</div>
-<table><tbody>${detalles}<tr><td>Electricidad</td><td>${f(res.electricidad)}</td></tr><tr><td>Costos fijos</td><td>${f(res.fijos)}</td></tr><tr style="color:#aaa"><td>Costo total × ${vals.cantidad}</td><td>${f(res.costoTotal)}</td></tr></tbody></table>
-<div class="sec">Precio final</div>
-<table><tbody><tr style="color:#aaa;font-size:13px"><td>Precio mínimo</td><td>${f(res.costoTotal)}</td></tr><tr><td>Ganancia (${vals.margenDeseado}%)</td><td style="color:#22c55e">${f(res.ganancia)}</td></tr><tr class="tot"><td>✅ Precio sugerido</td><td>${f(res.precioSugerido)}</td></tr></tbody></table>
-<div class="foot"><p>JotaPrecios — jotaprecios.com.ar</p><p>Presupuesto orientativo</p></div>
-<scr"+"ipt>window.onload=()=>window.print();<\/scr"+"ipt></body></html>`;
-    const w = window.open("", "_blank");
-    w.document.write(html);
-    w.document.close();
-  }
+// ── Códigos Pro ─────────────────────────────────────────────────────
+const CODIGOS_PRO = [
+  "JP-2026-001","JP-2026-002","JP-2026-003",
+  "JP-BETA-001","JP-BETA-002","JP-BETA-003","JP-BETA-004","JP-BETA-005",
+];
 
-  const DEFAULT_INSUMOS = [
-    { id: 1, nombre: "Filamento PLA 1kg", tipo: "3D", unidad: "gr", costo: 35, activo: true },
-    { id: 2, nombre: "Filamento ABS 1kg", tipo: "3D", unidad: "gr", costo: 42, activo: true },
-    { id: 3, nombre: "Filamento PETG 1kg", tipo: "3D", unidad: "gr", costo: 48, activo: true },
-    { id: 4, nombre: "Filamento TPU 1kg", tipo: "3D", unidad: "gr", costo: 68, activo: true },
-    { id: 5, nombre: "Taza cerámica 11oz", tipo: "SUB", unidad: "u", costo: 1200, activo: true },
-    { id: 6, nombre: "Remera algodón", tipo: "SUB", unidad: "u", costo: 2800, activo: true },
-    { id: 7, nombre: "Tinta sublimación", tipo: "SUB", unidad: "impresión", costo: 380, activo: true },
-    { id: 8, nombre: "Papel sublimación A4", tipo: "SUB", unidad: "hoja", costo: 45, activo: true },
-    { id: 9, nombre: "Hilo bordado (madeja)", tipo: "BOR", unidad: "u", costo: 350, activo: true },
-    { id: 10, nombre: "Vinilo adhesivo A4", tipo: "VIN", unidad: "hoja", costo: 180, activo: true },
-    { id: 11, nombre: "Vinilo termotransferible A4", tipo: "VIN", unidad: "hoja", costo: 320, activo: true },
-  ];
-  const DEFAULT_PERFILES = [
-    { id: 1, nombre: "Taller pequeño", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500, costosFijosBor: 600, costosFijosVin: 400, costosFijosLas: 700 },
-    { id: 2, nombre: "Taller mediano", electricidad: 200, costosFijos3D: 1500, costosFijosSub: 900, costosFijosBor: 1000, costosFijosVin: 700, costosFijosLas: 1200 },
-  ];
+// ── Gemini API ───────────────────────────────────────────────────────
+const GEMINI_KEY = "AIzaSyCpauJWlfsHDxMAjZE6EnVgmAYYi-tSCnY";
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_KEY;
 
-  // localStorage helpers
-  function loadLS(key, def) {
-    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
-  }
-  function saveLS(key, val) {
-    try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-  }
+// ── LocalStorage helpers ─────────────────────────────────────────────
+function loadLS(key, def) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } }
+function saveLS(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
 
-  const fmt = (v) => `$${Math.round(v).toLocaleString("es-AR")}`;
-  const TIPO_COLOR = { "3D": "#ff6b35", SUB: "#a78bfa", General: "#4ade80", BOR: "#f472b6", VIN: "#38bdf8", LAS: "#fb923c" };
-  const TIPO_LABEL = { "3D": "🖨️ 3D", SUB: "🎨 Sub", General: "⚙️ Gral", BOR: "🧵 Bord", VIN: "🎨 Vinilo", LAS: "⚡ Láser" };
+// ── Default data ─────────────────────────────────────────────────────
+const DEF_INSUMOS = [
+  { id:1, nombre:"Filamento PLA 1kg", tipo:"3D", unidad:"gr", costo:35, activo:true },
+  { id:2, nombre:"Filamento ABS 1kg", tipo:"3D", unidad:"gr", costo:42, activo:true },
+  { id:3, nombre:"Filamento PETG 1kg", tipo:"3D", unidad:"gr", costo:48, activo:true },
+  { id:4, nombre:"Filamento TPU 1kg", tipo:"3D", unidad:"gr", costo:68, activo:true },
+  { id:5, nombre:"Taza cerámica 11oz", tipo:"SUB", unidad:"u", costo:1200, activo:true },
+  { id:6, nombre:"Remera algodón", tipo:"SUB", unidad:"u", costo:2800, activo:true },
+  { id:7, nombre:"Tinta sublimación", tipo:"SUB", unidad:"impresión", costo:380, activo:true },
+  { id:8, nombre:"Papel sublimación A4", tipo:"SUB", unidad:"hoja", costo:45, activo:true },
+];
+const DEF_PERFILES = [
+  { id:1, nombre:"Taller pequeño", electricidad:120, fijos3D:800, fijosSub:500, fiosBor:600, fijosVin:400, fijosLas:700 },
+  { id:2, nombre:"Taller mediano", electricidad:200, fijos3D:1500, fijosSub:900, fiosBor:1000, fijosVin:700, fijosLas:1200 },
+];
+const DEF_V = (extra) => ({ costoElectricidadHora:120, costosFijos:800, manoObraHora:0, horasManoObra:0, otrosGastos:0, precioMaquina:0, vidaUtilAnios:3, horasUsoDiario:8, pctReparaciones:5, margenDeseado:40, cantidad:1, ...extra });
+const DEF_3D = DEF_V({ pesoGramos:50, costoPorGramo:35, tiempoHoras:3 });
+const DEF_SUB = DEF_V({ costoSustrato:1500, costoTinta:380, tiempoMinutos:20, margenDeseado:50 });
+const DEF_BOR = DEF_V({ costoHilo:350, costoEntretela:200, tiempoMinutos:30, manoObraHora:800, margenDeseado:50 });
+const DEF_VIN = DEF_V({ costoVinilo:300, costoTransfer:150, tiempoMinutos:15, manoObraHora:600, margenDeseado:45 });
+const DEF_LAS = DEF_V({ costoMaterial:500, tiempoMinutos:20, costoElectricidadHora:150, manoObraHora:700, margenDeseado:50 });
 
-  // TABS de trabajo
-  const TABS_TRABAJO = [
-    { id: "3D", label: "🖨️ 3D", color: "#ff6b35" },
-    { id: "SUB", label: "🎨 Sub", color: "#a78bfa" },
-    { id: "BOR", label: "🧵 Bord", color: "#f472b6" },
-    { id: "VIN", label: "🎨 Vinilo", color: "#38bdf8" },
-    { id: "LAS", label: "⚡ Láser", color: "#fb923c" },
-  ];
+const TABS = [
+  { id:"3D", label:"🖨️ 3D", color:"#ff5c1a" },
+  { id:"SUB", label:"🎨 Sub", color:"#a78bfa" },
+  { id:"BOR", label:"🧵 Bord", color:"#f472b6" },
+  { id:"VIN", label:"✂️ Vinilo", color:"#38bdf8" },
+  { id:"LAS", label:"⚡ Láser", color:"#fb923c" },
+];
 
-  function calcular3D(v, fil, perf) {
-    const cxg = fil ? fil.costo : v.costoPorGramo;
-    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
-    const fijos = perf ? perf.costosFijos3D : v.costosFijos;
-    const material = v.pesoGramos * cxg;
-    const electricidad = v.tiempoHoras * elec;
-    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
-    const otrosGastos = v.otrosGastos || 0;
-    // Amortización: costo máquina / (años vida útil * días * horas uso diario) * horas trabajo
-    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
-    const amortizacion = amortHora * v.tiempoHoras;
-    const costoTotal = (material + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
-    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
-  }
-  function calcularSub(v, sus, tin, perf) {
-    const cSus = sus ? sus.costo : v.costoSustrato;
-    const cTin = tin ? tin.costo : v.costoTinta;
-    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
-    const fijos = perf ? perf.costosFijosSub : v.costosFijos;
-    const electricidad = (v.tiempoMinutos / 60) * elec;
-    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
-    const otrosGastos = v.otrosGastos || 0;
-    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
-    const amortizacion = amortHora * (v.tiempoMinutos / 60);
-    const costoTotal = (cSus + cTin + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
-    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { cSus, cTin, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
-  }
-  function calcularBordado(v, perf) {
-    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
-    const fijos = perf ? perf.costosFijosBor : v.costosFijos;
-    const material = v.costoHilo + v.costoEntretela;
-    const electricidad = (v.tiempoMinutos / 60) * elec;
-    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
-    const otrosGastos = v.otrosGastos || 0;
-    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
-    const amortizacion = amortHora * (v.tiempoMinutos / 60);
-    const costoTotal = (material + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
-    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
-  }
-  function calcularVinilo(v, perf) {
-    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
-    const fijos = perf ? perf.costosFijosVin : v.costosFijos;
-    const material = v.costoVinilo + v.costoTransfer;
-    const electricidad = (v.tiempoMinutos / 60) * elec;
-    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
-    const otrosGastos = v.otrosGastos || 0;
-    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
-    const amortizacion = amortHora * (v.tiempoMinutos / 60);
-    const costoTotal = (material + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
-    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
-  }
-  function calcularLaser(v, perf) {
-    const elec = perf ? perf.electricidad : v.costoElectricidadHora;
-    const fijos = perf ? perf.costosFijosLas : v.costosFijos;
-    const material = v.costoMaterial;
-    const electricidad = (v.tiempoMinutos / 60) * elec;
-    const manoObra = (v.manoObraHora || 0) * (v.horasManoObra || 0);
-    const otrosGastos = v.otrosGastos || 0;
-    const amortHora = v.precioMaquina > 0 ? (v.precioMaquina * (1 + (v.pctReparaciones || 5) / 100)) / ((v.vidaUtilAnios || 3) * 365 * (v.horasUsoDiario || 8)) : 0;
-    const amortizacion = amortHora * (v.tiempoMinutos / 60);
-    const costoTotal = (material + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
-    const precioSugerido = costoTotal / (1 - v.margenDeseado / 100);
-    return { material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
-  }
-
-  const CARD = { background: "#111128", border: "1px solid #1e1e3a", borderRadius: 12, padding: 16, marginBottom: 10 };
-  const BTN = { border: "none", borderRadius: 8, fontFamily: "inherit", fontWeight: 700, cursor: "pointer" };
-
-  function Tag({ tipo }) {
-    return React.createElement("span", { style: { background: TIPO_COLOR[tipo] + "22", color: TIPO_COLOR[tipo], fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 100 } }, TIPO_LABEL[tipo]);
-  }
-
-  function Modal({ title, onClose, children }) {
-    return React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } },
-      React.createElement("div", { style: { background: "#111128", border: "1px solid #2a2a4a", borderRadius: 16, padding: 28, width: "100%", maxWidth: 400 } },
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
-          React.createElement("span", { style: { fontWeight: 700, fontSize: 16 } }, title),
-          React.createElement("button", { onClick: onClose, style: { ...BTN, background: "none", color: "#666", fontSize: 22, padding: "0 4px" } }, "×")
-        ),
-        children
-      )
-    );
-  }
-
-  function Field({ label, value, onChange, type = "text", step, min, placeholder }) {
-    const inputStyle = { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-    return React.createElement("div", { style: { marginBottom: 13 } },
-      React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 5 } }, label),
-      React.createElement("input", { type, value, step, min, placeholder, onChange: e => onChange(type === "number" ? (parseFloat(e.target.value) || 0) : e.target.value), style: inputStyle, onFocus: e => e.target.style.borderColor = "#ff6b35", onBlur: e => e.target.style.borderColor = "#2a2a4a" })
-    );
-  }
-
-  function DropSelect({ label, value, onChange, options }) {
-    return React.createElement("div", { style: { marginBottom: 13 } },
-      React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 5 } }, label),
-      React.createElement("select", { value, onChange: e => onChange(e.target.value), style: { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "10px 14px", color: "#fff", fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box", cursor: "pointer" } },
-        options.map(o => React.createElement("option", { key: o.value, value: o.value }, o.label))
-      )
-    );
-  }
-
-  function NumInput({ label, val, onChange, step = 1, unit = "", disabled = false, tooltip = null }) {
-    const [showTip, setShowTip] = useState(false);
-    return h("div", { style: { marginBottom: 11, opacity: disabled ? 0.4 : 1, position: "relative" } },
-      h("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 4 } },
-        h("label", { style: { fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: "0.07em", textTransform: "uppercase" } },
-          label, " ", h("span", { style: { color: "#ff6b35" } }, unit)
-        ),
-        tooltip && h("button", {
-          onClick: () => setShowTip(p => !p),
-          style: { background: "none", border: "1px solid #2a2a4a", borderRadius: "50%", width: 16, height: 16, color: "#555", fontSize: 9, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }
-        }, "?")
-      ),
-      tooltip && showTip && h("div", { style: { background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "10px 12px", marginBottom: 8, fontSize: 12, color: "#9d9db8", lineHeight: 1.6 } }, tooltip),
-      h("input", { type: "number", step, min: 0, value: val, disabled, onChange: e => onChange(parseFloat(e.target.value) || 0), style: { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "9px 12px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }, onFocus: e => { if (!disabled) e.target.style.borderColor = "#ff6b35"; }, onBlur: e => e.target.style.borderColor = "#2a2a4a" })
-    );
-  }
-
-  function ResultRow({ label, value, hi, big }) {
-    return React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: big ? "14px 0" : "8px 0", borderBottom: "1px solid #1a1a2e" } },
-      React.createElement("span", { style: { fontSize: big ? 15 : 13, color: hi ? "#fff" : "#666", fontWeight: hi ? 700 : 400 } }, label),
-      React.createElement("span", { style: { fontSize: big ? 22 : 13, fontFamily: "monospace", color: hi ? "#ff6b35" : "#ccc", fontWeight: big ? 800 : 500 } }, value)
-    );
-  }
-
-  function QuickSelect({ label, color, value, onChange, options, onSelect }) {
-    return React.createElement("div", { style: { marginBottom: 8 } },
-      React.createElement("label", { style: { display: "block", fontSize: 10, fontWeight: 700, color, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 5 } }, label),
-      React.createElement("select", { value, onChange: e => { onChange(e.target.value); onSelect(e.target.value); }, style: { width: "100%", background: "#0a0a18", border: "1px solid #1e1e3a", borderRadius: 8, padding: "9px 12px", color: value ? "#fff" : "#555", fontSize: 12, fontFamily: "inherit", outline: "none", cursor: "pointer" } },
-        React.createElement("option", { value: "" }, "— Manual —"),
-        options.map(i => React.createElement("option", { key: i.id, value: String(i.id) }, `${i.nombre} · ${fmt(i.costo)}/${i.unidad}`))
-      )
-    );
-  }
-
-  // ─── Códigos Pro ────────────────────────────────────────────────────
-  // Agregá acá los códigos que le mandás a cada usuario que paga
-  // Podés poner los que quieras — ejemplo: JP-2026-001, JP-MAYO-42, etc.
-  const CODIGOS_PRO = [
-    "JP-2026-001",
-    "JP-2026-002",
-    "JP-2026-003",
-    "JP-BETA-001",
-    "JP-BETA-002",
-    "JP-BETA-003",
-    "JP-BETA-004",
-    "JP-BETA-005",
-  ];
-
-  function App() {
-    const [screen, setScreen] = useState(0);
-    const [activeTab, setActiveTab] = useState(0);
-    const [tallerTab, setTallerTab] = useState(0);
-    const [filterTipo, setFilterTipo] = useState("Todos");
-    const [proLoading, setProLoading] = useState(false);
-    const [proError, setProError] = useState(null);
-    const [proResultado, setProResultado] = useState(null);
-    const [proUrl, setProUrl] = useState("");
-    const [proModo, setProModo] = useState("pdf");
-    const fileInputRef = useRef(null);
-
-    const [insumos, setInsumosRaw] = useState(() => loadLS("jp_insumos", DEFAULT_INSUMOS));
-    const [perfiles, setPerfilesRaw] = useState(() => loadLS("jp_perfiles", DEFAULT_PERFILES));
-    const [historial, setHistorialRaw] = useState(() => loadLS("jp_historial", []));
-    const [selPerf, setSelPerf] = useState(() => loadLS("jp_selPerf", ""));
-    const [savedFlash, setSavedFlash] = useState(false);
-
-    // Wrappers que guardan en localStorage automáticamente
-    const setInsumos = (fn) => { setInsumosRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_insumos", next); return next; }); };
-    const setPerfiles = (fn) => { setPerfilesRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_perfiles", next); return next; }); };
-    const setHistorial = (fn) => { setHistorialRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_historial", next); return next; }); };
-
-    // Estados calculadora por tipo
-    const [v3D, setV3D] = useState(() => loadLS("jp_v3D", { pesoGramos: 50, costoPorGramo: 35, tiempoHoras: 3, costoElectricidadHora: 120, costosFijos: 800, manoObraHora: 0, horasManoObra: 0, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 40, cantidad: 1 }));
-    const [vSub, setVSub] = useState(() => loadLS("jp_vSub", { costoSustrato: 1500, costoTinta: 380, tiempoMinutos: 20, costoElectricidadHora: 120, costosFijos: 500, manoObraHora: 0, horasManoObra: 0, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
-    const [vBor, setVBor] = useState(() => loadLS("jp_vBor", { costoHilo: 350, costoEntretela: 200, tiempoMinutos: 30, costoElectricidadHora: 120, costosFijos: 600, manoObraHora: 800, horasManoObra: 1, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
-    const [vVin, setVVin] = useState(() => loadLS("jp_vVin", { costoVinilo: 300, costoTransfer: 150, tiempoMinutos: 15, costoElectricidadHora: 120, costosFijos: 400, manoObraHora: 600, horasManoObra: 0.5, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 45, cantidad: 1 }));
-    const [vLas, setVLas] = useState(() => loadLS("jp_vLas", { costoMaterial: 500, tiempoMinutos: 20, costoElectricidadHora: 150, costosFijos: 700, manoObraHora: 700, horasManoObra: 0.5, otrosGastos: 0, precioMaquina: 0, vidaUtilAnios: 3, horasUsoDiario: 8, pctReparaciones: 5, margenDeseado: 50, cantidad: 1 }));
-
-    // Guardar valores automáticamente
-    const mk3D = (k) => (v) => { setV3D(p => { const n = {...p, [k]: v}; saveLS("jp_v3D", n); return n; }); };
-    const mkSub = (k) => (v) => { setVSub(p => { const n = {...p, [k]: v}; saveLS("jp_vSub", n); return n; }); };
-    const mkBor = (k) => (v) => { setVBor(p => { const n = {...p, [k]: v}; saveLS("jp_vBor", n); return n; }); };
-    const mkVin = (k) => (v) => { setVVin(p => { const n = {...p, [k]: v}; saveLS("jp_vVin", n); return n; }); };
-    const mkLas = (k) => (v) => { setVLas(p => { const n = {...p, [k]: v}; saveLS("jp_vLas", n); return n; }); };
-
-    const [showInsumo, setShowInsumo] = useState(false);
-    const [showPerf, setShowPerf] = useState(false);
-    const [editIns, setEditIns] = useState(null);
-    const [editPerf, setEditPerf] = useState(null);
-    const [newIns, setNewIns] = useState({ nombre: "", tipo: "3D", unidad: "gr", costo: 0 });
-    const [newPerf, setNewPerf] = useState({ nombre: "", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500, costosFijosBor: 600, costosFijosVin: 400, costosFijosLas: 700 });
-    const [selFil, setSelFil] = useState("");
-    const [selSus, setSelSus] = useState("");
-    const [selTin, setSelTin] = useState("");
-
-    // Panel lateral dashboard
-    const [panelOpen, setPanelOpen] = useState(false);
-    const [panelTab, setPanelTab] = useState(0); // 0=rentabilidad 1=punto equilibrio
-
-    // Modal datos cliente para PDF
-    const [showClienteModal, setShowClienteModal] = useState(false);
-    const [cliente, setCliente] = useState({ nombre: "", descripcion: "", nroPedido: "" });
-
-    // Plantillas
-    const [plantillas, setPlantillasRaw] = useState(() => loadLS("jp_plantillas", []));
-    const setPlantillas = (fn) => { setPlantillasRaw(prev => { const next = typeof fn === "function" ? fn(prev) : fn; saveLS("jp_plantillas", next); return next; }); };
-    const [showPlantillaModal, setShowPlantillaModal] = useState(false);
-    const [newPlantillaNombre, setNewPlantillaNombre] = useState("");
-
-    // Costos fijos mensuales para punto de equilibrio
-    const [gastosMensuales, setGastosMensuales] = useState(() => loadLS("jp_gastos", 50000));
-
-    // Sistema de acceso Pro
-    const [esPro, setEsPro] = useState(() => {
-      const codigo = loadLS("jp_codigo_pro", "");
-      return CODIGOS_PRO.includes(codigo);
-    });
-    const [showCodigoModal, setShowCodigoModal] = useState(false);
-    const [codigoInput, setCodigoInput] = useState("");
-    const [codigoError, setCodigoError] = useState("");
-
-    // Dashboard - screen numbers shift: 0=calc, 1=taller, 2=historial, 3=dashboard, 4=pro
-    const SCREEN_DASHBOARD = 3;
-    const SCREEN_PRO = 4;
-
-    const tipoActivo = TABS_TRABAJO[activeTab].id;
-    const is3D = tipoActivo === "3D";
-    const isSub = tipoActivo === "SUB";
-    const isBor = tipoActivo === "BOR";
-    const isVin = tipoActivo === "VIN";
-    const isLas = tipoActivo === "LAS";
-
-    const vals = is3D ? v3D : isSub ? vSub : isBor ? vBor : isVin ? vVin : vLas;
-    const perfil = perfiles.find(p => String(p.id) === selPerf);
-    const filamento = insumos.find(i => String(i.id) === selFil);
-    const sustrato = insumos.find(i => String(i.id) === selSus);
-    const tinta = insumos.find(i => String(i.id) === selTin);
-
-    const res = is3D ? calcular3D(v3D, filamento, perfil)
-      : isSub ? calcularSub(vSub, sustrato, tinta, perfil)
-      : isBor ? calcularBordado(vBor, perfil)
-      : isVin ? calcularVinilo(vVin, perfil)
-      : calcularLaser(vLas, perfil);
-
-    const ins3D = insumos.filter(i => (i.tipo === "3D" || i.tipo === "General") && i.activo);
-    const insSub = insumos.filter(i => (i.tipo === "SUB" || i.tipo === "General") && i.activo);
-    const insFiltered = filterTipo === "Todos" ? insumos : insumos.filter(i => i.tipo === filterTipo);
-    const colorActivo = TABS_TRABAJO[activeTab].color;
-
-    // Gemini API
-    const GEMINI_KEY = "AIzaSyCpauJWlfsHDxMAjZE6EnVgmAYYi-tSCnY";
-    const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_KEY;
-
-    async function llamarClaude(texto) {
-      const prompt = `Analizá esta lista de precios de proveedor y extraé todos los productos con sus precios.
-
-Contenido:
-${texto.substring(0, 8000)}
-
-Respondé SOLO con un JSON válido, sin texto adicional, sin backticks markdown, en este formato exacto:
-{
-  "proveedor": "nombre del proveedor o null",
-  "fecha": "fecha si aparece o null",
-  "insumos": [
-    {
-      "nombre": "nombre del producto",
-      "precio": 12345,
-      "unidad": "gr o kg o u o hoja o impresion",
-      "tipo": "3D o SUB o General",
-      "notas": "presentacion o aclaracion o null"
-    }
-  ]
+// ── Calculators ──────────────────────────────────────────────────────
+function calcBase(costoMat, tiempoHrs, v, perf, fijosKey) {
+  const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+  const fijos = perf ? (perf[fijosKey] || 800) : v.costosFijos;
+  const electricidad = tiempoHrs * elec;
+  const manoObra = (v.manoObraHora||0) * (v.horasManoObra||0);
+  const otrosGastos = v.otrosGastos||0;
+  const amortH = v.precioMaquina > 0 ? (v.precioMaquina*(1+(v.pctReparaciones||5)/100)) / ((v.vidaUtilAnios||3)*365*(v.horasUsoDiario||8)) : 0;
+  const amortizacion = amortH * tiempoHrs;
+  const costoTotal = (costoMat + electricidad + fijos + manoObra + otrosGastos + amortizacion) * v.cantidad;
+  const precioSugerido = costoTotal / (1 - v.margenDeseado/100);
+  return { costoMat, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia: precioSugerido - costoTotal };
 }
-Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/resinas, "SUB" para sustratos/tintas/papel sublimación, "General" para otros. Incluí solo productos con precio claro.`;
+function calc3D(v, fil, perf) {
+  const cxg = fil ? fil.costo : v.costoPorGramo;
+  return calcBase(v.pesoGramos*cxg, v.tiempoHoras, v, perf, "fijos3D");
+}
+function calcSub(v, sus, tin, perf) {
+  const cSus = sus ? sus.costo : v.costoSustrato;
+  const cTin = tin ? tin.costo : v.costoTinta;
+  return calcBase(cSus+cTin, v.tiempoMinutos/60, v, perf, "fijosSub");
+}
+function calcBor(v, perf) { return calcBase(v.costoHilo+v.costoEntretela, v.tiempoMinutos/60, v, perf, "fiosBor"); }
+function calcVin(v, perf) { return calcBase(v.costoVinilo+v.costoTransfer, v.tiempoMinutos/60, v, perf, "fijosVin"); }
+function calcLas(v, perf) { return calcBase(v.costoMaterial, v.tiempoMinutos/60, v, perf, "fijosLas"); }
 
-      const res = await fetch(GEMINI_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1 }
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "Error " + res.status);
-      const txt = data.candidates[0].content.parts[0].text.trim()
-        .replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      return JSON.parse(txt);
-    }
+// ── Format ───────────────────────────────────────────────────────────
+const fmt = (v) => "$" + Math.round(v).toLocaleString("es-AR");
 
-    // Función Pro — leer PDF
-    async function leerPDF(archivo) {
-      setProLoading(true); setProError(null); setProResultado(null);
-      try {
-        const base64 = await new Promise((res, rej) => {
-          const reader = new FileReader();
-          reader.onload = e => res(e.target.result.split(",")[1]);
-          reader.onerror = rej;
-          reader.readAsDataURL(archivo);
-        });
+// ── PDF Export ───────────────────────────────────────────────────────
+function exportarPDF(tipo, vals, res, cliente) {
+  const fecha = new Date().toLocaleDateString("es-AR", { day:"2-digit", month:"long", year:"numeric" });
+  const nro = cliente?.nroPedido || Math.floor(Math.random()*9000)+1000;
+  const f = fmt;
+  const clienteHtml = cliente?.nombre ? `<div style="background:#f8f8f8;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px"><b>Cliente:</b> ${cliente.nombre}${cliente.descripcion ? "<br><b>Trabajo:</b> "+cliente.descripcion : ""}</div>` : "";
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Presupuesto #${nro}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;padding:40px;max-width:660px;margin:0 auto;color:#1a1a1a}.hdr{display:flex;justify-content:space-between;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #ff5c1a}.logo{font-size:24px;font-weight:800;color:#ff5c1a}.sec{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#ff5c1a;margin:24px 0 10px}table{width:100%;border-collapse:collapse}td{padding:9px 12px;font-size:14px;border-bottom:1px solid #f0f0f0}td:last-child{text-align:right;font-weight:600}.tot td{font-size:15px;font-weight:700;padding:14px 12px;background:#fff8f5;border:none}.tot td:last-child{color:#ff5c1a;font-size:20px}.foot{margin-top:36px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:11px;color:#aaa}</style>
+</head><body>
+<div class="hdr"><div><div class="logo">JotaPrecios</div><p style="font-size:11px;color:#888">jotaprecios.vercel.app</p></div><div style="text-align:right"><h2 style="font-size:17px">Presupuesto #${nro}</h2><p style="font-size:12px;color:#888">${fecha}</p><p style="color:#ff5c1a;font-weight:600;font-size:13px">${tipo}</p></div></div>
+${clienteHtml}
+<div class="sec">Detalle de costos</div>
+<table><tbody>
+<tr><td>Materiales</td><td>${f(res.costoMat)}</td></tr>
+<tr><td>Electricidad</td><td>${f(res.electricidad)}</td></tr>
+<tr><td>Costos fijos</td><td>${f(res.fijos)}</td></tr>
+${res.otrosGastos>0?`<tr><td>Otros gastos</td><td>${f(res.otrosGastos)}</td></tr>`:""}
+${res.amortizacion>0?`<tr><td>Amortización</td><td>${f(res.amortizacion)}</td></tr>`:""}
+${res.manoObra>0?`<tr><td>Mano de obra</td><td>${f(res.manoObra)}</td></tr>`:""}
+<tr><td>Cantidad</td><td>${vals.cantidad} ud${vals.cantidad>1?"s":""}</td></tr>
+<tr style="color:#aaa"><td>Costo total</td><td>${f(res.costoTotal)}</td></tr>
+</tbody></table>
+<div class="sec">Precio final</div>
+<table><tbody>
+<tr style="color:#aaa;font-size:13px"><td>Precio mínimo</td><td>${f(res.costoTotal)}</td></tr>
+<tr><td>Ganancia (${vals.margenDeseado}%)</td><td style="color:#22c55e">${f(res.ganancia)}</td></tr>
+<tr class="tot"><td>Precio sugerido</td><td>${f(res.precioSugerido)}</td></tr>
+</tbody></table>
+<div class="foot"><p>JotaPrecios</p><p>Presupuesto orientativo</p></div>
+<` + `script>window.onload=()=>window.print();<` + `/script></body></html>`;
+  const w = window.open("","_blank"); w.document.write(html); w.document.close();
+}
 
-        // Cargar pdf.js desde CDN con versión estable
-        const pdfjsLib = await new Promise((resolve, reject) => {
-          if (window.pdfjsLib) { resolve(window.pdfjsLib); return; }
-          const script = document.createElement("script");
-          script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js";
-          script.onload = () => {
-            window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
-            resolve(window.pdfjsLib);
-          };
-          script.onerror = () => reject(new Error("No se pudo cargar el lector de PDF"));
-          document.head.appendChild(script);
-        });
+// ── Shared styles ─────────────────────────────────────────────────────
+const CARD = { background:"#12121f", border:"1px solid #1e1e35", borderRadius:14, padding:20, marginBottom:16 };
+const BTN = { border:"none", borderRadius:8, fontFamily:"inherit", fontWeight:700, cursor:"pointer" };
+const MUTED = "#6b6b8a";
 
-        const pdfData = atob(base64);
-        const pdfArray = new Uint8Array(pdfData.length);
-        for (let i = 0; i < pdfData.length; i++) pdfArray[i] = pdfData.charCodeAt(i);
-        const pdf = await pdfjsLib.getDocument({ data: pdfArray }).promise;
-        let texto = "";
-        for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          texto += content.items.map(item => item.str).join(" ") + "\n";
-        }
-
-        if (!texto.trim()) throw new Error("No se pudo extraer texto del PDF — puede ser una imagen escaneada");
-        const resultado = await llamarClaude(texto);
-        setProResultado({ ok: true, ...resultado });
-      } catch (e) {
-        setProError(e.message);
-      } finally {
-        setProLoading(false);
-      }
-    }
-
-    // Función Pro — leer URL
-    async function leerURL() {
-      if (!proUrl.trim()) return;
-      setProLoading(true); setProError(null); setProResultado(null);
-      try {
-        // Usamos un proxy CORS para fetchear la URL
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(proUrl.trim())}`;
-        const pageRes = await fetch(proxyUrl);
-        if (!pageRes.ok) throw new Error("No se pudo acceder a la URL");
-        const pageData = await pageRes.json();
-        const html = pageData.contents || "";
-        const texto = html
-          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-        if (!texto || texto.length < 20) throw new Error("La página no tiene contenido legible");
-        const resultado = await llamarClaude(texto);
-        setProResultado({ ok: true, ...resultado });
-      } catch (e) {
-        setProError(e.message);
-      } finally {
-        setProLoading(false);
-      }
-    }
-
-    // Importar insumos del resultado Pro a Mi Taller
-    function importarInsumos(insumosNuevos) {
-      const nuevos = insumosNuevos.map(ins => ({
-        id: Date.now() + Math.random(),
-        nombre: ins.nombre,
-        tipo: ins.tipo || "General",
-        unidad: ins.unidad || "u",
-        costo: ins.precio,
-        activo: true,
-        notas: ins.notas,
-      }));
-      setInsumos(p => [...nuevos, ...p]);
-      setScreen(1);
-      setTallerTab(0);
-    }
-
-    function activarPro() {
-      const codigo = codigoInput.trim().toUpperCase();
-      if (CODIGOS_PRO.includes(codigo)) {
-        saveLS("jp_codigo_pro", codigo);
-        setEsPro(true);
-        setShowCodigoModal(false);
-        setCodigoInput("");
-        setCodigoError("");
-      } else {
-        setCodigoError("Código inválido. Verificá que esté bien escrito.");
-      }
-    }
-
-    function desactivarPro() {
-      saveLS("jp_codigo_pro", "");
-      setEsPro(false);
-    }
-
-    const tabStyle = (active) => ({ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: active ? "#ff6b35" : "#1e1e3a", background: active ? "#ff6b3512" : "transparent", color: active ? "#ff6b35" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 11, cursor: "pointer" });
-
-    function saveInsumo() {
-      if (!newIns.nombre.trim()) return;
-      if (editIns) setInsumos(p => p.map(i => i.id === editIns.id ? { ...i, ...newIns } : i));
-      else setInsumos(p => [...p, { id: Date.now(), ...newIns, activo: true }]);
-      setShowInsumo(false); setEditIns(null);
-    }
-    function savePerfil() {
-      if (!newPerf.nombre.trim()) return;
-      if (editPerf) setPerfiles(p => p.map(x => x.id === editPerf.id ? { ...x, ...newPerf } : x));
-      else setPerfiles(p => [...p, { id: Date.now(), ...newPerf }]);
-      setShowPerf(false); setEditPerf(null);
-    }
-    function saveToHistorial() {
-      const entry = { id: Date.now(), fecha: new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" }), hora: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), tipo: TABS_TRABAJO[activeTab].label + " " + tipoActivo, vals: { ...vals }, costoTotal: res.costoTotal, precioSugerido: res.precioSugerido, ganancia: res.ganancia, margen: vals.margenDeseado };
-      setHistorial(p => [entry, ...p].slice(0, 50));
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 1800);
-    }
-
-    const h = React.createElement;
-
-    try {
-    return h("div", { style: { minHeight: "100vh", background: "#0a0a14", fontFamily: "'Sora','Segoe UI',sans-serif", color: "#fff" } },
-      h("style", null, `
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
-        *{box-sizing:border-box}
-        .calc-grid { display: grid; grid-template-columns: 1fr 380px; gap: 24px; align-items: start; max-width: 1100px; margin: 0 auto; padding: 24px 24px 48px; }
-        .result-sticky { position: sticky; top: 80px; }
-        .inputs-col { min-width: 0; }
-        @media (max-width: 800px) { .calc-grid { grid-template-columns: 1fr; } .result-sticky { position: static; } }
-        @media (max-width: 640px) { .calc-grid { padding: 12px 12px 48px; gap: 12px; } }
-        .slide-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 95vw; background: #0d0d1e; border-left: 1px solid #1e1e35; z-index: 200; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); overflow-y: auto; }
-        .slide-panel.open { transform: translateX(0); }
-        .slide-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
-        .slide-overlay.open { opacity: 1; pointer-events: all; }
-        .stat-card { background: #12121f; border: 1px solid #1e1e35; border-radius: 12px; padding: 16px 20px; }
-        .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .chart-bar { background: #ff5c1a; border-radius: 4px 4px 0 0; min-height: 4px; transition: height 0.5s; }
-      `),
-
-      // Header
-      h("div", { style: { background: "#0d0d1e", borderBottom: "1px solid #1e1e35", padding: "0 24px", position: "sticky", top: 0, zIndex: 50 } },
-        h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 1100, margin: "0 auto", height: 60 } },
-          h("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
-            h("a", { href: "/", style: { display: "flex", alignItems: "center", gap: 12, textDecoration: "none" } },
-              h("div", { style: { width: 32, height: 32, borderRadius: 8, background: "#ff5c1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff" } }, "J"),
-              h("div", null,
-                h("div", { style: { fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" } }, "JotaPrecios"),
-                h("div", { style: { fontSize: 9, color: "#444", letterSpacing: "0.08em" } }, "CALCULADORA DE PRECIOS")
-              )
-            )
-          ),
-          h("div", { style: { display: "flex", alignItems: "center", gap: 4 } },
-            ["🧮 Calcular", "🏭 Mi Taller", "📋 Historial", "📊 Dashboard", "⭐ Pro"].map((s, i) =>
-              h("button", { key: s, onClick: () => setScreen(i), style: { padding: "8px 12px", border: "none", background: screen === i ? "#ff5c1a18" : "none", borderRadius: 8, color: screen === i ? (i === 4 ? "#fbbf24" : "#ff5c1a") : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 11, cursor: "pointer", borderBottom: screen === i ? `2px solid ${i === 4 ? "#fbbf24" : "#ff5c1a"}` : "2px solid transparent" } }, s)
-            ),
-            esPro
-              ? h("div", { title: "Clic para desactivar", onClick: desactivarPro, style: { marginLeft: 6, background: "#fbbf2418", border: "1px solid #fbbf2440", color: "#fbbf24", fontSize: 10, fontWeight: 800, padding: "5px 10px", borderRadius: 100, cursor: "pointer" } }, "⭐ PRO")
-              : h("button", { onClick: () => setShowCodigoModal(true), style: { marginLeft: 6, background: "#fbbf2412", border: "1px solid #fbbf2430", color: "#fbbf24", fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 100, cursor: "pointer", fontFamily: "inherit" } }, "⭐ Activar Pro"),
-            h("a", { href: "/", style: { marginLeft: 8, fontSize: 12, color: "#444", textDecoration: "none", padding: "6px 12px", border: "1px solid #1e1e35", borderRadius: 8 } }, "← Inicio")
-          ),
-          perfil && h("div", { style: { background: "#4ade8018", border: "1px solid #4ade8033", color: "#4ade80", fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 100 } }, `⚙️ ${perfil.nombre}`)
-        )
+// ── Components ────────────────────────────────────────────────────────
+function Modal({ title, onClose, children }) {
+  return h("div", { style:{ position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 } },
+    h("div", { style:{ background:"#12121f",border:"1px solid #2a2a4a",borderRadius:16,padding:28,width:"100%",maxWidth:420 } },
+      h("div", { style:{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 } },
+        h("span", { style:{ fontWeight:700,fontSize:16 } }, title),
+        h("button", { onClick:onClose, style:{ background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer" } }, "×")
       ),
+      children
+    )
+  );
+}
 
-      h("div", { style: { maxWidth: 1100, margin: "0 auto" } },
+function Field({ label, value, onChange, type="text", step, min, placeholder }) {
+  return h("div", { style:{ marginBottom:13 } },
+    h("label", { style:{ display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5 } }, label),
+    h("input", { type, value, step, min, placeholder, onChange: e => onChange(type==="number" ? (parseFloat(e.target.value)||0) : e.target.value),
+      style:{ width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box" },
+      onFocus: e => e.target.style.borderColor="#ff5c1a",
+      onBlur: e => e.target.style.borderColor="#2a2a4a"
+    })
+  );
+}
 
-        // CALCULADORA — two column layout
-        screen === 0 && h("div", { className: "calc-grid" },
+function DropSelect({ label, value, onChange, options }) {
+  return h("div", { style:{ marginBottom:13 } },
+    h("label", { style:{ display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5 } }, label),
+    h("select", { value, onChange: e => onChange(e.target.value),
+      style:{ width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 14px",color:"#fff",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer" }
+    }, options.map(o => h("option", { key:o.value, value:o.value }, o.label)))
+  );
+}
 
-          // LEFT — inputs
-          h("div", { className: "inputs-col" },
-
-            // Tipo tabs
-            h("div", { style: { display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" } },
-              TABS_TRABAJO.map((t, i) =>
-                h("button", { key: t.id, onClick: () => setActiveTab(i), style: { padding: "9px 18px", borderRadius: 100, border: "1px solid", borderColor: activeTab === i ? t.color : "#1e1e35", background: activeTab === i ? t.color + "18" : "#12121f", color: activeTab === i ? t.color : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" } }, t.label)
-              )
-            ),
-
-            // Perfil selector
-            perfiles.length > 0 && h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 18, marginBottom: 16 } },
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 } }, "⚙️ Perfil de taller"),
-              h("select", { value: selPerf, onChange: e => setSelPerf(e.target.value), style: { width: "100%", background: "#0a0a14", border: "1px solid #1e1e35", borderRadius: 8, padding: "10px 14px", color: selPerf ? "#fff" : "#555", fontSize: 13, fontFamily: "inherit", outline: "none", cursor: "pointer" } },
-                h("option", { value: "" }, "— Sin perfil (ingresar manualmente) —"),
-                perfiles.map(p => h("option", { key: p.id, value: String(p.id) }, `${p.nombre} · Elect. ${fmt(p.electricidad)}/hr`))
-              )
-            ),
-
-            // Insumos rápidos
-            is3D && ins3D.length > 0 && h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 18, marginBottom: 16 } },
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff5c1a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 } }, "📦 Insumos guardados"),
-              h(QuickSelect, { label: "Filamento", color: "#ff5c1a", value: selFil, onChange: setSelFil, options: ins3D, onSelect: id => { const i = insumos.find(x => String(x.id) === id); if (i) setV3D(p => ({ ...p, costoPorGramo: i.costo })); } })
-            ),
-            isSub && insSub.length > 0 && h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 18, marginBottom: 16 } },
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 } }, "📦 Insumos guardados"),
-              h(QuickSelect, { label: "Sustrato", color: "#a78bfa", value: selSus, onChange: setSelSus, options: insSub, onSelect: id => { const i = insumos.find(x => String(x.id) === id); if (i) setVSub(p => ({ ...p, costoSustrato: i.costo })); } }),
-              h(QuickSelect, { label: "Tinta", color: "#a78bfa", value: selTin, onChange: setSelTin, options: insSub, onSelect: id => { const i = insumos.find(x => String(x.id) === id); if (i) setVSub(p => ({ ...p, costoTinta: i.costo })); } })
-            ),
-
-            // Producción
-            h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 20, marginBottom: 16 } },
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: colorActivo, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 } }, "📦 Producción"),
-              is3D && h(React.Fragment, null,
-                h(NumInput, { label: "Peso del objeto", val: v3D.pesoGramos, onChange: mk3D("pesoGramos"), step: 5, unit: "gr", tooltip: "El peso de la pieza terminada en gramos. Lo ves en el slicer antes de imprimir." }),
-                h(NumInput, { label: "Costo filamento/gr", val: v3D.costoPorGramo, onChange: mk3D("costoPorGramo"), step: 1, unit: "$/gr", disabled: !!filamento, tooltip: "El precio del filamento dividido por 1000. Si el kilo cuesta $35.000, el gramo sale $35." }),
-                h(NumInput, { label: "Tiempo de impresión", val: v3D.tiempoHoras, onChange: mk3D("tiempoHoras"), step: 0.5, unit: "hs", tooltip: "Cuántas horas tarda la impresora. Lo ves en el slicer." })
-              ),
-              isSub && h(React.Fragment, null,
-                h(NumInput, { label: "Costo del sustrato", val: vSub.costoSustrato, onChange: mkSub("costoSustrato"), step: 100, unit: "$", disabled: !!sustrato, tooltip: "El precio del objeto que vas a sublimar — taza, remera, etc." }),
-                h(NumInput, { label: "Costo de tinta", val: vSub.costoTinta, onChange: mkSub("costoTinta"), step: 50, unit: "$", disabled: !!tinta, tooltip: "Cuánto gastás de tinta por trabajo." }),
-                h(NumInput, { label: "Tiempo de producción", val: vSub.tiempoMinutos, onChange: mkSub("tiempoMinutos"), step: 5, unit: "min", tooltip: "Tiempo total incluyendo preparación y prensado." })
-              ),
-              isBor && h(React.Fragment, null,
-                h(NumInput, { label: "Costo de hilo", val: vBor.costoHilo, onChange: mkBor("costoHilo"), step: 50, unit: "$", tooltip: "Costo del hilo usado en el bordado." }),
-                h(NumInput, { label: "Costo de entretela", val: vBor.costoEntretela, onChange: mkBor("costoEntretela"), step: 50, unit: "$", tooltip: "Costo del estabilizador o entretela." }),
-                h(NumInput, { label: "Tiempo de bordado", val: vBor.tiempoMinutos, onChange: mkBor("tiempoMinutos"), step: 5, unit: "min", tooltip: "Tiempo total incluyendo preparación y acabados." })
-              ),
-              isVin && h(React.Fragment, null,
-                h(NumInput, { label: "Costo del vinilo", val: vVin.costoVinilo, onChange: mkVin("costoVinilo"), step: 50, unit: "$", tooltip: "Costo del vinilo usado." }),
-                h(NumInput, { label: "Costo transfer/papel", val: vVin.costoTransfer, onChange: mkVin("costoTransfer"), step: 50, unit: "$", tooltip: "Costo del papel transfer usado." }),
-                h(NumInput, { label: "Tiempo de aplicación", val: vVin.tiempoMinutos, onChange: mkVin("tiempoMinutos"), step: 5, unit: "min", tooltip: "Tiempo total de corte y aplicación." })
-              ),
-              isLas && h(React.Fragment, null,
-                h(NumInput, { label: "Costo del material", val: vLas.costoMaterial, onChange: mkLas("costoMaterial"), step: 100, unit: "$", tooltip: "Costo del material a cortar o grabar." }),
-                h(NumInput, { label: "Tiempo de corte/grabado", val: vLas.tiempoMinutos, onChange: mkLas("tiempoMinutos"), step: 5, unit: "min", tooltip: "Tiempo total incluyendo preparación." })
-              )
-            ),
-
-            // Electricidad y fijos
-            h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 20, marginBottom: 16 } },
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#38bdf8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 } }, "⚡ Electricidad y costos fijos"),
-              h(NumInput, { label: "Electricidad", val: vals.costoElectricidadHora, onChange: is3D ? mk3D("costoElectricidadHora") : isSub ? mkSub("costoElectricidadHora") : isBor ? mkBor("costoElectricidadHora") : isVin ? mkVin("costoElectricidadHora") : mkLas("costoElectricidadHora"), step: 10, unit: "$/hr", disabled: !!perfil, tooltip: "Costo por hora de máquina encendida." }),
-              is3D && h("div", { style: { marginBottom: 14 } },
-                h("div", { style: { fontSize: 10, color: "#444", marginBottom: 8 } }, "⚡ Presets Bambu Lab:"),
-                h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
-                  [["A1 mini", 70], ["A1", 90], ["P1S", 100], ["X1C", 150]].map(([m, w]) =>
-                    h("button", { key: m, onClick: () => mk3D("costoElectricidadHora")(Math.round(w / 1000 * (vals.costoElectricidadHora || 120))), style: { background: "#0a0a14", border: "1px solid #1e1e35", borderRadius: 8, padding: "6px 12px", color: "#666", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" } }, `${m} ~${w}W`)
-                  )
-                )
-              ),
-              h(NumInput, { label: "Costos fijos", val: vals.costosFijos, onChange: is3D ? mk3D("costosFijos") : isSub ? mkSub("costosFijos") : isBor ? mkBor("costosFijos") : isVin ? mkVin("costosFijos") : mkLas("costosFijos"), step: 100, unit: "$/trabajo", disabled: !!perfil, tooltip: "Alquiler + internet + otros gastos fijos mensuales ÷ cantidad de trabajos por mes." }),
-              h(NumInput, { label: "🧩 Otros gastos", val: vals.otrosGastos || 0, onChange: is3D ? mk3D("otrosGastos") : isSub ? mkSub("otrosGastos") : isBor ? mkBor("otrosGastos") : isVin ? mkVin("otrosGastos") : mkLas("otrosGastos"), step: 50, unit: "$", tooltip: "Pegamento, lija, alcohol, guantes, sprays — todo lo que consumís en el trabajo." })
-            ),
-
-            // Amortización
-            h("div", { style: { background: "#12121f", border: "1px solid #fbbf2425", borderRadius: 14, padding: 20, marginBottom: 16 } },
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 } }, "🔧 Amortización de máquina"),
-              h("div", { style: { fontSize: 12, color: "#555", marginBottom: 14, lineHeight: 1.6 } }, "Distribuí el costo de tu máquina en cada trabajo para recuperarla con el tiempo."),
-              h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
-                h(NumInput, { label: "Precio de la máquina", val: vals.precioMaquina || 0, onChange: is3D ? mk3D("precioMaquina") : isSub ? mkSub("precioMaquina") : isBor ? mkBor("precioMaquina") : isVin ? mkVin("precioMaquina") : mkLas("precioMaquina"), step: 10000, unit: "$", tooltip: "Cuánto pagaste por tu máquina." }),
-                h(NumInput, { label: "Vida útil", val: vals.vidaUtilAnios || 3, onChange: is3D ? mk3D("vidaUtilAnios") : isSub ? mkSub("vidaUtilAnios") : isBor ? mkBor("vidaUtilAnios") : isVin ? mkVin("vidaUtilAnios") : mkLas("vidaUtilAnios"), step: 1, unit: "años", tooltip: "Cuántos años estimás que va a durar." }),
-                h(NumInput, { label: "Uso diario", val: vals.horasUsoDiario || 8, onChange: is3D ? mk3D("horasUsoDiario") : isSub ? mkSub("horasUsoDiario") : isBor ? mkBor("horasUsoDiario") : isVin ? mkVin("horasUsoDiario") : mkLas("horasUsoDiario"), step: 1, unit: "hs/día", tooltip: "Horas por día que usás la máquina en promedio." }),
-                h(NumInput, { label: "% Reparaciones", val: vals.pctReparaciones || 5, onChange: is3D ? mk3D("pctReparaciones") : isSub ? mkSub("pctReparaciones") : isBor ? mkBor("pctReparaciones") : isVin ? mkVin("pctReparaciones") : mkLas("pctReparaciones"), step: 1, unit: "%", tooltip: "% del precio que estimás gastar en reparaciones durante su vida útil." })
-              ),
-              vals.precioMaquina > 0 && h("div", { style: { background: "#fbbf2412", border: "1px solid #fbbf2430", borderRadius: 8, padding: "10px 14px", marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" } },
-                h("span", { style: { fontSize: 12, color: "#fbbf24" } }, "Costo amortización/hora:"),
-                h("span", { style: { fontSize: 18, fontWeight: 800, fontFamily: "monospace", color: "#fbbf24" } }, fmt((vals.precioMaquina * (1 + (vals.pctReparaciones || 5) / 100)) / ((vals.vidaUtilAnios || 3) * 365 * (vals.horasUsoDiario || 8))) + "/hr")
-              )
-            ),
-
-            // Mano de obra
-            h("div", { style: { background: "#12121f", border: "1px solid #7c5cfc25", borderRadius: 14, padding: 20, marginBottom: 16 } },
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 } }, "🧑‍🔧 Mano de obra"),
-              h("div", { style: { background: "#7c5cfc12", border: "1px solid #7c5cfc30", borderRadius: 10, padding: "12px 14px", marginBottom: 14, fontSize: 12, color: "#9d8eff", lineHeight: 1.6 } },
-                "⚠️ ", h("strong", { style: { color: "#c4b5fd" } }, "El costo más olvidado."), " Incluí el tiempo que dedicás vos a cada trabajo: diseño, preparación, post-procesado, comunicación con el cliente, etc."
-              ),
-              h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
-                h(NumInput, { label: "Valor hora de tu trabajo", val: vals.manoObraHora || 0, onChange: is3D ? mk3D("manoObraHora") : isSub ? mkSub("manoObraHora") : isBor ? mkBor("manoObraHora") : isVin ? mkVin("manoObraHora") : mkLas("manoObraHora"), step: 100, unit: "$/hr", tooltip: "Cuánto querés ganar por hora de tu tiempo. Pensalo como tu sueldo hora." }),
-                h(NumInput, { label: "Horas trabajadas", val: vals.horasManoObra || 0, onChange: is3D ? mk3D("horasManoObra") : isSub ? mkSub("horasManoObra") : isBor ? mkBor("horasManoObra") : isVin ? mkVin("horasManoObra") : mkLas("horasManoObra"), step: 0.5, unit: "hs", tooltip: "Horas que vos trabajaste en este pedido: diseño del archivo, preparación de la máquina, post-procesado (lija, pintura, pegamento), empaque, comunicación con el cliente, etc." })
-              ),
-              vals.manoObraHora > 0 && vals.horasManoObra > 0 && h("div", { style: { background: "#a78bfa12", border: "1px solid #a78bfa30", borderRadius: 8, padding: "10px 14px", marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" } },
-                h("span", { style: { fontSize: 12, color: "#a78bfa" } }, `${vals.horasManoObra}hs × ${fmt(vals.manoObraHora)}/hr =`),
-                h("span", { style: { fontSize: 18, fontWeight: 800, fontFamily: "monospace", color: "#a78bfa" } }, fmt(vals.manoObraHora * vals.horasManoObra))
-              )
-            ),
-
-            // Venta
-            h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 14, padding: 20 } },
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 } }, "💰 Venta"),
-              h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
-                h(NumInput, { label: "Margen de ganancia", val: vals.margenDeseado, onChange: is3D ? mk3D("margenDeseado") : isSub ? mkSub("margenDeseado") : isBor ? mkBor("margenDeseado") : isVin ? mkVin("margenDeseado") : mkLas("margenDeseado"), step: 5, unit: "%" }),
-                h(NumInput, { label: "Cantidad", val: vals.cantidad, onChange: is3D ? mk3D("cantidad") : isSub ? mkSub("cantidad") : isBor ? mkBor("cantidad") : isVin ? mkVin("cantidad") : mkLas("cantidad"), step: 1, unit: "uds" })
-              )
-            )
-          ),
-
-          // RIGHT — resultado sticky
-          h("div", { className: "result-sticky" },
-            h("div", { style: { background: "linear-gradient(145deg,#1a0d00,#12121f)", border: "1px solid #ff5c1a30", borderRadius: 20, padding: 28 } },
-
-              h("div", { style: { fontSize: 10, fontWeight: 700, color: "#ff5c1a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 20 } }, "📊 Resultado en tiempo real"),
-
-              // Precio grande
-              h("div", { style: { textAlign: "center", padding: "24px 0", marginBottom: 20, background: "#ff5c1a08", borderRadius: 14, border: "1px solid #ff5c1a15" } },
-                h("div", { style: { fontSize: 11, color: "#666", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 } }, "✅ Precio sugerido"),
-                h("div", { style: { fontSize: 52, fontWeight: 900, color: "#ff5c1a", fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 } }, fmt(res.precioSugerido)),
-                h("div", { style: { fontSize: 13, color: "#444", marginTop: 6 } }, `Precio mínimo: ${fmt(res.costoTotal)}`)
-              ),
-
-              // Desglose
-              h("div", { style: { marginBottom: 20 } },
-                h(ResultRow, { label: "Materiales", value: fmt(is3D ? res.material : isSub ? res.cSus + res.cTin : res.material) }),
-                h(ResultRow, { label: "Electricidad", value: fmt(res.electricidad) }),
-                h(ResultRow, { label: "Costos fijos", value: fmt(res.fijos) }),
-                res.otrosGastos > 0 && h(ResultRow, { label: "🧩 Otros gastos", value: fmt(res.otrosGastos) }),
-                res.amortizacion > 0 && h(ResultRow, { label: "🔧 Amortización", value: fmt(res.amortizacion) }),
-                res.manoObra > 0 && h(ResultRow, { label: "🧑‍🔧 Mano de obra", value: fmt(res.manoObra) }),
-                h(ResultRow, { label: `Costo total × ${vals.cantidad}`, value: fmt(res.costoTotal) }),
-                h(ResultRow, { label: "Ganancia", value: fmt(res.ganancia), hi: true })
-              ),
-
-              // Escenarios
-              h("div", { style: { marginBottom: 20 } },
-                h("div", { style: { fontSize: 10, color: "#444", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 } }, "Escenarios"),
-                [["Conservador 20%", res.costoTotal / 0.8, "#22d07a"], [`Tu margen ${vals.margenDeseado}%`, res.precioSugerido, "#ff5c1a"], ["Agresivo 70%", res.costoTotal / 0.3, "#a78bfa"]].map(([l, p, c]) =>
-                  h("div", { key: l, style: { marginBottom: 10 } },
-                    h("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 } },
-                      h("span", { style: { color: c } }, l),
-                      h("span", { style: { fontFamily: "monospace", fontWeight: 700, color: c } }, fmt(p))
-                    ),
-                    h("div", { style: { background: "#1a1a2e", borderRadius: 3, height: 5 } },
-                      h("div", { style: { height: 5, background: c, borderRadius: 3, width: l.includes("Conservador") ? "55%" : l.includes("Tu") ? "75%" : "100%" } })
-                    )
-                  )
-                )
-              ),
-
-              // Botones
-              h("div", { style: { display: "flex", gap: 8 } },
-                h("button", { onClick: esPro ? saveToHistorial : () => setShowCodigoModal(true), style: { ...BTN, flex: 1, background: savedFlash ? "#22d07a" : esPro ? "#22d07a12" : "#1a1a2e", border: "1px solid", borderColor: savedFlash ? "#22d07a" : esPro ? "#22d07a40" : "#2a2a4a", padding: 13, color: savedFlash ? "#0a0a14" : esPro ? "#22d07a" : "#444", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.3s", borderRadius: 10, title: esPro ? "" : "Función Pro — Activar para guardar" } }, savedFlash ? "✓ Guardado" : esPro ? "💾 Guardar" : "🔒 Guardar"),
-                h("button", { onClick: () => setShowClienteModal(true), style: { ...BTN, flex: 2, background: "#ff5c1a", border: "none", padding: 13, color: "#fff", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10 } }, "📄 Exportar PDF")
-              )
-            )
-          )
-        ),
-
-        // MI TALLER
-        screen === 1 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
-          h("div", { style: { display: "flex", gap: 8, marginBottom: 20 } },
-            h("button", { style: tabStyle(tallerTab === 0), onClick: () => setTallerTab(0) }, "📦 Insumos"),
-            h("button", { style: tabStyle(tallerTab === 1), onClick: () => setTallerTab(1) }, "⚙️ Perfiles"),
-            h("button", { style: tabStyle(tallerTab === 2), onClick: () => setTallerTab(2) }, "📋 Plantillas")
-          ),
-          tallerTab === 0 && h(React.Fragment, null,
-            h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
-              h("div", null, h("div", { style: { fontWeight: 700, fontSize: 15 } }, "Base de insumos"), h("div", { style: { fontSize: 11, color: "#444" } }, `${insumos.length} insumos`)),
-              h("button", { onClick: () => { setEditIns(null); setNewIns({ nombre: "", tipo: "3D", unidad: "gr", costo: 0 }); setShowInsumo(true); }, style: { ...BTN, background: "#ff6b35", color: "#fff", padding: "8px 14px", fontSize: 12 } }, "+ Agregar")
-            ),
-            h("div", { style: { display: "flex", gap: 6, marginBottom: 12 } },
-              ["Todos", "3D", "SUB", "General"].map(f =>
-                h("button", { key: f, onClick: () => setFilterTipo(f), style: { padding: "5px 10px", borderRadius: 100, border: "1px solid", borderColor: filterTipo === f ? "#ff6b35" : "#1e1e3a", background: filterTipo === f ? "#ff6b3518" : "transparent", color: filterTipo === f ? "#ff6b35" : "#444", fontFamily: "inherit", fontSize: 10, fontWeight: 700, cursor: "pointer" } }, f)
-              )
-            ),
-            insFiltered.map(ins =>
-              h("div", { key: ins.id, style: { ...CARD, opacity: ins.activo ? 1 : 0.4 } },
-                h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
-                  h("div", { style: { flex: 1 } },
-                    h("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" } },
-                      h("span", { style: { fontWeight: 700, fontSize: 13 } }, ins.nombre),
-                      h(Tag, { tipo: ins.tipo })
-                    ),
-                    h("span", { style: { fontSize: 18, fontWeight: 800, color: "#ff6b35", fontFamily: "monospace" } }, fmt(ins.costo)),
-                    h("span", { style: { fontSize: 11, color: "#444", marginLeft: 4 } }, `/${ins.unidad}`)
-                  ),
-                  h("div", { style: { display: "flex", gap: 4, marginLeft: 8 } },
-                    h("button", { onClick: () => setInsumos(p => p.map(i => i.id === ins.id ? { ...i, activo: !i.activo } : i)), style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: ins.activo ? "#4ade80" : "#333", padding: "5px 9px", fontSize: 13 } }, ins.activo ? "●" : "○"),
-                    h("button", { onClick: () => { setEditIns(ins); setNewIns({ nombre: ins.nombre, tipo: ins.tipo, unidad: ins.unidad, costo: ins.costo }); setShowInsumo(true); }, style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#666", padding: "5px 9px" } }, "✏️"),
-                    h("button", { onClick: () => setInsumos(p => p.filter(i => i.id !== ins.id)), style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#f87171", padding: "5px 9px" } }, "🗑")
-                  )
-                )
-              )
-            ),
-            insFiltered.length === 0 && h("div", { style: { textAlign: "center", padding: "40px 0", color: "#2a2a3a" } }, h("div", { style: { fontSize: 32, marginBottom: 10 } }, "📦"), h("p", { style: { fontSize: 13 } }, "Sin insumos en esta categoría"))
-          ),
-          tallerTab === 1 && h(React.Fragment, null,
-            h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
-              h("div", null, h("div", { style: { fontWeight: 700, fontSize: 15 } }, "Perfiles de costos"), h("div", { style: { fontSize: 11, color: "#444" } }, "Configuraciones de tu taller")),
-              h("button", { onClick: () => { setEditPerf(null); setNewPerf({ nombre: "", electricidad: 120, costosFijos3D: 800, costosFijosSub: 500 }); setShowPerf(true); }, style: { ...BTN, background: "#4ade80", color: "#0d0d1a", padding: "8px 14px", fontSize: 12 } }, "+ Nuevo")
-            ),
-            perfiles.map(perf =>
-              h("div", { key: perf.id, style: { ...CARD, borderColor: selPerf === String(perf.id) ? "#4ade80" : "#1e1e3a" } },
-                h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
-                  h("div", { style: { flex: 1 } },
-                    h("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 } }, perf.nombre, selPerf === String(perf.id) && h("span", { style: { fontSize: 9, background: "#4ade8018", color: "#4ade80", padding: "2px 8px", borderRadius: 100, fontWeight: 700 } }, "ACTIVO")),
-                    h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 } },
-                      [["⚡ Elect.", fmt(perf.electricidad) + "/hr"], ["🖨️ Fijos 3D", fmt(perf.costosFijos3D)], ["🎨 Fijos Sub", fmt(perf.costosFijosSub)]].map(([k, v]) =>
-                        h("div", { key: k, style: { background: "#0a0a18", borderRadius: 8, padding: 8, textAlign: "center" } },
-                          h("div", { style: { fontSize: 8, color: "#333", marginBottom: 2 } }, k),
-                          h("div", { style: { fontSize: 10, fontWeight: 700, fontFamily: "monospace", color: "#777" } }, v)
-                        )
-                      )
-                    )
-                  ),
-                  h("div", { style: { display: "flex", flexDirection: "column", gap: 5, marginLeft: 10 } },
-                    h("button", { onClick: () => setSelPerf(selPerf === String(perf.id) ? "" : String(perf.id)), style: { ...BTN, background: "transparent", border: "1px solid", borderColor: selPerf === String(perf.id) ? "#4ade80" : "#2a2a4a", color: selPerf === String(perf.id) ? "#4ade80" : "#555", padding: "6px 10px", fontSize: 11 } }, selPerf === String(perf.id) ? "✓ Activo" : "Usar"),
-                    h("button", { onClick: () => { setEditPerf(perf); setNewPerf({ nombre: perf.nombre, electricidad: perf.electricidad, costosFijos3D: perf.costosFijos3D, costosFijosSub: perf.costosFijosSub }); setShowPerf(true); }, style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#666", padding: "6px 10px" } }, "✏️"),
-                    h("button", { onClick: () => { setPerfiles(p => p.filter(x => x.id !== perf.id)); if (selPerf === String(perf.id)) setSelPerf(""); }, style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#f87171", padding: "6px 10px" } }, "🗑")
-                  )
-                )
-              )
-            )
-          ),
-
-          // PLANTILLAS tab
-          tallerTab === 2 && h(React.Fragment, null,
-            h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
-              h("div", null,
-                h("div", { style: { fontWeight: 700, fontSize: 15 } }, "Plantillas de trabajo"),
-                h("div", { style: { fontSize: 11, color: "#444" } }, "Guardá configuraciones completas para reutilizar con un clic")
-              ),
-              h("button", {
-                onClick: () => { setNewPlantillaNombre(""); setShowPlantillaModal(true); },
-                style: { ...BTN, background: "#ff5c1a", color: "#fff", padding: "8px 14px", fontSize: 12 }
-              }, "+ Guardar actual")
-            ),
-            plantillas.length === 0 && h("div", { style: { textAlign: "center", padding: "48px 0", color: "#2a2a3a" } },
-              h("div", { style: { fontSize: 36, marginBottom: 12 } }, "📋"),
-              h("p", { style: { fontSize: 13, marginBottom: 6 } }, "No tenés plantillas guardadas"),
-              h("p", { style: { fontSize: 11, color: "#222" } }, "Configurá la calculadora y guardá la configuración como plantilla")
-            ),
-            plantillas.map(pl =>
-              h("div", { key: pl.id, style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 12, padding: 16, marginBottom: 10 } },
-                h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
-                  h("div", null,
-                    h("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 4 } }, pl.nombre),
-                    h("div", { style: { fontSize: 11, color: "#444" } }, `${TABS_TRABAJO.find(t => t.id === pl.tipo)?.label || pl.tipo} · Margen ${pl.vals.margenDeseado}% · ${new Date(pl.id).toLocaleDateString("es-AR")}`)
-                  ),
-                  h("div", { style: { display: "flex", gap: 6 } },
-                    h("button", {
-                      onClick: () => {
-                        const idx = TABS_TRABAJO.findIndex(t => t.id === pl.tipo);
-                        if (idx >= 0) setActiveTab(idx);
-                        if (pl.tipo === "3D") setV3D(pl.vals);
-                        else if (pl.tipo === "SUB") setVSub(pl.vals);
-                        else if (pl.tipo === "BOR") setVBor(pl.vals);
-                        else if (pl.tipo === "VIN") setVVin(pl.vals);
-                        else setVLas(pl.vals);
-                        setScreen(0);
-                      },
-                      style: { ...BTN, background: "#ff5c1a18", border: "1px solid #ff5c1a40", color: "#ff5c1a", padding: "7px 14px", fontSize: 12 }
-                    }, "Usar"),
-                    h("button", { onClick: () => setPlantillas(p => p.filter(x => x.id !== pl.id)), style: { ...BTN, background: "transparent", border: "1px solid #1e1e35", color: "#f87171", padding: "7px 10px" } }, "🗑")
-                  )
-                )
-              )
-            )
-          )
-        ),  // end esPro dashboard
-        ),  // end dashboard screen
-
-        // HISTORIAL
-        screen === 2 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
-          h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
-            h("div", null, h("div", { style: { fontWeight: 700, fontSize: 15 } }, "Historial"), h("div", { style: { fontSize: 11, color: "#444" } }, `${historial.length} presupuestos guardados`)),
-            historial.length > 0 && h("button", { onClick: () => setHistorial([]), style: { ...BTN, background: "transparent", border: "1px solid #2a1a1a", color: "#f87171", padding: "6px 12px", fontSize: 11 } }, "Limpiar")
-          ),
-          historial.length === 0 && h("div", { style: { textAlign: "center", padding: "60px 0", color: "#2a2a3a" } },
-            h("div", { style: { fontSize: 40, marginBottom: 12 } }, "📋"),
-            h("p", { style: { fontSize: 13, marginBottom: 6 } }, "Todavía no guardaste presupuestos"),
-            h("p", { style: { fontSize: 11, color: "#222" } }, "Usá el botón 💾 Guardar en la calculadora")
-          ),
-          historial.map(entry =>
-            h("div", { key: entry.id, style: CARD },
-              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 } },
-                h("div", null,
-                  h("div", { style: { fontSize: 12, fontWeight: 700, color: entry.tipo === "Impresión 3D" ? "#ff6b35" : "#a78bfa", marginBottom: 3 } }, `${entry.tipo === "Impresión 3D" ? "🖨️" : "🎨"} ${entry.tipo}`),
-                  h("div", { style: { fontSize: 10, color: "#333" } }, `${entry.fecha} · ${entry.hora}`)
-                ),
-                h("button", { onClick: () => setHistorial(p => p.filter(h => h.id !== entry.id)), style: { ...BTN, background: "transparent", border: "1px solid #1e1e3a", color: "#444", padding: "4px 8px", fontSize: 11 } }, "🗑")
-              ),
-              h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 10 } },
-                [["Costo", fmt(entry.costoTotal), "#888"], ["Ganancia", fmt(entry.ganancia), "#4ade80"], ["Margen", `${entry.margen}%`, "#a78bfa"]].map(([k, v, c]) =>
-                  h("div", { key: k, style: { background: "#0a0a18", borderRadius: 8, padding: 8, textAlign: "center" } },
-                    h("div", { style: { fontSize: 9, color: "#333", marginBottom: 2 } }, k),
-                    h("div", { style: { fontSize: 12, fontWeight: 700, fontFamily: "monospace", color: c } }, v)
-                  )
-                )
-              ),
-              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid #1a1a2e", marginBottom: 10 } },
-                h("span", { style: { fontSize: 12, color: "#666" } }, "Precio sugerido"),
-                h("span", { style: { fontSize: 20, fontWeight: 800, fontFamily: "monospace", color: "#ff6b35" } }, fmt(entry.precioSugerido))
-              ),
-              h("button", { onClick: () => exportarPDF({ tipo: entry.tipo, vals: entry.vals, res: { costoTotal: entry.costoTotal, precioSugerido: entry.precioSugerido, ganancia: entry.ganancia, electricidad: 0, fijos: 0 }, is3D: entry.tipo === "Impresión 3D" }), style: { ...BTN, width: "100%", background: "#1a1408", border: "1px solid #ff6b3530", color: "#ff6b35", padding: 10, fontSize: 12, borderRadius: 8 } }, "📄 Exportar PDF")
-            )
-          )
-        )
+function NumInput({ label, val, onChange, step=1, unit="", disabled=false, tooltip=null }) {
+  const [tip, setTip] = useState(false);
+  return h("div", { style:{ marginBottom:12, opacity:disabled?0.4:1 } },
+    h("div", { style:{ display:"flex",alignItems:"center",gap:6,marginBottom:4 } },
+      h("label", { style:{ fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.07em",textTransform:"uppercase" } },
+        label, " ", h("span", { style:{ color:"#ff5c1a" } }, unit)
       ),
+      tooltip && h("button", { onClick:()=>setTip(p=>!p),
+        style:{ background:"none",border:"1px solid #2a2a4a",borderRadius:"50%",width:15,height:15,color:MUTED,fontSize:9,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0 }
+      }, "?")
+    ),
+    tooltip && tip && h("div", { style:{ background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",marginBottom:8,fontSize:12,color:"#9d9db8",lineHeight:1.6 } }, tooltip),
+    h("input", { type:"number", step, min:0, value:val, disabled, onChange: e => onChange(parseFloat(e.target.value)||0),
+      style:{ width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:15,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box" },
+      onFocus: e => { if(!disabled) e.target.style.borderColor="#ff5c1a"; },
+      onBlur: e => e.target.style.borderColor="#2a2a4a"
+    })
+  );
+}
 
-        // DASHBOARD
-        screen === 3 && h("div", { style: { maxWidth: 1100, margin: "0 auto", padding: "24px 24px 48px" } },
-          !esPro && h("div", { style: { textAlign: "center", padding: "60px 24px" } },
-            h("div", { style: { fontSize: 56, marginBottom: 16 } }, "📊"),
-            h("div", { style: { fontSize: 22, fontWeight: 800, marginBottom: 8 } }, "Dashboard Pro"),
-            h("div", { style: { fontSize: 15, color: "#666", marginBottom: 32, lineHeight: 1.6, maxWidth: 400, margin: "0 auto 32px" } }, "El dashboard de rentabilidad y el punto de equilibrio son exclusivos del plan Pro."),
-            h("div", { style: { display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" } },
-              h("button", { onClick: () => setShowCodigoModal(true), style: { background: "#fbbf24", border: "none", borderRadius: 10, padding: "14px 28px", color: "#0a0a14", fontFamily: "inherit", fontWeight: 800, fontSize: 15, cursor: "pointer" } }, "🔑 Tengo un código"),
-              h("a", { href: "/precios.html", style: { background: "#ff5c1a", border: "none", borderRadius: 10, padding: "14px 28px", color: "#fff", fontFamily: "inherit", fontWeight: 800, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" } }, "💳 Suscribirme →")
-            )
-          ),
-          esPro && h(React.Fragment, null,
-          h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 } },
-            h("div", null,
-              h("div", { style: { fontSize: 22, fontWeight: 800, marginBottom: 4 } }, "📊 Dashboard"),
-              h("div", { style: { fontSize: 13, color: "#444" } }, `${historial.length} presupuestos · ${historial.filter(h => h.ganancia > 0).length} rentables`)
-            ),
-            h("button", {
-              onClick: () => setPanelOpen(true),
-              style: { ...BTN, background: "#ff5c1a", color: "#fff", padding: "10px 20px", fontSize: 13 }
-            }, "📈 Ver análisis detallado →")
-          ),
+function ResultRow({ label, value, hi, big }) {
+  return h("div", { style:{ display:"flex",justifyContent:"space-between",padding:big?"14px 0":"8px 0",borderBottom:"1px solid #1a1a2e" } },
+    h("span", { style:{ fontSize:big?15:13,color:hi?"#fff":MUTED,fontWeight:hi?700:400 } }, label),
+    h("span", { style:{ fontSize:big?24:14,fontFamily:"'JetBrains Mono',monospace",color:hi?"#ff5c1a":"#ccc",fontWeight:big?800:500 } }, value)
+  );
+}
 
-          // Stats cards
-          h("div", { className: "dash-grid" },
-            [
-              ["Total presupuestado", fmt(historial.reduce((a, h) => a + h.precioSugerido, 0)), "#ff5c1a"],
-              ["Ganancia total", fmt(historial.reduce((a, h) => a + h.ganancia, 0)), "#22d07a"],
-              ["Margen promedio", `${historial.length ? Math.round(historial.reduce((a, h) => a + h.margen, 0) / historial.length) : 0}%`, "#a78bfa"],
-              ["Presupuestos", historial.length, "#38bdf8"],
-            ].map(([label, val, color]) =>
-              h("div", { key: label, className: "stat-card" },
-                h("div", { style: { fontSize: 11, color: "#444", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, label),
-                h("div", { style: { fontSize: 28, fontWeight: 800, fontFamily: "monospace", color } }, val)
-              )
-            )
-          ),
+// ── Main App ─────────────────────────────────────────────────────────
+function App() {
+  const [screen, setScreen] = useState(0);
+  const [tabIdx, setTabIdx] = useState(0);
+  const [tallerTab, setTallerTab] = useState(0);
+  const [filterTipo, setFilterTipo] = useState("Todos");
 
-          // Comparador de rentabilidad
-          h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 16, padding: 24, marginBottom: 20 } },
-            h("div", { style: { fontSize: 14, fontWeight: 700, marginBottom: 16, color: "#ff5c1a" } }, "🏆 Comparador de rentabilidad"),
-            historial.length === 0
-              ? h("div", { style: { textAlign: "center", padding: "32px 0", color: "#2a2a3a", fontSize: 13 } }, "Guardá presupuestos en la calculadora para verlos acá")
-              : h(React.Fragment, null,
-                  [...historial].sort((a, b) => b.margen - a.margen).slice(0, 10).map((entry, i) => {
-                    const pct = entry.margen;
-                    const color = pct >= 50 ? "#22d07a" : pct >= 30 ? "#ff5c1a" : "#f87171";
-                    return h("div", { key: entry.id, style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12 } },
-                      h("div", { style: { width: 24, fontSize: 12, color: "#444", textAlign: "right", flexShrink: 0 } }, `#${i+1}`),
-                      h("div", { style: { flex: 1, minWidth: 0 } },
-                        h("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 } },
-                          h("span", { style: { color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, `${entry.tipo} · ${entry.fecha}`),
-                          h("span", { style: { color, fontWeight: 700, fontFamily: "monospace", flexShrink: 0, marginLeft: 8 } }, `${pct}% · ${fmt(entry.ganancia)}`)
-                        ),
-                        h("div", { style: { background: "#1e1e35", borderRadius: 3, height: 6 } },
-                          h("div", { style: { height: 6, borderRadius: 3, background: color, width: `${Math.min(pct / 80 * 100, 100)}%`, transition: "width 0.5s" } })
-                        )
-                      )
-                    );
-                  })
-                )
-          ),
+  // Pro access
+  const [esPro, setEsPro] = useState(() => CODIGOS_PRO.includes(loadLS("jp_codigo","")) );
+  const [showCodigo, setShowCodigo] = useState(false);
+  const [codigoInput, setCodigoInput] = useState("");
+  const [codigoError, setCodigoError] = useState("");
 
-          // Gráfico por tipo
-          historial.length > 0 && h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 16, padding: 24 } },
-            h("div", { style: { fontSize: 14, fontWeight: 700, marginBottom: 20, color: "#38bdf8" } }, "📦 Ganancia por tipo de trabajo"),
-            h("div", { style: { display: "flex", gap: 16, alignItems: "flex-end", height: 120 } },
-              TABS_TRABAJO.map(t => {
-                const entries = historial.filter(e => e.tipo && e.tipo.includes(t.id));
-                const total = entries.reduce((a, e) => a + e.ganancia, 0);
-                const maxTotal = Math.max(...TABS_TRABAJO.map(tt => historial.filter(e => e.tipo && e.tipo.includes(tt.id)).reduce((a, e) => a + e.ganancia, 0)), 1);
-                const height = Math.max((total / maxTotal) * 100, total > 0 ? 8 : 0);
-                return h("div", { key: t.id, style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 } },
-                  h("div", { style: { fontSize: 11, color: t.color, fontFamily: "monospace", fontWeight: 700 } }, total > 0 ? fmt(total) : ""),
-                  h("div", { style: { width: "100%", background: "#1e1e35", borderRadius: "4px 4px 0 0", height: 100, display: "flex", alignItems: "flex-end" } },
-                    h("div", { style: { width: "100%", background: t.color, borderRadius: "4px 4px 0 0", height: `${height}%`, transition: "height 0.5s" } })
-                  ),
-                  h("div", { style: { fontSize: 10, color: "#444", textAlign: "center" } }, t.label)
-                );
-              })
-            )
-          )
-        ),
-
-        // PRO SCREEN
-        screen === 4 && h("div", { style: { maxWidth: 800, margin: "0 auto", padding: "24px 24px 48px" } },
-          !esPro && h("div", { style: { textAlign: "center", padding: "60px 24px" } },
-            h("div", { style: { fontSize: 56, marginBottom: 16 } }, "⭐"),
-            h("div", { style: { fontSize: 22, fontWeight: 800, marginBottom: 8 } }, "Función Pro"),
-            h("div", { style: { fontSize: 15, color: "#666", marginBottom: 32, lineHeight: 1.6, maxWidth: 400, margin: "0 auto 32px" } }, "El lector de precios desde PDF y URL es exclusivo del plan Pro. Suscribite para acceder."),
-            h("div", { style: { display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" } },
-              h("button", { onClick: () => setShowCodigoModal(true), style: { background: "#fbbf24", border: "none", borderRadius: 10, padding: "14px 28px", color: "#0a0a14", fontFamily: "inherit", fontWeight: 800, fontSize: 15, cursor: "pointer" } }, "🔑 Tengo un código"),
-              h("a", { href: "/precios.html", style: { background: "#ff5c1a", border: "none", borderRadius: 10, padding: "14px 28px", color: "#fff", fontFamily: "inherit", fontWeight: 800, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" } }, "💳 Suscribirme →")
-            )
-          ),
-          esPro && h(React.Fragment, null,
-          h("div", { style: { background: "linear-gradient(135deg,#1a1200,#0d0d1a)", border: "1px solid #fbbf2430", borderRadius: 14, padding: 20, marginBottom: 14, textAlign: "center" } },
-            h("div", { style: { fontSize: 28, marginBottom: 8 } }, "⭐"),
-            h("div", { style: { fontWeight: 800, fontSize: 18, marginBottom: 4 } }, "Importador de precios Pro"),
-            h("div", { style: { fontSize: 13, color: "#7a6f62", lineHeight: 1.5 } }, "Subí el PDF de tu proveedor o pegá la URL de su web y cargamos los precios automáticamente en Mi Taller.")
-          ),
-
-          // Selector PDF / URL
-          h("div", { style: { display: "flex", gap: 8, marginBottom: 14 } },
-            h("button", { onClick: () => { setProModo("pdf"); setProResultado(null); setProError(null); }, style: { flex: 1, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: proModo === "pdf" ? "#fbbf24" : "#1e1e3a", background: proModo === "pdf" ? "#fbbf2412" : "transparent", color: proModo === "pdf" ? "#fbbf24" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" } }, "📄 Subir PDF"),
-            h("button", { onClick: () => { setProModo("url"); setProResultado(null); setProError(null); }, style: { flex: 1, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: proModo === "url" ? "#fbbf24" : "#1e1e3a", background: proModo === "url" ? "#fbbf2412" : "transparent", color: proModo === "url" ? "#fbbf24" : "#444", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" } }, "🌐 Pegar URL")
-          ),
-
-          // PDF uploader
-          proModo === "pdf" && h("div", null,
-            h("div", {
-              style: { background: "#111128", border: "2px dashed #1e1e3a", borderRadius: 14, padding: "36px 20px", textAlign: "center", cursor: "pointer", transition: "border-color 0.2s" },
-              onClick: () => fileInputRef.current?.click(),
-              onDragOver: e => { e.preventDefault(); e.currentTarget.style.borderColor = "#fbbf24"; },
-              onDragLeave: e => e.currentTarget.style.borderColor = "#1e1e3a",
-              onDrop: e => { e.preventDefault(); e.currentTarget.style.borderColor = "#1e1e3a"; const f = e.dataTransfer.files[0]; if (f?.type === "application/pdf") leerPDF(f); else setProError("El archivo debe ser un PDF"); }
-            },
-              h("div", { style: { fontSize: 36, marginBottom: 10 } }, "📄"),
-              h("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 4 } }, "Arrastrá el PDF acá"),
-              h("div", { style: { fontSize: 12, color: "#444" } }, "o hacé clic para seleccionarlo")
-            ),
-            h("input", { ref: fileInputRef, type: "file", accept: ".pdf", style: { display: "none" }, onChange: e => { const f = e.target.files[0]; if (f) leerPDF(f); } })
-          ),
-
-          // URL input
-          proModo === "url" && h("div", { style: { background: "#111128", border: "1px solid #1e1e3a", borderRadius: 14, padding: 20 } },
-            h("div", { style: { fontSize: 10, fontWeight: 700, color: "#fbbf24", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 } }, "🌐 URL de la página del proveedor"),
-            h("input", {
-              type: "url",
-              value: proUrl,
-              placeholder: "https://proveedor.com/lista-precios",
-              onChange: e => setProUrl(e.target.value),
-              onKeyDown: e => e.key === "Enter" && leerURL(),
-              style: { width: "100%", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8, padding: "12px 14px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 12 },
-              onFocus: e => e.target.style.borderColor = "#fbbf24",
-              onBlur: e => e.target.style.borderColor = "#2a2a4a"
-            }),
-            h("button", {
-              onClick: leerURL,
-              disabled: !proUrl.trim() || proLoading,
-              style: { width: "100%", background: proUrl.trim() ? "#fbbf24" : "#2a2a2a", color: proUrl.trim() ? "#0d0d1a" : "#444", border: "none", borderRadius: 10, padding: 13, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: proUrl.trim() ? "pointer" : "not-allowed" }
-            }, "Analizar página →")
-          ),
-
-          // Loading
-          proLoading && h("div", { style: { textAlign: "center", padding: "40px 0" } },
-            h("div", { style: { fontSize: 36, marginBottom: 12, animation: "spin 1s linear infinite" } }, "⚙️"),
-            h("div", { style: { fontSize: 14, color: "#7a6f62" } }, "Analizando con IA..."),
-            h("div", { style: { fontSize: 12, color: "#333", marginTop: 4 } }, "Esto puede tardar unos segundos")
-          ),
-
-          // Error
-          proError && h("div", { style: { background: "#1a0808", border: "1px solid #f8717130", borderRadius: 12, padding: 16, marginTop: 14 } },
-            h("div", { style: { fontSize: 13, color: "#f87171", marginBottom: 4, fontWeight: 700 } }, "❌ Error"),
-            h("div", { style: { fontSize: 13, color: "#d4956a" } }, proError)
-          ),
-
-          // Resultado
-          proResultado && h("div", { style: { marginTop: 14 } },
-            h("div", { style: { background: "#0a1a0a", border: "1px solid #4ade8030", borderRadius: 12, padding: 16, marginBottom: 14 } },
-              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
-                h("div", { style: { fontWeight: 700, fontSize: 14, color: "#4ade80" } }, "✓ " + (proResultado.insumos?.length || 0) + " precios encontrados"),
-                proResultado.proveedor && h("div", { style: { fontSize: 11, color: "#4ade80", opacity: 0.7 } }, proResultado.proveedor)
-              ),
-              proResultado.fecha && h("div", { style: { fontSize: 11, color: "#333" } }, "Fecha: " + proResultado.fecha)
-            ),
-
-            // Lista de insumos encontrados
-            proResultado.insumos?.map((ins, i) =>
-              h("div", { key: i, style: { background: "#111128", border: "1px solid #1e1e3a", borderRadius: 10, padding: "12px 14px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" } },
-                h("div", null,
-                  h("div", { style: { fontWeight: 700, fontSize: 13, marginBottom: 2 } }, ins.nombre),
-                  h("div", { style: { display: "flex", gap: 6 } },
-                    h("span", { style: { fontSize: 10, background: (ins.tipo === "3D" ? "#ff6b35" : ins.tipo === "SUB" ? "#a78bfa" : "#4ade80") + "22", color: ins.tipo === "3D" ? "#ff6b35" : ins.tipo === "SUB" ? "#a78bfa" : "#4ade80", padding: "1px 7px", borderRadius: 100, fontWeight: 700 } }, ins.tipo),
-                    ins.notas && h("span", { style: { fontSize: 10, color: "#444" } }, ins.notas)
-                  )
-                ),
-                h("div", { style: { textAlign: "right" } },
-                  h("div", { style: { fontSize: 16, fontWeight: 800, fontFamily: "monospace", color: "#fbbf24" } }, "$" + Math.round(ins.precio).toLocaleString("es-AR")),
-                  h("div", { style: { fontSize: 10, color: "#444" } }, "/" + ins.unidad)
-                )
-              )
-            ),
-
-            // Botón importar
-            h("button", {
-              onClick: () => importarInsumos(proResultado.insumos || []),
-              style: { width: "100%", marginTop: 8, background: "linear-gradient(135deg,#fbbf24,#f59e0b)", border: "none", borderRadius: 10, padding: 14, color: "#0d0d1a", fontFamily: "inherit", fontWeight: 800, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }
-            }, "⬇️ Importar todos a Mi Taller")
-          ),
-
-          // Tip
-          !proLoading && !proResultado && h("div", { style: { background: "#0a0a18", border: "1px solid #1e1e3a", borderRadius: 12, padding: 16, marginTop: 14 } },
-            h("div", { style: { fontSize: 12, color: "#333", lineHeight: 1.7 } },
-              h("div", { style: { marginBottom: 6, color: "#555", fontWeight: 700 } }, "💡 ¿Cómo usarlo?"),
-              "1. Pedile a tu proveedor su lista de precios en PDF\n",
-              h("br"),
-              "2. Subila acá o pegá la URL de su web\n",
-              h("br"),
-              "3. La IA detecta los productos y precios automáticamente\n",
-              h("br"),
-              "4. Revisás y los importás a Mi Taller con un clic"
-            )
-          )
-        ),
-
-      // Overlay + Sliding Panel Dashboard
-      h("div", { className: `slide-overlay${panelOpen ? " open" : ""}`, onClick: () => setPanelOpen(false) }),
-      h("div", { className: `slide-panel${panelOpen ? " open" : ""}` },
-        h("div", { style: { padding: 24 } },
-          h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 } },
-            h("div", { style: { fontWeight: 800, fontSize: 18 } }, "📈 Análisis detallado"),
-            h("button", { onClick: () => setPanelOpen(false), style: { ...BTN, background: "none", color: "#666", fontSize: 24, padding: "0 4px" } }, "×")
-          ),
-          h("div", { style: { display: "flex", gap: 8, marginBottom: 24 } },
-            h("button", { onClick: () => setPanelTab(0), style: { flex: 1, padding: "9px", borderRadius: 10, border: "1px solid", borderColor: panelTab === 0 ? "#ff5c1a" : "#1e1e35", background: panelTab === 0 ? "#ff5c1a18" : "transparent", color: panelTab === 0 ? "#ff5c1a" : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" } }, "🏆 Rentabilidad"),
-            h("button", { onClick: () => setPanelTab(1), style: { flex: 1, padding: "9px", borderRadius: 10, border: "1px solid", borderColor: panelTab === 1 ? "#22d07a" : "#1e1e35", background: panelTab === 1 ? "#22d07a18" : "transparent", color: panelTab === 1 ? "#22d07a" : "#555", fontFamily: "inherit", fontWeight: 700, fontSize: 12, cursor: "pointer" } }, "⚖️ Punto equilibrio")
-          ),
-
-          panelTab === 0 && h(React.Fragment, null,
-            h("div", { style: { fontSize: 13, color: "#444", marginBottom: 16 } }, "Tus trabajos ordenados de mayor a menor margen"),
-            historial.length === 0
-              ? h("div", { style: { textAlign: "center", padding: "40px 0", color: "#2a2a3a", fontSize: 13 } }, "Guardá presupuestos para ver el análisis")
-              : [...historial].sort((a, b) => b.margen - a.margen).map((entry, i) => {
-                  const color = entry.margen >= 50 ? "#22d07a" : entry.margen >= 30 ? "#ff5c1a" : "#f87171";
-                  return h("div", { key: entry.id, style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 10, padding: 14, marginBottom: 8 } },
-                    h("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 8 } },
-                      h("div", null,
-                        h("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 2 } }, `#${i+1} · ${entry.tipo}`),
-                        h("div", { style: { fontSize: 11, color: "#444" } }, `${entry.fecha} · ${entry.hora}`)
-                      ),
-                      h("div", { style: { textAlign: "right" } },
-                        h("div", { style: { fontSize: 16, fontWeight: 800, color, fontFamily: "monospace" } }, `${entry.margen}%`),
-                        h("div", { style: { fontSize: 11, color: "#22d07a" } }, `+${fmt(entry.ganancia)}`)
-                      )
-                    ),
-                    h("div", { style: { background: "#1e1e35", borderRadius: 3, height: 4 } },
-                      h("div", { style: { height: 4, borderRadius: 3, background: color, width: `${Math.min(entry.margen / 80 * 100, 100)}%` } })
-                    )
-                  );
-                })
-          ),
-
-          panelTab === 1 && h(React.Fragment, null,
-            h("div", { style: { background: "#0a1a0a", border: "1px solid #22d07a30", borderRadius: 12, padding: 16, marginBottom: 20, fontSize: 12, color: "#9ad4b0", lineHeight: 1.6 } },
-              "El punto de equilibrio es cuántos trabajos necesitás hacer por mes para cubrir todos tus gastos fijos. Si hacés menos que eso, perdés plata."
-            ),
-            h(Field, { label: "Gastos fijos mensuales ($)", value: gastosMensuales, onChange: v => { setGastosMensuales(parseFloat(v) || 0); saveLS("jp_gastos", parseFloat(v) || 0); }, type: "number", step: 1000 }),
-            historial.length > 0 && h(React.Fragment, null,
-              (() => {
-                const avgGanancia = historial.reduce((a, e) => a + e.ganancia, 0) / historial.length;
-                const puntoEq = avgGanancia > 0 ? Math.ceil(gastosMensuales / avgGanancia) : 0;
-                const avgPrecio = historial.reduce((a, e) => a + e.precioSugerido, 0) / historial.length;
-                return h(React.Fragment, null,
-                  h("div", { style: { background: "#12121f", border: "1px solid #22d07a30", borderRadius: 12, padding: 20, marginBottom: 16, textAlign: "center" } },
-                    h("div", { style: { fontSize: 11, color: "#444", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 } }, "Trabajos necesarios por mes"),
-                    h("div", { style: { fontSize: 52, fontWeight: 900, color: "#22d07a", fontFamily: "monospace", lineHeight: 1 } }, puntoEq),
-                    h("div", { style: { fontSize: 12, color: "#444", marginTop: 6 } }, `Para cubrir ${fmt(gastosMensuales)}/mes`)
-                  ),
-                  h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
-                    h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 10, padding: 14, textAlign: "center" } },
-                      h("div", { style: { fontSize: 10, color: "#444", marginBottom: 4 } }, "Ganancia promedio/trabajo"),
-                      h("div", { style: { fontSize: 20, fontWeight: 800, color: "#ff5c1a", fontFamily: "monospace" } }, fmt(avgGanancia))
-                    ),
-                    h("div", { style: { background: "#12121f", border: "1px solid #1e1e35", borderRadius: 10, padding: 14, textAlign: "center" } },
-                      h("div", { style: { fontSize: 10, color: "#444", marginBottom: 4 } }, "Precio promedio/trabajo"),
-                      h("div", { style: { fontSize: 20, fontWeight: 800, color: "#a78bfa", fontFamily: "monospace" } }, fmt(avgPrecio))
-                    )
-                  )
-                );
-              })()
-            ),
-            historial.length === 0 && h("div", { style: { textAlign: "center", padding: "32px 0", color: "#2a2a3a", fontSize: 13 } }, "Necesitás al menos un presupuesto guardado para calcular el punto de equilibrio")
-          )
-        )
-        ) // end esPro React.Fragment Pro screen
-      ),
-
-      // Modal datos cliente para PDF
-      showClienteModal && h(Modal, { title: "Datos del cliente", onClose: () => setShowClienteModal(false) },
-        h("div", { style: { fontSize: 12, color: "#555", marginBottom: 16, lineHeight: 1.6 } }, "Estos datos aparecerán en el PDF del presupuesto. Podés dejar los campos vacíos."),
-        h(Field, { label: "Nombre del cliente", value: cliente.nombre, onChange: v => setCliente(p => ({ ...p, nombre: v })), placeholder: "Ej: María García" }),
-        h(Field, { label: "Descripción del trabajo", value: cliente.descripcion, onChange: v => setCliente(p => ({ ...p, descripcion: v })), placeholder: "Ej: Taza cerámica con foto" }),
-        h(Field, { label: "Nro de pedido (opcional)", value: cliente.nroPedido, onChange: v => setCliente(p => ({ ...p, nroPedido: v })), placeholder: "Ej: #001" }),
-        h("button", {
-          onClick: () => {
-            setShowClienteModal(false);
-            exportarPDF({ tipo: TABS_TRABAJO[activeTab].label, vals, res, is3D, cliente });
-          },
-          style: { ...BTN, background: "#ff5c1a", color: "#fff", width: "100%", padding: 14, marginTop: 4, borderRadius: 10, fontSize: 14 }
-        }, "📄 Generar PDF →")
-      ),
-
-      // Modal guardar plantilla
-      showPlantillaModal && h(Modal, { title: "Guardar como plantilla", onClose: () => setShowPlantillaModal(false) },
-        h("div", { style: { fontSize: 12, color: "#555", marginBottom: 16, lineHeight: 1.6 } }, `Guardás la configuración actual de ${TABS_TRABAJO[activeTab].label} como plantilla reutilizable.`),
-        h(Field, { label: "Nombre de la plantilla", value: newPlantillaNombre, onChange: setNewPlantillaNombre, placeholder: "Ej: Taza cerámica estándar" }),
-        h("button", {
-          onClick: () => {
-            if (!newPlantillaNombre.trim()) return;
-            setPlantillas(p => [{ id: Date.now(), nombre: newPlantillaNombre, tipo: tipoActivo, vals: { ...vals } }, ...p]);
-            setShowPlantillaModal(false);
-            setNewPlantillaNombre("");
-          },
-          style: { ...BTN, background: "#ff5c1a", color: "#fff", width: "100%", padding: 14, marginTop: 4, borderRadius: 10, fontSize: 14 }
-        }, "💾 Guardar plantilla")
-      ),
-
-      // Modal código Pro
-      showCodigoModal && h(Modal, { title: "⭐ Activar Plan Pro", onClose: () => { setShowCodigoModal(false); setCodigoError(""); setCodigoInput(""); } },
-        h("div", { style: { marginBottom: 16 } },
-          h("div", { style: { background: "#fbbf2412", border: "1px solid #fbbf2430", borderRadius: 10, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "#d4a82a", lineHeight: 1.6 } },
-            "Ingresá el código que recibiste al suscribirte al plan Pro. Si todavía no tenés uno, hacé clic en Suscribirme."
-          ),
-          h(Field, { label: "Código de acceso", value: codigoInput, onChange: v => { setCodigoInput(v.toUpperCase()); setCodigoError(""); }, placeholder: "Ej: JP-2026-001" }),
-          codigoError && h("div", { style: { color: "#f87171", fontSize: 13, marginBottom: 12, background: "#f8717115", border: "1px solid #f8717130", borderRadius: 8, padding: "8px 12px" } }, "❌ " + codigoError),
-          h("button", {
-            onClick: activarPro,
-            style: { ...BTN, background: "#fbbf24", color: "#0a0a14", width: "100%", padding: 14, borderRadius: 10, fontSize: 14, marginBottom: 10 }
-          }, "🔑 Activar Pro"),
-          h("a", { href: "/precios.html", style: { display: "block", textAlign: "center", fontSize: 13, color: "#666", textDecoration: "none", padding: "10px" } }, "¿No tenés código? Suscribite acá →")
-        )
-      ),
-
-      // Modals
-      showInsumo && h(Modal, { title: editIns ? "Editar insumo" : "Nuevo insumo", onClose: () => { setShowInsumo(false); setEditIns(null); } },
-        h(Field, { label: "Nombre", value: newIns.nombre, onChange: v => setNewIns(p => ({ ...p, nombre: v })), placeholder: "Ej: Filamento PLA Negro" }),
-        h(DropSelect, { label: "Tipo", value: newIns.tipo, onChange: v => setNewIns(p => ({ ...p, tipo: v })), options: [{ value: "3D", label: "🖨️ Impresión 3D" }, { value: "SUB", label: "🎨 Sublimación" }, { value: "General", label: "⚙️ General" }] }),
-        h(Field, { label: "Unidad", value: newIns.unidad, onChange: v => setNewIns(p => ({ ...p, unidad: v })), placeholder: "gr, u, hoja..." }),
-        h(Field, { label: "Costo ($)", value: newIns.costo, onChange: v => setNewIns(p => ({ ...p, costo: v })), type: "number", step: 1, min: 0 }),
-        h("button", { onClick: saveInsumo, style: { ...BTN, background: "#ff6b35", color: "#fff", width: "100%", padding: 14, marginTop: 4, borderRadius: 10, fontSize: 14 } }, editIns ? "Guardar cambios" : "Agregar insumo")
-      ),
-      showPerf && h(Modal, { title: editPerf ? "Editar perfil" : "Nuevo perfil", onClose: () => { setShowPerf(false); setEditPerf(null); } },
-        h(Field, { label: "Nombre", value: newPerf.nombre, onChange: v => setNewPerf(p => ({ ...p, nombre: v })), placeholder: "Ej: Taller principal" }),
-        h(Field, { label: "Electricidad ($/hora)", value: newPerf.electricidad, onChange: v => setNewPerf(p => ({ ...p, electricidad: v })), type: "number", step: 10, min: 0 }),
-        h(Field, { label: "Costos fijos 3D ($/trabajo)", value: newPerf.costosFijos3D, onChange: v => setNewPerf(p => ({ ...p, costosFijos3D: v })), type: "number", step: 100, min: 0 }),
-        h(Field, { label: "Costos fijos Sub ($/trabajo)", value: newPerf.costosFijosSub, onChange: v => setNewPerf(p => ({ ...p, costosFijosSub: v })), type: "number", step: 100, min: 0 }),
-        h("button", { onClick: savePerfil, style: { ...BTN, background: "#4ade80", color: "#0d0d1a", width: "100%", padding: 14, marginTop: 4, borderRadius: 10, fontSize: 14 } }, editPerf ? "Guardar cambios" : "Crear perfil")
-      )
-    );
-    } catch(e) {
-      console.error("✗ Error en App render:", e.message, e.stack);
-      return h("div", { style: { color: "red", padding: 20, background: "#0a0a14", minHeight: "100vh" } },
-        h("h2", null, "Error al renderizar"),
-        h("p", null, e.message),
-        h("pre", { style: { fontSize: 11, marginTop: 12, color: "#ff8888" } }, e.stack)
-      );
-    }
+  function activarPro() {
+    const c = codigoInput.trim().toUpperCase();
+    if (CODIGOS_PRO.includes(c)) { saveLS("jp_codigo",c); setEsPro(true); setShowCodigo(false); setCodigoInput(""); setCodigoError(""); }
+    else setCodigoError("Código inválido");
   }
 
-  
-  createRoot(document.getElementById("root")).render(React.createElement(App));
+  // Data
+  const [insumos, setInsumosR] = useState(()=>loadLS("jp_insumos",DEF_INSUMOS));
+  const [perfiles, setPerfilesR] = useState(()=>loadLS("jp_perfiles",DEF_PERFILES));
+  const [historial, setHistorialR] = useState(()=>loadLS("jp_historial",[]));
+  const [plantillas, setPlantillasR] = useState(()=>loadLS("jp_plantillas",[]));
+  const setInsumos = fn => setInsumosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_insumos",n); return n; });
+  const setPerfiles = fn => setPerfilesR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_perfiles",n); return n; });
+  const setHistorial = fn => setHistorialR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_historial",n); return n; });
+  const setPlantillas = fn => setPlantillasR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_plantillas",n); return n; });
+
+  // Calculator values
+  const [v3D, setV3D] = useState(()=>loadLS("jp_v3D",DEF_3D));
+  const [vSub, setVSub] = useState(()=>loadLS("jp_vSub",DEF_SUB));
+  const [vBor, setVBor] = useState(()=>loadLS("jp_vBor",DEF_BOR));
+  const [vVin, setVVin] = useState(()=>loadLS("jp_vVin",DEF_VIN));
+  const [vLas, setVLas] = useState(()=>loadLS("jp_vLas",DEF_LAS));
+  const mk = (setter, key) => (v) => setter(p=>{ const n={...p,[key]:v}; return n; });
+  const mk3D=k=>v=>{setV3D(p=>{const n={...p,[k]:v};saveLS("jp_v3D",n);return n;});};
+  const mkSub=k=>v=>{setVSub(p=>{const n={...p,[k]:v};saveLS("jp_vSub",n);return n;});};
+  const mkBor=k=>v=>{setVBor(p=>{const n={...p,[k]:v};saveLS("jp_vBor",n);return n;});};
+  const mkVin=k=>v=>{setVVin(p=>{const n={...p,[k]:v};saveLS("jp_vVin",n);return n;});};
+  const mkLas=k=>v=>{setVLas(p=>{const n={...p,[k]:v};saveLS("jp_vLas",n);return n;});};
+
+  // Selections
+  const [selPerf, setSelPerf] = useState(()=>loadLS("jp_selPerf",""));
+  const [selFil, setSelFil] = useState("");
+  const [selSus, setSelSus] = useState("");
+  const [selTin, setSelTin] = useState("");
+
+  // Modals
+  const [showInsumo, setShowInsumo] = useState(false);
+  const [showPerf, setShowPerf] = useState(false);
+  const [showCliente, setShowCliente] = useState(false);
+  const [showPlantilla, setShowPlantilla] = useState(false);
+  const [editIns, setEditIns] = useState(null);
+  const [editPerf, setEditPerf] = useState(null);
+  const [newIns, setNewIns] = useState({ nombre:"",tipo:"3D",unidad:"gr",costo:0 });
+  const [newPerf, setNewPerf] = useState({ nombre:"",electricidad:120,fijos3D:800,fijosSub:500,fiosBor:600,fijosVin:400,fijosLas:700 });
+  const [cliente, setCliente] = useState({ nombre:"",descripcion:"",nroPedido:"" });
+  const [plantillaNombre, setPlantillaNombre] = useState("");
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  // Pro features
+  const [proLoading, setProLoading] = useState(false);
+  const [proError, setProError] = useState(null);
+  const [proResultado, setProResultado] = useState(null);
+  const [proUrl, setProUrl] = useState("");
+  const [proModo, setProModo] = useState("pdf");
+  const fileRef = useRef(null);
+
+  // Derived
+  const tab = TABS[tabIdx];
+  const is3D = tab.id==="3D", isSub=tab.id==="SUB", isBor=tab.id==="BOR", isVin=tab.id==="VIN", isLas=tab.id==="LAS";
+  const vals = is3D?v3D:isSub?vSub:isBor?vBor:isVin?vVin:vLas;
+  const mkV = k => is3D?mk3D(k):isSub?mkSub(k):isBor?mkBor(k):isVin?mkVin(k):mkLas(k);
+  const perfil = perfiles.find(p=>String(p.id)===selPerf);
+  const filamento = insumos.find(i=>String(i.id)===selFil);
+  const sustrato = insumos.find(i=>String(i.id)===selSus);
+  const tinta = insumos.find(i=>String(i.id)===selTin);
+  const res = is3D?calc3D(v3D,filamento,perfil):isSub?calcSub(vSub,sustrato,tinta,perfil):isBor?calcBor(vBor,perfil):isVin?calcVin(vVin,perfil):calcLas(vLas,perfil);
+  const ins3D = insumos.filter(i=>(i.tipo==="3D"||i.tipo==="General")&&i.activo);
+  const insSub = insumos.filter(i=>(i.tipo==="SUB"||i.tipo==="General")&&i.activo);
+  const insF = filterTipo==="Todos"?insumos:insumos.filter(i=>i.tipo===filterTipo);
+
+  function saveToHistorial() {
+    if (!esPro) { setShowCodigo(true); return; }
+    const e={ id:Date.now(), fecha:new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"short",year:"numeric"}), hora:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}), tipo:tab.label, vals:{...vals}, costoTotal:res.costoTotal, precioSugerido:res.precioSugerido, ganancia:res.ganancia, margen:vals.margenDeseado };
+    setHistorial(p=>[e,...p].slice(0,50));
+    setSavedFlash(true); setTimeout(()=>setSavedFlash(false),1800);
+  }
+
+  function saveInsumo() {
+    if (!newIns.nombre.trim()) return;
+    if (editIns) setInsumos(p=>p.map(i=>i.id===editIns.id?{...i,...newIns}:i));
+    else setInsumos(p=>[...p,{id:Date.now(),...newIns,activo:true}]);
+    setShowInsumo(false); setEditIns(null);
+  }
+  function savePerfil() {
+    if (!newPerf.nombre.trim()) return;
+    if (editPerf) setPerfiles(p=>p.map(x=>x.id===editPerf.id?{...x,...newPerf}:x));
+    else setPerfiles(p=>[...p,{id:Date.now(),...newPerf}]);
+    setShowPerf(false); setEditPerf(null);
+  }
+
+  async function llamarGemini(texto) {
+    const prompt = `Analizá esta lista de precios y extraé productos con precios. Respondé SOLO JSON sin backticks:\n{"proveedor":null,"fecha":null,"insumos":[{"nombre":"nombre","precio":1234,"unidad":"gr o kg o u","tipo":"3D o SUB o General","notas":null}]}\nReglas: precio como número sin símbolos. tipo "3D" para filamentos, "SUB" para sustratos/tintas, "General" para otros.\n\nContenido:\n${texto.substring(0,8000)}`;
+    const res = await fetch(GEMINI_URL,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.1} }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message||"Error "+res.status);
+    const txt = data.candidates[0].content.parts[0].text.trim().replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
+    return JSON.parse(txt);
+  }
+
+  async function leerPDF(archivo) {
+    setProLoading(true); setProError(null); setProResultado(null);
+    try {
+      const b64 = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result.split(",")[1]); r.onerror=rej; r.readAsDataURL(archivo); });
+      const lib = await new Promise((resolve,reject)=>{ if(window.pdfjsLib){resolve(window.pdfjsLib);return;} const s=document.createElement("script"); s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"; s.onload=()=>{ window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js"; resolve(window.pdfjsLib); }; s.onerror=()=>reject(new Error("No se pudo cargar pdf.js")); document.head.appendChild(s); });
+      const pdfArr = new Uint8Array(atob(b64).split("").map(c=>c.charCodeAt(0)));
+      const pdf = await lib.getDocument({data:pdfArr}).promise;
+      let texto=""; for(let i=1;i<=Math.min(pdf.numPages,10);i++){ const pg=await pdf.getPage(i); const ct=await pg.getTextContent(); texto+=ct.items.map(x=>x.str).join(" ")+"\n"; }
+      if (!texto.trim()) throw new Error("No se pudo extraer texto del PDF");
+      const resultado = await llamarGemini(texto);
+      setProResultado({ok:true,...resultado});
+    } catch(e) { setProError(e.message); }
+    finally { setProLoading(false); }
+  }
+
+  async function leerURL() {
+    if (!proUrl.trim()) return;
+    setProLoading(true); setProError(null); setProResultado(null);
+    try {
+      const proxyRes = await fetch("https://api.allorigins.win/get?url="+encodeURIComponent(proUrl.trim()));
+      if (!proxyRes.ok) throw new Error("No se pudo acceder a la URL");
+      const pd = await proxyRes.json();
+      const texto = (pd.contents||"").replace(/<script[^>]*>[\s\S]*?<\/script>/gi,"").replace(/<style[^>]*>[\s\S]*?<\/style>/gi,"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+      if (!texto||texto.length<20) throw new Error("La página no tiene contenido legible");
+      const resultado = await llamarGemini(texto);
+      setProResultado({ok:true,...resultado});
+    } catch(e) { setProError(e.message); }
+    finally { setProLoading(false); }
+  }
+
+  function importarInsumos(ins) {
+    setInsumos(p=>[...ins.map(i=>({id:Date.now()+Math.random(),nombre:i.nombre,tipo:i.tipo||"General",unidad:i.unidad||"u",costo:i.precio,activo:true})),...p]);
+    setScreen(1); setTallerTab(0);
+  }
+
+  // ── Styles helpers ──
+  const tabBtn = (active, color="#ff5c1a") => ({ flex:1, padding:"9px 14px", borderRadius:100, border:"1px solid", borderColor:active?color:"#1e1e35", background:active?color+"18":"#12121f", color:active?color:MUTED, fontFamily:"inherit", fontWeight:700, fontSize:12, cursor:"pointer" });
+  const lockScreen = (icon, title, desc) => h("div", { style:{ textAlign:"center", padding:"60px 24px" } },
+    h("div",{style:{fontSize:56,marginBottom:16}},icon),
+    h("div",{style:{fontSize:22,fontWeight:800,marginBottom:8}},title),
+    h("div",{style:{fontSize:15,color:MUTED,marginBottom:32,lineHeight:1.6,maxWidth:400,margin:"0 auto 32px"}},desc),
+    h("div",{style:{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}},
+      h("button",{onClick:()=>setShowCodigo(true),style:{background:"#fbbf24",border:"none",borderRadius:10,padding:"14px 28px",color:"#0a0a14",fontFamily:"inherit",fontWeight:800,fontSize:15,cursor:"pointer"}},"🔑 Tengo un código"),
+      h("a",{href:"/precios.html",style:{background:"#ff5c1a",borderRadius:10,padding:"14px 28px",color:"#fff",fontFamily:"inherit",fontWeight:800,fontSize:15,textDecoration:"none",display:"inline-block"}},"💳 Suscribirme →")
+    )
+  );
+
+  return h("div", { style:{ minHeight:"100vh", background:"#0a0a14", fontFamily:"'Sora',sans-serif", color:"#f0eeff" } },
+
+    // ── Header ──
+    h("div", { style:{ background:"#0d0d1e", borderBottom:"1px solid #1e1e35", padding:"0 24px", position:"sticky", top:0, zIndex:50 } },
+      h("div", { style:{ display:"flex", alignItems:"center", justifyContent:"space-between", maxWidth:1100, margin:"0 auto", height:60 } },
+        h("a", { href:"/", style:{ display:"flex", alignItems:"center", gap:12, textDecoration:"none" } },
+          h("div", { style:{ width:32, height:32, borderRadius:8, background:"#ff5c1a", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"#fff", fontSize:16 } }, "J"),
+          h("div", null,
+            h("div", { style:{ fontSize:16, fontWeight:800, color:"#fff" } }, "JotaPrecios"),
+            h("div", { style:{ fontSize:9, color:"#444", letterSpacing:"0.08em" } }, "CALCULADORA DE PRECIOS")
+          )
+        ),
+        h("div", { style:{ display:"flex", alignItems:"center", gap:4, flexWrap:"wrap" } },
+          ["🧮 Calcular","🏭 Mi Taller","📋 Historial","📊 Dashboard","⭐ Pro"].map((s,i) =>
+            h("button", { key:s, onClick:()=>setScreen(i), style:{ padding:"8px 12px", border:"none", background:screen===i?"#ff5c1a18":"none", borderRadius:8, color:screen===i?(i===4?"#fbbf24":"#ff5c1a"):MUTED, fontFamily:"inherit", fontWeight:700, fontSize:11, cursor:"pointer", borderBottom:screen===i?`2px solid ${i===4?"#fbbf24":"#ff5c1a"}`:"2px solid transparent" } }, s)
+          ),
+          esPro
+            ? h("div", { title:"Clic para desactivar", onClick:()=>{saveLS("jp_codigo","");setEsPro(false);}, style:{ marginLeft:6, background:"#fbbf2418", border:"1px solid #fbbf2440", color:"#fbbf24", fontSize:10, fontWeight:800, padding:"5px 10px", borderRadius:100, cursor:"pointer" } }, "⭐ PRO")
+            : h("button", { onClick:()=>setShowCodigo(true), style:{ marginLeft:6, background:"#fbbf2412", border:"1px solid #fbbf2430", color:"#fbbf24", fontSize:11, fontWeight:700, padding:"5px 12px", borderRadius:100, cursor:"pointer", fontFamily:"inherit" } }, "⭐ Activar Pro")
+        )
+      )
+    ),
+
+    // ── CALCULAR ──
+    screen===0 && h("div", { className:"calc-grid" },
+
+      // Left column — inputs
+      h("div", null,
+        // Tipo tabs
+        h("div", { style:{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap" } },
+          TABS.map((t,i) => h("button", { key:t.id, onClick:()=>setTabIdx(i), style:tabBtn(tabIdx===i,t.color) }, t.label))
+        ),
+
+        // Perfil
+        perfiles.length>0 && h("div", { style:CARD },
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"⚙️ Perfil de taller"),
+          h("select",{value:selPerf,onChange:e=>setSelPerf(e.target.value),style:{width:"100%",background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:8,padding:"10px 14px",color:selPerf?"#fff":MUTED,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}},
+            h("option",{value:""},"— Sin perfil (manual) —"),
+            perfiles.map(p=>h("option",{key:p.id,value:String(p.id)},p.nombre+" · "+fmt(p.electricidad)+"/hr"))
+          )
+        ),
+
+        // Insumos rápidos
+        is3D && ins3D.length>0 && h("div",{style:CARD},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#ff5c1a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"📦 Filamento guardado"),
+          h("select",{value:selFil,onChange:e=>{setSelFil(e.target.value);const i=insumos.find(x=>String(x.id)===e.target.value);if(i)setV3D(p=>({...p,costoPorGramo:i.costo}));},style:{width:"100%",background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:8,padding:"10px 14px",color:selFil?"#fff":MUTED,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}},
+            h("option",{value:""},"— Ingresar manualmente —"),
+            ins3D.map(i=>h("option",{key:i.id,value:String(i.id)},i.nombre+" · "+fmt(i.costo)+"/"+i.unidad))
+          )
+        ),
+        isSub && insSub.length>0 && h("div",{style:CARD},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"📦 Insumos guardados"),
+          h("select",{value:selSus,onChange:e=>{setSelSus(e.target.value);const i=insumos.find(x=>String(x.id)===e.target.value);if(i)setVSub(p=>({...p,costoSustrato:i.costo}));},style:{width:"100%",background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:8,padding:"9px 14px",color:selSus?"#fff":MUTED,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer",marginBottom:8}},
+            h("option",{value:""},"— Sustrato manual —"),
+            insSub.map(i=>h("option",{key:i.id,value:String(i.id)},i.nombre+" · "+fmt(i.costo)+"/"+i.unidad))
+          ),
+          h("select",{value:selTin,onChange:e=>{setSelTin(e.target.value);const i=insumos.find(x=>String(x.id)===e.target.value);if(i)setVSub(p=>({...p,costoTinta:i.costo}));},style:{width:"100%",background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:8,padding:"9px 14px",color:selTin?"#fff":MUTED,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}},
+            h("option",{value:""},"— Tinta manual —"),
+            insSub.map(i=>h("option",{key:i.id,value:String(i.id)},i.nombre+" · "+fmt(i.costo)+"/"+i.unidad))
+          )
+        ),
+
+        // Producción
+        h("div",{style:CARD},
+          h("div",{style:{fontSize:10,fontWeight:700,color:tab.color,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"📦 Producción"),
+          is3D && h(React.Fragment,null,
+            h(NumInput,{label:"Peso del objeto",val:v3D.pesoGramos,onChange:mk3D("pesoGramos"),step:5,unit:"gr",tooltip:"Peso de la pieza terminada en gramos. Lo ves en el slicer."}),
+            h(NumInput,{label:"Costo filamento/gr",val:v3D.costoPorGramo,onChange:mk3D("costoPorGramo"),step:1,unit:"$/gr",disabled:!!filamento,tooltip:"Precio del kilo dividido por 1000. Si el kilo cuesta $35.000, el gramo vale $35."}),
+            h(NumInput,{label:"Tiempo de impresión",val:v3D.tiempoHoras,onChange:mk3D("tiempoHoras"),step:0.5,unit:"hs",tooltip:"Horas que tarda la impresora. Lo ves en el slicer."})
+          ),
+          isSub && h(React.Fragment,null,
+            h(NumInput,{label:"Costo del sustrato",val:vSub.costoSustrato,onChange:mkSub("costoSustrato"),step:100,unit:"$",disabled:!!sustrato,tooltip:"Precio del objeto a sublimar — taza, remera, etc."}),
+            h(NumInput,{label:"Costo de tinta",val:vSub.costoTinta,onChange:mkSub("costoTinta"),step:50,unit:"$",disabled:!!tinta,tooltip:"Estimación de tinta por trabajo."}),
+            h(NumInput,{label:"Tiempo de producción",val:vSub.tiempoMinutos,onChange:mkSub("tiempoMinutos"),step:5,unit:"min",tooltip:"Tiempo total incluyendo preparación y prensado."})
+          ),
+          isBor && h(React.Fragment,null,
+            h(NumInput,{label:"Costo de hilo",val:vBor.costoHilo,onChange:mkBor("costoHilo"),step:50,unit:"$",tooltip:"Costo del hilo usado."}),
+            h(NumInput,{label:"Costo de entretela",val:vBor.costoEntretela,onChange:mkBor("costoEntretela"),step:50,unit:"$",tooltip:"Costo del estabilizador o entretela."}),
+            h(NumInput,{label:"Tiempo de bordado",val:vBor.tiempoMinutos,onChange:mkBor("tiempoMinutos"),step:5,unit:"min",tooltip:"Tiempo total incluyendo enhebrado y acabados."})
+          ),
+          isVin && h(React.Fragment,null,
+            h(NumInput,{label:"Costo del vinilo",val:vVin.costoVinilo,onChange:mkVin("costoVinilo"),step:50,unit:"$",tooltip:"Costo del vinilo usado."}),
+            h(NumInput,{label:"Costo transfer/papel",val:vVin.costoTransfer,onChange:mkVin("costoTransfer"),step:50,unit:"$",tooltip:"Costo del papel transfer."}),
+            h(NumInput,{label:"Tiempo de aplicación",val:vVin.tiempoMinutos,onChange:mkVin("tiempoMinutos"),step:5,unit:"min",tooltip:"Tiempo de corte y aplicación."})
+          ),
+          isLas && h(React.Fragment,null,
+            h(NumInput,{label:"Costo del material",val:vLas.costoMaterial,onChange:mkLas("costoMaterial"),step:100,unit:"$",tooltip:"Costo del material a cortar o grabar."}),
+            h(NumInput,{label:"Tiempo de corte/grabado",val:vLas.tiempoMinutos,onChange:mkLas("tiempoMinutos"),step:5,unit:"min",tooltip:"Tiempo total del trabajo."})
+          )
+        ),
+
+        // Electricidad y fijos
+        h("div",{style:CARD},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#38bdf8",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"⚡ Costos operativos"),
+          h(NumInput,{label:"Electricidad",val:vals.costoElectricidadHora,onChange:mkV("costoElectricidadHora"),step:10,unit:"$/hr",disabled:!!perfil,tooltip:"Costo por hora de máquina encendida."}),
+          is3D && h("div",{style:{marginBottom:14}},
+            h("div",{style:{fontSize:10,color:"#333",marginBottom:8}},"Presets Bambu Lab:"),
+            h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+              [["A1 mini",70],["A1",90],["P1S",100],["X1C",150]].map(([m,w])=>
+                h("button",{key:m,onClick:()=>mk3D("costoElectricidadHora")(Math.round(w/1000*(v3D.costoElectricidadHora||120))),style:{background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:8,padding:"6px 12px",color:"#666",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}},m+" ~"+w+"W")
+              )
+            )
+          ),
+          h(NumInput,{label:"Costos fijos",val:vals.costosFijos,onChange:mkV("costosFijos"),step:100,unit:"$/trabajo",disabled:!!perfil,tooltip:"Alquiler + internet + otros ÷ cantidad de trabajos por mes."}),
+          h(NumInput,{label:"🧩 Otros gastos",val:vals.otrosGastos||0,onChange:mkV("otrosGastos"),step:50,unit:"$",tooltip:"Pegamento, lija, alcohol, guantes, sprays, etc."})
+        ),
+
+        // Amortización
+        h("div",{style:{...CARD,border:"1px solid #fbbf2425"}},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#fbbf24",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}},"🔧 Amortización de máquina"),
+          h("div",{style:{fontSize:12,color:MUTED,marginBottom:14,lineHeight:1.6}},"Distribuí el costo de tu máquina en cada trabajo."),
+          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+            h(NumInput,{label:"Precio de la máquina",val:vals.precioMaquina||0,onChange:mkV("precioMaquina"),step:10000,unit:"$",tooltip:"Cuánto pagaste por tu máquina."}),
+            h(NumInput,{label:"Vida útil",val:vals.vidaUtilAnios||3,onChange:mkV("vidaUtilAnios"),step:1,unit:"años",tooltip:"Cuántos años estimás que va a durar."}),
+            h(NumInput,{label:"Uso diario",val:vals.horasUsoDiario||8,onChange:mkV("horasUsoDiario"),step:1,unit:"hs/día",tooltip:"Horas por día que usás la máquina."}),
+            h(NumInput,{label:"% Reparaciones",val:vals.pctReparaciones||5,onChange:mkV("pctReparaciones"),step:1,unit:"%",tooltip:"% del precio que gastás en reparaciones durante su vida útil."})
+          ),
+          vals.precioMaquina>0 && h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:8,padding:"10px 14px",marginTop:12,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+            h("span",{style:{fontSize:12,color:"#fbbf24"}},"Costo amortización/hora:"),
+            h("span",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:"#fbbf24"}},fmt((vals.precioMaquina*(1+(vals.pctReparaciones||5)/100))/((vals.vidaUtilAnios||3)*365*(vals.horasUsoDiario||8)))+"/hr")
+          )
+        ),
+
+        // Mano de obra
+        h("div",{style:{...CARD,border:"1px solid #7c5cfc25"}},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}},"🧑‍🔧 Mano de obra"),
+          h("div",{style:{background:"#7c5cfc12",border:"1px solid #7c5cfc30",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#9d8eff",lineHeight:1.6}},
+            "⚠️ ",h("strong",{style:{color:"#c4b5fd"}},"El costo más olvidado.")," Incluí el tiempo que dedicás vos: diseño, preparación, post-procesado, comunicación con el cliente."
+          ),
+          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+            h(NumInput,{label:"Valor hora",val:vals.manoObraHora||0,onChange:mkV("manoObraHora"),step:100,unit:"$/hr",tooltip:"Cuánto querés ganar por hora de tu tiempo."}),
+            h(NumInput,{label:"Horas trabajadas",val:vals.horasManoObra||0,onChange:mkV("horasManoObra"),step:0.5,unit:"hs",tooltip:"Horas que vos pusiste: diseño, preparación, post-procesado, empaque, comunicación."})
+          ),
+          (vals.manoObraHora>0&&vals.horasManoObra>0) && h("div",{style:{background:"#a78bfa12",border:"1px solid #a78bfa30",borderRadius:8,padding:"10px 14px",marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+            h("span",{style:{fontSize:12,color:"#a78bfa"}},vals.horasManoObra+"hs × "+fmt(vals.manoObraHora)+"/hr ="),
+            h("span",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:"#a78bfa"}},fmt(vals.manoObraHora*vals.horasManoObra))
+          )
+        ),
+
+        // Venta
+        h("div",{style:CARD},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"💰 Venta"),
+          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+            h(NumInput,{label:"Margen de ganancia",val:vals.margenDeseado,onChange:mkV("margenDeseado"),step:5,unit:"%",tooltip:"Porcentaje de ganancia sobre el costo total. 40% es un buen punto de partida."}),
+            h(NumInput,{label:"Cantidad",val:vals.cantidad,onChange:mkV("cantidad"),step:1,unit:"uds"})
+          ),
+          // Plantillas
+          plantillas.filter(p=>p.tipo===tab.id).length>0 && h("div",{style:{marginTop:14}},
+            h("div",{style:{fontSize:10,color:MUTED,marginBottom:8}},"📋 Cargar plantilla:"),
+            h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},
+              plantillas.filter(p=>p.tipo===tab.id).map(p=>
+                h("button",{key:p.id,onClick:()=>{ if(is3D)setV3D({...p.vals}); else if(isSub)setVSub({...p.vals}); else if(isBor)setVBor({...p.vals}); else if(isVin)setVVin({...p.vals}); else setVLas({...p.vals}); },
+                  style:{background:"#ff5c1a12",border:"1px solid #ff5c1a30",borderRadius:8,padding:"5px 12px",color:"#ff5c1a",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}
+                },p.nombre)
+              )
+            )
+          )
+        )
+      ),
+
+      // Right column — resultado sticky
+      h("div",{className:"result-sticky"},
+        h("div",{style:{background:"linear-gradient(145deg,#1a0d00,#12121f)",border:"1px solid #ff5c1a30",borderRadius:20,padding:28}},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#ff5c1a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:20}},"📊 Resultado en tiempo real"),
+
+          h("div",{style:{textAlign:"center",padding:"24px 0",marginBottom:20,background:"#ff5c1a08",borderRadius:14,border:"1px solid #ff5c1a15"}},
+            h("div",{style:{fontSize:11,color:MUTED,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}},"✅ Precio sugerido"),
+            h("div",{style:{fontSize:52,fontWeight:900,color:"#ff5c1a",fontFamily:"'JetBrains Mono',monospace",lineHeight:1}},fmt(res.precioSugerido)),
+            h("div",{style:{fontSize:13,color:MUTED,marginTop:6}},"Precio mínimo: "+fmt(res.costoTotal))
+          ),
+
+          h("div",{style:{marginBottom:20}},
+            h(ResultRow,{label:"Materiales",value:fmt(res.costoMat)}),
+            h(ResultRow,{label:"Electricidad",value:fmt(res.electricidad)}),
+            h(ResultRow,{label:"Costos fijos",value:fmt(res.fijos)}),
+            res.otrosGastos>0 && h(ResultRow,{label:"🧩 Otros gastos",value:fmt(res.otrosGastos)}),
+            res.amortizacion>0 && h(ResultRow,{label:"🔧 Amortización",value:fmt(res.amortizacion)}),
+            res.manoObra>0 && h(ResultRow,{label:"🧑‍🔧 Mano de obra",value:fmt(res.manoObra)}),
+            h(ResultRow,{label:"Costo total × "+vals.cantidad,value:fmt(res.costoTotal)}),
+            h(ResultRow,{label:"Ganancia",value:fmt(res.ganancia),hi:true})
+          ),
+
+          h("div",{style:{marginBottom:20}},
+            h("div",{style:{fontSize:10,color:MUTED,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}},"Escenarios"),
+            [["Conservador 20%",res.costoTotal/0.8,"#22d07a"],["Tu margen "+vals.margenDeseado+"%",res.precioSugerido,"#ff5c1a"],["Agresivo 70%",res.costoTotal/0.3,"#a78bfa"]].map(([l,p,c])=>
+              h("div",{key:l,style:{marginBottom:10}},
+                h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12}},
+                  h("span",{style:{color:c}},l),
+                  h("span",{style:{fontFamily:"monospace",fontWeight:700,color:c}},fmt(p))
+                ),
+                h("div",{style:{background:"#1a1a2e",borderRadius:3,height:5}},
+                  h("div",{style:{height:5,background:c,borderRadius:3,width:l.includes("20")?"55%":l.includes("70")?"100%":"75%"}})
+                )
+              )
+            )
+          ),
+
+          h("div",{style:{display:"flex",gap:8,marginBottom:8}},
+            h("button",{onClick:saveToHistorial,style:{...BTN,flex:1,background:savedFlash?"#22d07a":esPro?"#22d07a12":"#1a1a2e",border:"1px solid",borderColor:savedFlash?"#22d07a":esPro?"#22d07a40":"#2a2a4a",padding:13,color:savedFlash?"#0a0a14":esPro?"#22d07a":MUTED,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"all 0.3s",borderRadius:10}},
+              savedFlash?"✓ Guardado":esPro?"💾 Guardar":"🔒 Guardar"
+            ),
+            h("button",{onClick:()=>setShowCliente(true),style:{...BTN,flex:2,background:"#ff5c1a",border:"none",padding:13,color:"#fff",fontSize:14,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:6,borderRadius:10}},"📄 Exportar PDF")
+          ),
+          h("button",{onClick:()=>setShowPlantilla(true),style:{...BTN,width:"100%",background:"#ff5c1a12",border:"1px solid #ff5c1a30",padding:10,color:"#ff5c1a",fontSize:12,borderRadius:10}},"📋 Guardar como plantilla")
+        )
+      )
+    ),
+
+    // ── MI TALLER ──
+    screen===1 && h("div",{style:{maxWidth:900,margin:"0 auto",padding:"24px"}},
+      h("div",{style:{display:"flex",gap:8,marginBottom:20}},
+        h("button",{style:tabBtn(tallerTab===0),onClick:()=>setTallerTab(0)},"📦 Insumos"),
+        h("button",{style:tabBtn(tallerTab===1),onClick:()=>setTallerTab(1)},"⚙️ Perfiles"),
+        h("button",{style:tabBtn(tallerTab===2),onClick:()=>setTallerTab(2)},"📋 Plantillas")
+      ),
+
+      tallerTab===0 && h(React.Fragment,null,
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
+          h("div",null,h("div",{style:{fontWeight:700,fontSize:16}},"Base de insumos"),h("div",{style:{fontSize:11,color:MUTED}},insumos.length+" insumos")),
+          h("button",{onClick:()=>{setEditIns(null);setNewIns({nombre:"",tipo:"3D",unidad:"gr",costo:0});setShowInsumo(true);},style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"8px 16px",fontSize:12}},"+ Agregar")
+        ),
+        h("div",{style:{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}},
+          ["Todos","3D","SUB","BOR","VIN","LAS","General"].map(f=>
+            h("button",{key:f,onClick:()=>setFilterTipo(f),style:{padding:"5px 12px",borderRadius:100,border:"1px solid",borderColor:filterTipo===f?"#ff5c1a":"#1e1e35",background:filterTipo===f?"#ff5c1a18":"transparent",color:filterTipo===f?"#ff5c1a":MUTED,fontFamily:"inherit",fontSize:10,fontWeight:700,cursor:"pointer"}},f)
+          )
+        ),
+        insF.map(ins=>h("div",{key:ins.id,style:{...CARD,opacity:ins.activo?1:0.4,marginBottom:10}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+            h("div",null,
+              h("div",{style:{fontWeight:700,fontSize:14,marginBottom:4}},ins.nombre," ",h("span",{style:{background:"#ff5c1a22",color:"#ff5c1a",fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:100}},ins.tipo)),
+              h("span",{style:{fontSize:18,fontWeight:800,color:"#ff5c1a",fontFamily:"monospace"}},fmt(ins.costo)),
+              h("span",{style:{fontSize:11,color:MUTED,marginLeft:4}},"/"+ins.unidad)
+            ),
+            h("div",{style:{display:"flex",gap:4}},
+              h("button",{onClick:()=>setInsumos(p=>p.map(i=>i.id===ins.id?{...i,activo:!i.activo}:i)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:ins.activo?"#22d07a":"#333",padding:"5px 9px",fontSize:13}},ins.activo?"●":"○"),
+              h("button",{onClick:()=>{setEditIns(ins);setNewIns({nombre:ins.nombre,tipo:ins.tipo,unidad:ins.unidad,costo:ins.costo});setShowInsumo(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"5px 9px"}},"✏️"),
+              h("button",{onClick:()=>setInsumos(p=>p.filter(i=>i.id!==ins.id)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"5px 9px"}},"🗑")
+            )
+          )
+        )),
+        insF.length===0 && h("div",{style:{textAlign:"center",padding:"40px 0",color:"#2a2a3a"}},h("div",{style:{fontSize:32,marginBottom:10}},"📦"),h("p",{style:{fontSize:13}},"Sin insumos en esta categoría"))
+      ),
+
+      tallerTab===1 && h(React.Fragment,null,
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
+          h("div",null,h("div",{style:{fontWeight:700,fontSize:16}},"Perfiles de costos"),h("div",{style:{fontSize:11,color:MUTED}},"Configuraciones de tu taller")),
+          h("button",{onClick:()=>{setEditPerf(null);setNewPerf({nombre:"",electricidad:120,fijos3D:800,fijosSub:500,fiosBor:600,fijosVin:400,fijosLas:700});setShowPerf(true);},style:{...BTN,background:"#22d07a",color:"#0a0a14",padding:"8px 16px",fontSize:12}},"+ Nuevo")
+        ),
+        perfiles.map(perf=>h("div",{key:perf.id,style:{...CARD,borderColor:selPerf===String(perf.id)?"#22d07a":"#1e1e35",marginBottom:10}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
+            h("div",{style:{flex:1}},
+              h("div",{style:{fontWeight:700,fontSize:14,marginBottom:10}},perf.nombre,selPerf===String(perf.id)&&h("span",{style:{marginLeft:8,fontSize:9,background:"#22d07a18",color:"#22d07a",padding:"2px 8px",borderRadius:100}},"ACTIVO")),
+              h("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}},
+                [["⚡",fmt(perf.electricidad)+"/hr"],["🖨️",fmt(perf.fijos3D)],["🎨",fmt(perf.fijosSub)]].map(([k,v])=>
+                  h("div",{key:k,style:{background:"#0a0a14",borderRadius:8,padding:8,textAlign:"center"}},
+                    h("div",{style:{fontSize:8,color:"#333",marginBottom:2}},k),
+                    h("div",{style:{fontSize:10,fontWeight:700,fontFamily:"monospace",color:"#777"}},v)
+                  )
+                )
+              )
+            ),
+            h("div",{style:{display:"flex",flexDirection:"column",gap:5,marginLeft:10}},
+              h("button",{onClick:()=>setSelPerf(selPerf===String(perf.id)?"":String(perf.id)),style:{...BTN,background:"transparent",border:"1px solid",borderColor:selPerf===String(perf.id)?"#22d07a":"#2a2a4a",color:selPerf===String(perf.id)?"#22d07a":MUTED,padding:"6px 10px",fontSize:11}},selPerf===String(perf.id)?"✓ Activo":"Usar"),
+              h("button",{onClick:()=>{setEditPerf(perf);setNewPerf({...perf});setShowPerf(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"6px 10px"}},"✏️"),
+              h("button",{onClick:()=>{setPerfiles(p=>p.filter(x=>x.id!==perf.id));if(selPerf===String(perf.id))setSelPerf("");},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"6px 10px"}},"🗑")
+            )
+          )
+        ))
+      ),
+
+      tallerTab===2 && h(React.Fragment,null,
+        h("div",{style:{fontWeight:700,fontSize:16,marginBottom:14}},"Plantillas guardadas"),
+        plantillas.length===0 && h("div",{style:{textAlign:"center",padding:"40px 0",color:"#2a2a3a"}},h("div",{style:{fontSize:32,marginBottom:10}},"📋"),h("p",{style:{fontSize:13}},"Guardá una configuración desde la calculadora")),
+        plantillas.map(p=>h("div",{key:p.id,style:{...CARD,marginBottom:10}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+            h("div",null,h("div",{style:{fontWeight:700,fontSize:14}},p.nombre),h("div",{style:{fontSize:11,color:MUTED}},p.tipo+" · margen "+p.vals.margenDeseado+"%")),
+            h("button",{onClick:()=>setPlantillas(pl=>pl.filter(x=>x.id!==p.id)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"6px 10px"}},"🗑")
+          )
+        ))
+      )
+    ),
+
+    // ── HISTORIAL ──
+    screen===2 && h("div",{style:{maxWidth:900,margin:"0 auto",padding:"24px"}},
+      !esPro && lockScreen("📋","Historial Pro","El historial de presupuestos es exclusivo del plan Pro."),
+      esPro && h(React.Fragment,null,
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}},
+          h("div",null,h("div",{style:{fontWeight:700,fontSize:16}},"Historial"),h("div",{style:{fontSize:11,color:MUTED}},historial.length+" presupuestos")),
+          historial.length>0 && h("button",{onClick:()=>setHistorial([]),style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"6px 12px",fontSize:11}},"Limpiar")
+        ),
+        historial.length===0 && h("div",{style:{textAlign:"center",padding:"60px 0",color:"#2a2a3a"}},h("div",{style:{fontSize:40,marginBottom:12}},"📋"),h("p",{style:{fontSize:13,marginBottom:6}},"Sin presupuestos guardados"),h("p",{style:{fontSize:11,color:"#222"}},"Usá el botón 💾 Guardar en la calculadora")),
+        // Sort by margin for comparison
+        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:16}},
+          [...historial].sort((a,b)=>b.margen-a.margen).map((entry,i)=>{
+            const color=entry.margen>=50?"#22d07a":entry.margen>=30?"#ff5c1a":"#f87171";
+            return h("div",{key:entry.id,style:{...CARD,marginBottom:0}},
+              h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:10}},
+                h("div",null,
+                  h("div",{style:{fontSize:12,fontWeight:700,marginBottom:2}},"#"+(i+1)+" · "+entry.tipo),
+                  h("div",{style:{fontSize:10,color:MUTED}},entry.fecha+" · "+entry.hora)
+                ),
+                h("div",{style:{textAlign:"right"}},
+                  h("div",{style:{fontSize:20,fontWeight:800,color,fontFamily:"monospace"}},entry.margen+"%"),
+                  h("div",{style:{fontSize:11,color:"#22d07a"}},"+"+fmt(entry.ganancia))
+                )
+              ),
+              h("div",{style:{background:"#1e1e35",borderRadius:3,height:4,marginBottom:10}},h("div",{style:{height:4,background:color,borderRadius:3,width:Math.min(entry.margen/80*100,100)+"%"}})),
+              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:10,borderTop:"1px solid #1a1a2e"}},
+                h("span",{style:{fontSize:12,color:MUTED}},"Precio sugerido"),
+                h("span",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:"#ff5c1a"}},fmt(entry.precioSugerido))
+              ),
+              h("button",{onClick:()=>exportarPDF(entry.tipo,entry.vals,{costoMat:entry.costoTotal-entry.ganancia,electricidad:0,fijos:0,manoObra:0,otrosGastos:0,amortizacion:0,costoTotal:entry.costoTotal,precioSugerido:entry.precioSugerido,ganancia:entry.ganancia},{nroPedido:""}),style:{...BTN,width:"100%",marginTop:10,background:"#1a1408",border:"1px solid #ff5c1a30",color:"#ff5c1a",padding:10,fontSize:12,borderRadius:8}},"📄 Exportar PDF")
+            );
+          })
+        )
+      )
+    ),
+
+    // ── DASHBOARD ──
+    screen===3 && h("div",{style:{maxWidth:1100,margin:"0 auto",padding:"24px"}},
+      !esPro && lockScreen("📊","Dashboard Pro","El dashboard de rentabilidad es exclusivo del plan Pro."),
+      esPro && h(React.Fragment,null,
+        h("div",{style:{fontWeight:700,fontSize:20,marginBottom:24}},"📊 Dashboard de rentabilidad"),
+        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:16,marginBottom:24}},
+          [
+            ["Presupuestos",historial.length,"📋","#ff5c1a"],
+            ["Ganancia total",fmt(historial.reduce((s,e)=>s+e.ganancia,0)),"💰","#22d07a"],
+            ["Margen promedio",(historial.length?Math.round(historial.reduce((s,e)=>s+e.margen,0)/historial.length):0)+"%","📈","#a78bfa"],
+            ["Precio promedio",fmt(historial.length?historial.reduce((s,e)=>s+e.precioSugerido,0)/historial.length:0),"🏷️","#38bdf8"],
+          ].map(([label,value,icon,color])=>
+            h("div",{key:label,style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:20}},
+              h("div",{style:{fontSize:24,marginBottom:8}},icon),
+              h("div",{style:{fontSize:24,fontWeight:800,color,fontFamily:"monospace",marginBottom:4}},value),
+              h("div",{style:{fontSize:12,color:MUTED}},label)
+            )
+          )
+        ),
+        // Punto de equilibrio
+        h("div",{style:{background:"#12121f",border:"1px solid #22d07a25",borderRadius:14,padding:24,marginBottom:16}},
+          h("div",{style:{fontSize:12,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"⚖️ Punto de equilibrio"),
+          h("div",{style:{fontSize:12,color:MUTED,marginBottom:16,lineHeight:1.6}},"¿Cuántos trabajos necesitás hacer por mes para cubrir tus costos fijos?"),
+          h(NumInput,{label:"Gastos fijos mensuales",val:loadLS("jp_gastos",50000),onChange:v=>saveLS("jp_gastos",v),step:5000,unit:"$/mes",tooltip:"Alquiler + servicios + internet + cualquier gasto fijo mensual."}),
+          historial.length>0 && h(React.Fragment,null,
+            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:14}},
+              [
+                ["Precio promedio por trabajo",fmt(historial.reduce((s,e)=>s+e.precioSugerido,0)/historial.length),"#ff5c1a"],
+                ["Trabajos para cubrir gastos",Math.ceil(loadLS("jp_gastos",50000)/(historial.reduce((s,e)=>s+e.ganancia,0)/historial.length||1))+" trabajos/mes","#22d07a"],
+              ].map(([l,v,c])=>
+                h("div",{key:l,style:{background:"#0a0a14",borderRadius:10,padding:14}},
+                  h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},l),
+                  h("div",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:c}},v)
+                )
+              )
+            )
+          ),
+          historial.length===0 && h("div",{style:{textAlign:"center",padding:"20px 0",color:"#2a2a3a",fontSize:13}},"Guardá presupuestos para calcular el punto de equilibrio")
+        )
+      )
+    ),
+
+    // ── PRO ──
+    screen===4 && h("div",{style:{maxWidth:900,margin:"0 auto",padding:"24px"}},
+      !esPro && lockScreen("⭐","Importador de precios Pro","Subí el PDF de tu proveedor o pegá la URL de su web y cargamos los precios automáticamente."),
+      esPro && h(React.Fragment,null,
+        h("div",{style:{background:"linear-gradient(135deg,#1a1200,#12121f)",border:"1px solid #fbbf2430",borderRadius:14,padding:20,marginBottom:16,textAlign:"center"}},
+          h("div",{style:{fontSize:28,marginBottom:8}},"⭐"),
+          h("div",{style:{fontWeight:800,fontSize:18,marginBottom:4}},"Importador de precios Pro"),
+          h("div",{style:{fontSize:13,color:MUTED,lineHeight:1.5}},"Subí el PDF de tu proveedor o pegá la URL de su web y cargamos los precios automáticamente en Mi Taller.")
+        ),
+        h("div",{style:{display:"flex",gap:8,marginBottom:16}},
+          h("button",{onClick:()=>{setProModo("pdf");setProResultado(null);setProError(null);},style:tabBtn(proModo==="pdf","#fbbf24")},"📄 Subir PDF"),
+          h("button",{onClick:()=>{setProModo("url");setProResultado(null);setProError(null);},style:tabBtn(proModo==="url","#fbbf24")},"🌐 Pegar URL")
+        ),
+        proModo==="pdf" && h("div",{onClick:()=>fileRef.current?.click(),
+          onDragOver:e=>{e.preventDefault();e.currentTarget.style.borderColor="#fbbf24";},
+          onDragLeave:e=>e.currentTarget.style.borderColor="#1e1e35",
+          onDrop:e=>{e.preventDefault();e.currentTarget.style.borderColor="#1e1e35";const f=e.dataTransfer.files[0];if(f?.type==="application/pdf")leerPDF(f);else setProError("El archivo debe ser PDF");},
+          style:{background:"#12121f",border:"2px dashed #1e1e35",borderRadius:14,padding:"36px 20px",textAlign:"center",cursor:"pointer",marginBottom:14}},
+          h("div",{style:{fontSize:36,marginBottom:10}},"📄"),
+          h("div",{style:{fontWeight:700,fontSize:14,marginBottom:4}},"Arrastrá el PDF acá"),
+          h("div",{style:{fontSize:12,color:MUTED}},"o hacé clic para seleccionarlo"),
+          h("input",{ref:fileRef,type:"file",accept:".pdf",style:{display:"none"},onChange:e=>{const f=e.target.files[0];if(f)leerPDF(f);}})
+        ),
+        proModo==="url" && h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:20,marginBottom:14}},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#fbbf24",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}},"🌐 URL de la página del proveedor"),
+          h("input",{type:"url",value:proUrl,placeholder:"https://proveedor.com/lista-precios",onChange:e=>setProUrl(e.target.value),onKeyDown:e=>e.key==="Enter"&&leerURL(),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12},onFocus:e=>e.target.style.borderColor="#fbbf24",onBlur:e=>e.target.style.borderColor="#2a2a4a"}),
+          h("button",{onClick:leerURL,disabled:!proUrl.trim()||proLoading,style:{...BTN,width:"100%",background:proUrl.trim()?"#fbbf24":"#2a2a2a",color:proUrl.trim()?"#0a0a14":"#444",padding:13,fontSize:14,borderRadius:10}},proLoading?"Analizando...":"Analizar página →")
+        ),
+        proLoading && h("div",{style:{textAlign:"center",padding:"40px 0"}},h("div",{style:{fontSize:36,marginBottom:12,display:"inline-block",animation:"spin 1s linear infinite"}},"⚙️"),h("div",{style:{fontSize:14,color:MUTED}},"Analizando con IA...")),
+        proError && h("div",{style:{background:"#1a0808",border:"1px solid #f8717130",borderRadius:12,padding:16,marginTop:14}},h("div",{style:{fontSize:13,color:"#f87171",fontWeight:700}},"❌ "+proError)),
+        proResultado && h("div",{style:{marginTop:14}},
+          h("div",{style:{background:"#0a1a0a",border:"1px solid #22d07a30",borderRadius:12,padding:16,marginBottom:14}},
+            h("div",{style:{fontWeight:700,fontSize:14,color:"#22d07a"}},"✓ "+proResultado.insumos?.length+" precios encontrados"),
+            proResultado.proveedor && h("div",{style:{fontSize:11,color:MUTED,marginTop:4}},proResultado.proveedor)
+          ),
+          proResultado.insumos?.map((ins,i)=>
+            h("div",{key:i,style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              h("div",null,
+                h("div",{style:{fontWeight:700,fontSize:13,marginBottom:4}},ins.nombre),
+                h("span",{style:{background:"#ff5c1a22",color:"#ff5c1a",fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:100}},ins.tipo)
+              ),
+              h("div",{style:{textAlign:"right"}},
+                h("div",{style:{fontSize:16,fontWeight:800,fontFamily:"monospace",color:"#fbbf24"}},fmt(ins.precio)),
+                h("div",{style:{fontSize:10,color:MUTED}},"/"+ins.unidad)
+              )
+            )
+          ),
+          h("button",{onClick:()=>importarInsumos(proResultado.insumos||[]),style:{...BTN,width:"100%",marginTop:8,background:"linear-gradient(135deg,#fbbf24,#f59e0b)",padding:14,color:"#0a0a14",fontSize:14,fontWeight:800,borderRadius:10}},"⬇️ Importar todos a Mi Taller")
+        )
+      )
+    ),
+
+    // ── MODALS ──
+    showCodigo && h(Modal,{title:"⭐ Activar Plan Pro",onClose:()=>{setShowCodigo(false);setCodigoError("");setCodigoInput("");}},
+      h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:13,color:"#d4a82a",lineHeight:1.6}},"Ingresá el código que recibiste al suscribirte al plan Pro."),
+      h(Field,{label:"Código de acceso",value:codigoInput,onChange:v=>{setCodigoInput(v.toUpperCase());setCodigoError("");},placeholder:"Ej: JP-2026-001"}),
+      codigoError && h("div",{style:{color:"#f87171",fontSize:13,marginBottom:12,background:"#f8717115",border:"1px solid #f8717130",borderRadius:8,padding:"8px 12px"}},"❌ "+codigoError),
+      h("button",{onClick:activarPro,style:{...BTN,background:"#fbbf24",color:"#0a0a14",width:"100%",padding:14,borderRadius:10,fontSize:14,marginBottom:10}},"🔑 Activar Pro"),
+      h("a",{href:"/precios.html",style:{display:"block",textAlign:"center",fontSize:13,color:MUTED,textDecoration:"none",padding:10}},"¿No tenés código? Suscribite acá →")
+    ),
+
+    showInsumo && h(Modal,{title:editIns?"Editar insumo":"Nuevo insumo",onClose:()=>{setShowInsumo(false);setEditIns(null);}},
+      h(Field,{label:"Nombre",value:newIns.nombre,onChange:v=>setNewIns(p=>({...p,nombre:v})),placeholder:"Ej: Filamento PLA Negro"}),
+      h(DropSelect,{label:"Tipo",value:newIns.tipo,onChange:v=>setNewIns(p=>({...p,tipo:v})),options:[{value:"3D",label:"🖨️ 3D"},{value:"SUB",label:"🎨 Sub"},{value:"BOR",label:"🧵 Bordado"},{value:"VIN",label:"✂️ Vinilo"},{value:"LAS",label:"⚡ Láser"},{value:"General",label:"⚙️ General"}]}),
+      h(Field,{label:"Unidad",value:newIns.unidad,onChange:v=>setNewIns(p=>({...p,unidad:v})),placeholder:"gr, u, hoja..."}),
+      h(Field,{label:"Costo ($)",value:newIns.costo,onChange:v=>setNewIns(p=>({...p,costo:v})),type:"number",step:1,min:0}),
+      h("button",{onClick:saveInsumo,style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,marginTop:4,borderRadius:10,fontSize:14}},editIns?"Guardar cambios":"Agregar insumo")
+    ),
+
+    showPerf && h(Modal,{title:editPerf?"Editar perfil":"Nuevo perfil",onClose:()=>{setShowPerf(false);setEditPerf(null);}},
+      h(Field,{label:"Nombre",value:newPerf.nombre,onChange:v=>setNewPerf(p=>({...p,nombre:v})),placeholder:"Ej: Taller principal"}),
+      h(Field,{label:"Electricidad ($/hr)",value:newPerf.electricidad,onChange:v=>setNewPerf(p=>({...p,electricidad:v})),type:"number",step:10,min:0}),
+      h(Field,{label:"Fijos 3D ($/trabajo)",value:newPerf.fijos3D,onChange:v=>setNewPerf(p=>({...p,fijos3D:v})),type:"number",step:100,min:0}),
+      h(Field,{label:"Fijos Sub ($/trabajo)",value:newPerf.fijosSub,onChange:v=>setNewPerf(p=>({...p,fijosSub:v})),type:"number",step:100,min:0}),
+      h("button",{onClick:savePerfil,style:{...BTN,background:"#22d07a",color:"#0a0a14",width:"100%",padding:14,marginTop:4,borderRadius:10,fontSize:14}},editPerf?"Guardar cambios":"Crear perfil")
+    ),
+
+    showCliente && h(Modal,{title:"📄 Datos del cliente",onClose:()=>setShowCliente(false)},
+      h("div",{style:{fontSize:12,color:MUTED,marginBottom:16,lineHeight:1.6}},"Estos datos aparecerán en el PDF. Podés dejar los campos vacíos."),
+      h(Field,{label:"Nombre del cliente",value:cliente.nombre,onChange:v=>setCliente(p=>({...p,nombre:v})),placeholder:"Ej: María García"}),
+      h(Field,{label:"Descripción del trabajo",value:cliente.descripcion,onChange:v=>setCliente(p=>({...p,descripcion:v})),placeholder:"Ej: Taza cerámica con foto"}),
+      h(Field,{label:"Nro de pedido (opcional)",value:cliente.nroPedido,onChange:v=>setCliente(p=>({...p,nroPedido:v})),placeholder:"Ej: #001"}),
+      h("button",{onClick:()=>{setShowCliente(false);exportarPDF(tab.label,vals,res,cliente);},style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,marginTop:4,borderRadius:10,fontSize:14}},"📄 Generar PDF →")
+    ),
+
+    showPlantilla && h(Modal,{title:"📋 Guardar plantilla",onClose:()=>setShowPlantilla(false)},
+      h("div",{style:{fontSize:12,color:MUTED,marginBottom:16,lineHeight:1.6}},"Guardás la configuración actual de "+tab.label+" como plantilla reutilizable."),
+      h(Field,{label:"Nombre de la plantilla",value:plantillaNombre,onChange:setPlantillaNombre,placeholder:"Ej: Taza cerámica estándar"}),
+      h("button",{onClick:()=>{if(!plantillaNombre.trim())return;setPlantillas(p=>[{id:Date.now(),nombre:plantillaNombre,tipo:tab.id,vals:{...vals}},...p]);setShowPlantilla(false);setPlantillaNombre("");},style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,marginTop:4,borderRadius:10,fontSize:14}},"💾 Guardar plantilla")
+    )
+  );
+}
+
+createRoot(document.getElementById("root")).render(React.createElement(App));
 </script>
 </body>
 </html>
