@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  window.addEventListener('load', function() {
+    const h = React.createElement;
+    const { useState } = React;
+    const { createRoot } = ReactDOM;
+
+    function App() {
+      const [count, setCount] = useState(0);
+      return h('div', { style: { color: 'white', background: '#0d0d1a', padding: 40, minHeight: '100vh' } },
+        h('h1', null, 'React funciona!'),
+        h('p', null, 'Contador: ' + count),
+        h('button', { onClick: () => setCount(c => c + 1) }, 'Sumar')
+      );
+    }
+
+    createRoot(document.getElementById('root')).render(h(App));
+  });
+</script>
+</body>
+</html>
