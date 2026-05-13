@@ -233,6 +233,7 @@ function ResultRow({ label, value, hi, big }) {
 // ── Main App ─────────────────────────────────────────────────────────
 function App() {
   const [screen, setScreen] = useState(0);
+  const [onboardingStep, setOnboardingStep] = useState(() => loadLS("jp_onboarding_done", false) ? -1 : 0);
   const [tabIdx, setTabIdx] = useState(0);
   const [tallerTab, setTallerTab] = useState(0);
   const [filterTipo, setFilterTipo] = useState("Todos");
@@ -1106,6 +1107,122 @@ function App() {
     ),
 
     // ── MODALS ──
+
+    // Onboarding
+    onboardingStep >= 0 && h("div", { style:{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 } },
+      h("div", { style:{ background:"#12121f", border:"1px solid #2a2a4a", borderRadius:20, padding:36, width:"100%", maxWidth:480, position:"relative" } },
+
+        // Progress dots
+        h("div", { style:{ display:"flex", gap:8, justifyContent:"center", marginBottom:28 } },
+          [0,1,2,3].map(i =>
+            h("div", { key:i, style:{ width: onboardingStep===i?24:8, height:8, borderRadius:100, background: onboardingStep===i?"#ff5c1a": i<onboardingStep?"#ff5c1a60":"#2a2a4a", transition:"all 0.3s" } })
+          )
+        ),
+
+        // Step 0 — Bienvenida
+        onboardingStep===0 && h("div", { style:{ textAlign:"center" } },
+          h("div", { style:{ fontSize:52, marginBottom:16 } }, "👋"),
+          h("div", { style:{ fontSize:24, fontWeight:800, marginBottom:12 } }, "Bienvenido a JotaPrecios"),
+          h("div", { style:{ fontSize:15, color:MUTED, lineHeight:1.7, marginBottom:28 } },
+            "La calculadora de precios para makers de impresión 3D, sublimación y más. En 3 pasos te ayudamos a configurar todo para que empieces a cobrar lo que corresponde."
+          ),
+          h("div", { style:{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap", marginBottom:20 } },
+            [["🖨️","3D"],["🎨","Sub"],["🧵","Bord"],["✂️","Vinilo"],["⚡","Láser"]].map(([icon,label]) =>
+              h("div", { key:label, style:{ background:"#ff5c1a12", border:"1px solid #ff5c1a30", borderRadius:10, padding:"10px 16px", fontSize:13, fontWeight:700, color:"#ff5c1a" } }, icon+" "+label)
+            )
+          ),
+          h("button", { onClick:()=>setOnboardingStep(1), style:{ ...BTN, background:"#ff5c1a", color:"#fff", padding:"14px 40px", fontSize:15, borderRadius:12, width:"100%" } }, "Empezar →")
+        ),
+
+        // Step 1 — Tipo de trabajo
+        onboardingStep===1 && h("div", null,
+          h("div", { style:{ textAlign:"center", marginBottom:24 } },
+            h("div", { style:{ fontSize:40, marginBottom:12 } }, "🖨️"),
+            h("div", { style:{ fontSize:20, fontWeight:800, marginBottom:8 } }, "¿Con qué trabajás?"),
+            h("div", { style:{ fontSize:14, color:MUTED, lineHeight:1.6 } }, "Seleccioná los tipos de trabajo que hacés. Podés cambiarlos después.")
+          ),
+          h("div", { style:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:24 } },
+            [
+              ["🖨️","Impresión 3D","Filamentos, resinas, piezas"],
+              ["🎨","Sublimación","Tazas, remeras, sustratos"],
+              ["🧵","Bordado","Prendas, gorros, bolsos"],
+              ["✂️","Vinilo","Corte, transfer, ploteo"],
+              ["⚡","Láser","Corte y grabado láser"],
+            ].map(([icon,nombre,desc]) =>
+              h("div", { key:nombre, style:{ background:"#0a0a14", border:"1px solid #1e1e35", borderRadius:12, padding:"14px 16px", cursor:"pointer" },
+                onClick: e => { e.currentTarget.style.borderColor="#ff5c1a"; e.currentTarget.style.background="#ff5c1a0a"; }
+              },
+                h("div", { style:{ fontSize:22, marginBottom:6 } }, icon),
+                h("div", { style:{ fontWeight:700, fontSize:13, marginBottom:2 } }, nombre),
+                h("div", { style:{ fontSize:11, color:MUTED } }, desc)
+              )
+            )
+          ),
+          h("div", { style:{ display:"flex", gap:10 } },
+            h("button", { onClick:()=>setOnboardingStep(0), style:{ ...BTN, background:"transparent", border:"1px solid #2a2a4a", color:MUTED, padding:"12px 20px", fontSize:13, borderRadius:10, flex:1 } }, "← Atrás"),
+            h("button", { onClick:()=>setOnboardingStep(2), style:{ ...BTN, background:"#ff5c1a", color:"#fff", padding:"12px 20px", fontSize:13, borderRadius:10, flex:2 } }, "Continuar →")
+          )
+        ),
+
+        // Step 2 — Costos básicos
+        onboardingStep===2 && h("div", null,
+          h("div", { style:{ textAlign:"center", marginBottom:20 } },
+            h("div", { style:{ fontSize:40, marginBottom:12 } }, "💸"),
+            h("div", { style:{ fontSize:20, fontWeight:800, marginBottom:8 } }, "Tus costos básicos"),
+            h("div", { style:{ fontSize:14, color:MUTED, lineHeight:1.6 } }, "Estos valores se usan en todos tus cálculos. Ponés un número aproximado y lo ajustás después.")
+          ),
+          h("div", { style:{ marginBottom:20 } },
+            h(Field, { label:"¿Cuántos trabajos hacés por mes?", value:trabajosMes, onChange:v=>{ setTrabajosMes(Math.max(1,parseInt(v)||1)); saveLS("jp_trabajos_mes",Math.max(1,parseInt(v)||1)); }, type:"number", step:"1", min:"1" }),
+            h("div", { style:{ background:"#0a0a14", border:"1px solid #1e1e35", borderRadius:10, padding:16, marginTop:4 } },
+              h("div", { style:{ fontSize:11, color:MUTED, marginBottom:8 } }, "💡 Si recién empezás, ponés un número conservador (ej: 10-20 trabajos/mes)"),
+            ),
+            h("div", { style:{ height:16 } }),
+            h(Field, { label:"Electricidad estimada ($ por hora de máquina)", value:v3D.costoElectricidadHora, onChange:v=>{ mk3D("costoElectricidadHora")(v); mkSub("costoElectricidadHora")(v); mkBor("costoElectricidadHora")(v); mkVin("costoElectricidadHora")(v); mkLas("costoElectricidadHora")(v); }, type:"number", step:"10", min:"0" }),
+            h("div", { style:{ background:"#0a0a14", border:"1px solid #1e1e35", borderRadius:10, padding:16, marginTop:4 } },
+              h("div", { style:{ fontSize:11, color:MUTED } }, "💡 Si no sabés, podés dejarlo en 120 y ajustarlo después en Mi Taller → Costos fijos")
+            )
+          ),
+          h("div", { style:{ display:"flex", gap:10 } },
+            h("button", { onClick:()=>setOnboardingStep(1), style:{ ...BTN, background:"transparent", border:"1px solid #2a2a4a", color:MUTED, padding:"12px 20px", fontSize:13, borderRadius:10, flex:1 } }, "← Atrás"),
+            h("button", { onClick:()=>setOnboardingStep(3), style:{ ...BTN, background:"#ff5c1a", color:"#fff", padding:"12px 20px", fontSize:13, borderRadius:10, flex:2 } }, "Continuar →")
+          )
+        ),
+
+        // Step 3 — Listo
+        onboardingStep===3 && h("div", { style:{ textAlign:"center" } },
+          h("div", { style:{ fontSize:52, marginBottom:16 } }, "🎉"),
+          h("div", { style:{ fontSize:22, fontWeight:800, marginBottom:12 } }, "¡Todo listo!"),
+          h("div", { style:{ fontSize:14, color:MUTED, lineHeight:1.7, marginBottom:24 } },
+            "Ya podés calcular el precio de tu primer trabajo. Recordá que cuanto más completes tus costos en ",
+            h("strong", { style:{ color:"#fff" } }, "Mi Taller → Costos fijos"),
+            ", más preciso va a ser el resultado."
+          ),
+          h("div", { style:{ display:"flex", flexDirection:"column", gap:10, marginBottom:24 } },
+            [
+              ["🧮","Calcular precio","Empezá con tu primer trabajo"],
+              ["🏭","Mi Taller","Cargá tus insumos y costos fijos"],
+              ["⭐","Plan Pro","Importá listas de precios con IA"],
+            ].map(([icon,titulo,desc]) =>
+              h("div", { key:titulo, style:{ background:"#0a0a14", borderRadius:10, padding:"12px 16px", display:"flex", alignItems:"center", gap:14, textAlign:"left" } },
+                h("div", { style:{ fontSize:24, flexShrink:0 } }, icon),
+                h("div", null,
+                  h("div", { style:{ fontWeight:700, fontSize:13 } }, titulo),
+                  h("div", { style:{ fontSize:11, color:MUTED } }, desc)
+                )
+              )
+            )
+          ),
+          h("button", {
+            onClick:()=>{ saveLS("jp_onboarding_done", true); setOnboardingStep(-1); },
+            style:{ ...BTN, background:"linear-gradient(135deg,#ff5c1a,#ff8c5a)", color:"#fff", padding:"15px 40px", fontSize:15, fontWeight:800, borderRadius:12, width:"100%", boxShadow:"0 4px 20px rgba(255,92,26,0.3)" }
+          }, "🚀 Ir a la calculadora"),
+          h("button", {
+            onClick:()=>{ saveLS("jp_onboarding_done", true); setOnboardingStep(-1); setScreen(1); },
+            style:{ ...BTN, background:"transparent", border:"none", color:MUTED, padding:"10px", fontSize:13, marginTop:4, width:"100%" }
+          }, "Primero quiero cargar mis insumos →")
+        )
+      )
+    ),
     showCodigo && h(Modal,{title:"⭐ Activar Plan Pro",onClose:()=>{setShowCodigo(false);setCodigoError("");setCodigoInput("");}},
       h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:13,color:"#d4a82a",lineHeight:1.6}},"Ingresá el código que recibiste al suscribirte al plan Pro."),
       h(Field,{label:"Código de acceso",value:codigoInput,onChange:v=>{setCodigoInput(v.toUpperCase());setCodigoError("");},placeholder:"Ej: JP-2026-001"}),
