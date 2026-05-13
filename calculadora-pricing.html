@@ -132,7 +132,40 @@ ${res.manoObra>0?`<tr><td>Mano de obra</td><td>${f(res.manoObra)}</td></tr>`:""}
   const w = window.open("","_blank"); w.document.write(html); w.document.close();
 }
 
-// ── Shared styles ─────────────────────────────────────────────────────
+// ── Searchable combo input ────────────────────────────────────────────
+function ComboInput({ label, color, value, onChange, options, onSelect, unit }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value || "");
+  const filtered = options.filter(o => o.nombre.toLowerCase().includes(query.toLowerCase()));
+
+  return h("div", { style:{ marginBottom:10, position:"relative" } },
+    h("label", { style:{ display:"block", fontSize:10, fontWeight:700, color, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:5 } }, label),
+    h("div", { style:{ position:"relative" } },
+      h("input", {
+        type:"text",
+        value: query,
+        placeholder: "Escribí o elegí de la lista...",
+        onChange: e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); },
+        onFocus: () => setOpen(true),
+        onBlur: () => setTimeout(()=>setOpen(false), 150),
+        style:{ width:"100%", background:"#0a0a14", border:"1px solid #2a2a4a", borderRadius:8, padding:"10px 14px", color:"#fff", fontSize:14, fontFamily:"inherit", boxSizing:"border-box" },
+        onFocusCapture: e => e.target.style.borderColor=color,
+        onBlurCapture: e => e.target.style.borderColor="#2a2a4a"
+      }),
+      open && filtered.length>0 && h("div", { style:{ position:"absolute", top:"100%", left:0, right:0, background:"#12121f", border:"1px solid #2a2a4a", borderRadius:8, zIndex:100, maxHeight:180, overflowY:"auto", marginTop:4, boxShadow:"0 8px 24px rgba(0,0,0,0.5)" } },
+        filtered.map(o => h("div", { key:o.id,
+          onMouseDown: () => { setQuery(o.nombre); onChange(o.nombre); onSelect(o); setOpen(false); },
+          style:{ padding:"10px 14px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #1a1a2e", fontSize:13 },
+          onMouseEnter: e => e.currentTarget.style.background="#1a1a2e",
+          onMouseLeave: e => e.currentTarget.style.background="transparent"
+        },
+          h("span", null, o.nombre),
+          h("span", { style:{ color, fontFamily:"monospace", fontWeight:700, fontSize:12 } }, fmt(o.costo)+"/"+o.unidad)
+        ))
+      )
+    )
+  );
+}
 const CARD = { background:"#12121f", border:"1px solid #1e1e35", borderRadius:14, padding:20, marginBottom:16 };
 const BTN = { border:"none", borderRadius:8, fontFamily:"inherit", fontWeight:700, cursor:"pointer" };
 const MUTED = "#6b6b8a";
@@ -273,6 +306,20 @@ function App() {
   const [plantillaNombre, setPlantillaNombre] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
 
+  // Comparador de proveedores
+  const [compInsumos, setCompInsumosR] = useState(()=>loadLS("jp_comp_insumos",[
+    { id:1, nombre:"Filamento PLA 1kg", unidad:"kg", proveedores:[
+      { id:1, nombre:"Proveedor A", precio:35000, cantMin:1, flete:0 },
+      { id:2, nombre:"Proveedor B", precio:32000, cantMin:3, flete:2000 },
+    ]},
+  ]));
+  const setCompInsumos = fn => setCompInsumosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_comp_insumos",n); return n; });
+  const [compActivo, setCompActivo] = useState(0);
+
+  // Simulador qué pasa si
+  const [simUseCalc, setSimUseCalc] = useState(true);
+  const [simPct, setSimPct] = useState({ mat:0, elec:0, fijos:0, mano:0, margen:0 });
+
   // Pro features
   const [proLoading, setProLoading] = useState(false);
   const [proError, setProError] = useState(null);
@@ -384,8 +431,8 @@ function App() {
           )
         ),
         h("div", { style:{ display:"flex", alignItems:"center", gap:4, flexWrap:"wrap" } },
-          ["🧮 Calcular","🏭 Mi Taller","📋 Historial","📊 Dashboard","⭐ Pro"].map((s,i) =>
-            h("button", { key:s, onClick:()=>setScreen(i), style:{ padding:"8px 12px", border:"none", background:screen===i?"#ff5c1a18":"none", borderRadius:8, color:screen===i?(i===4?"#fbbf24":"#ff5c1a"):MUTED, fontFamily:"inherit", fontWeight:700, fontSize:11, cursor:"pointer", borderBottom:screen===i?`2px solid ${i===4?"#fbbf24":"#ff5c1a"}`:"2px solid transparent" } }, s)
+          ["🧮 Calcular","🏭 Mi Taller","📋 Historial","📊 Dashboard","⭐ Pro","🔍 Proveedores","🎯 Simulador"].map((s,i) =>
+            h("button", { key:s, onClick:()=>setScreen(i), style:{ padding:"8px 10px", border:"none", background:screen===i?"#ff5c1a18":"none", borderRadius:8, color:screen===i?(i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a"):MUTED, fontFamily:"inherit", fontWeight:700, fontSize:10, cursor:"pointer", borderBottom:screen===i?`2px solid ${i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a"}`:"2px solid transparent" } }, s)
           ),
           esPro
             ? h("div", { title:"Clic para desactivar", onClick:()=>{saveLS("jp_codigo","");setEsPro(false);}, style:{ marginLeft:6, background:"#fbbf2418", border:"1px solid #fbbf2440", color:"#fbbf24", fontSize:10, fontWeight:800, padding:"5px 10px", borderRadius:100, cursor:"pointer" } }, "⭐ PRO")
@@ -415,22 +462,19 @@ function App() {
 
         // Insumos rápidos
         is3D && ins3D.length>0 && h("div",{style:CARD},
-          h("div",{style:{fontSize:10,fontWeight:700,color:"#ff5c1a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"📦 Filamento guardado"),
-          h("select",{value:selFil,onChange:e=>{setSelFil(e.target.value);const i=insumos.find(x=>String(x.id)===e.target.value);if(i)setV3D(p=>({...p,costoPorGramo:i.costo}));},style:{width:"100%",background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:8,padding:"10px 14px",color:selFil?"#fff":MUTED,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}},
-            h("option",{value:""},"— Ingresar manualmente —"),
-            ins3D.map(i=>h("option",{key:i.id,value:String(i.id)},i.nombre+" · "+fmt(i.costo)+"/"+i.unidad))
-          )
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#ff5c1a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"📦 Filamento"),
+          h(ComboInput,{label:"Filamento",color:"#ff5c1a",value:v3D.costoPorGramo+"",options:ins3D,
+            onChange:text=>{},
+            onSelect:o=>setV3D(p=>({...p,costoPorGramo:o.costo})),unit:"gr"})
         ),
         isSub && insSub.length>0 && h("div",{style:CARD},
-          h("div",{style:{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"📦 Insumos guardados"),
-          h("select",{value:selSus,onChange:e=>{setSelSus(e.target.value);const i=insumos.find(x=>String(x.id)===e.target.value);if(i)setVSub(p=>({...p,costoSustrato:i.costo}));},style:{width:"100%",background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:8,padding:"9px 14px",color:selSus?"#fff":MUTED,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer",marginBottom:8}},
-            h("option",{value:""},"— Sustrato manual —"),
-            insSub.map(i=>h("option",{key:i.id,value:String(i.id)},i.nombre+" · "+fmt(i.costo)+"/"+i.unidad))
-          ),
-          h("select",{value:selTin,onChange:e=>{setSelTin(e.target.value);const i=insumos.find(x=>String(x.id)===e.target.value);if(i)setVSub(p=>({...p,costoTinta:i.costo}));},style:{width:"100%",background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:8,padding:"9px 14px",color:selTin?"#fff":MUTED,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}},
-            h("option",{value:""},"— Tinta manual —"),
-            insSub.map(i=>h("option",{key:i.id,value:String(i.id)},i.nombre+" · "+fmt(i.costo)+"/"+i.unidad))
-          )
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"📦 Insumos"),
+          h(ComboInput,{label:"Sustrato",color:"#a78bfa",value:"",options:insSub,
+            onChange:()=>{},
+            onSelect:o=>setVSub(p=>({...p,costoSustrato:o.costo})),unit:"u"}),
+          h(ComboInput,{label:"Tinta / consumible",color:"#a78bfa",value:"",options:insSub,
+            onChange:()=>{},
+            onSelect:o=>setVSub(p=>({...p,costoTinta:o.costo})),unit:"impresión"})
         ),
 
         // Producción
@@ -854,6 +898,209 @@ function App() {
             )
           ),
           h("button",{onClick:()=>importarInsumos(proResultado.insumos||[]),style:{...BTN,width:"100%",marginTop:8,background:"linear-gradient(135deg,#fbbf24,#f59e0b)",padding:14,color:"#0a0a14",fontSize:14,fontWeight:800,borderRadius:10}},"⬇️ Importar todos a Mi Taller")
+        )
+      )
+    ),
+
+    // ── COMPARADOR DE PROVEEDORES ──
+    screen===5 && h("div",{style:{maxWidth:900,margin:"0 auto",padding:"24px"}},
+      !esPro && lockScreen("🔍","Comparador de proveedores Pro","Comparás el mismo insumo de varios proveedores y ves cuál conviene."),
+      esPro && h(React.Fragment,null,
+        h("div",{style:{marginBottom:20}},
+          h("div",{style:{fontWeight:700,fontSize:20,marginBottom:4}},"🔍 Comparador de proveedores"),
+          h("div",{style:{fontSize:13,color:MUTED,lineHeight:1.6}},"Cargá el mismo insumo de varios proveedores. Te decimos cuál conviene según precio real (con flete y cantidad mínima).")
+        ),
+
+        // Tabs de insumos
+        h("div",{style:{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap",alignItems:"center"}},
+          compInsumos.map((ins,i)=>
+            h("button",{key:ins.id,onClick:()=>setCompActivo(i),style:{padding:"8px 16px",borderRadius:100,border:"1px solid",borderColor:compActivo===i?"#38bdf8":"#1e1e35",background:compActivo===i?"#38bdf818":"#12121f",color:compActivo===i?"#38bdf8":MUTED,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer"}},ins.nombre)
+          ),
+          h("button",{onClick:()=>{setCompInsumos(p=>[...p,{id:Date.now(),nombre:"Nuevo insumo",unidad:"u",proveedores:[]}]);setCompActivo(compInsumos.length);},style:{padding:"8px 14px",borderRadius:100,border:"1px dashed #2a2a4a",background:"transparent",color:MUTED,fontFamily:"inherit",fontSize:12,cursor:"pointer"}},"+ Insumo")
+        ),
+
+        compInsumos[compActivo] && h(React.Fragment,null,
+          // Nombre del insumo
+          h("div",{style:CARD},
+            h("div",{style:{display:"flex",gap:12,alignItems:"center",marginBottom:4}},
+              h("input",{value:compInsumos[compActivo].nombre,onChange:e=>setCompInsumos(p=>p.map((x,i)=>i===compActivo?{...x,nombre:e.target.value}:x)),style:{flex:1,background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 14px",color:"#fff",fontSize:16,fontWeight:700,fontFamily:"inherit",boxSizing:"border-box"}}),
+              h("input",{value:compInsumos[compActivo].unidad,placeholder:"kg",onChange:e=>setCompInsumos(p=>p.map((x,i)=>i===compActivo?{...x,unidad:e.target.value}:x)),style:{width:70,background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}}),
+              h("button",{onClick:()=>{if(compInsumos.length<=1)return;setCompInsumos(p=>p.filter((_,i)=>i!==compActivo));setCompActivo(Math.max(0,compActivo-1));},style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"8px 12px",fontSize:12}},"🗑 Borrar insumo")
+            )
+          ),
+
+          // Proveedores
+          h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:16,marginBottom:16}},
+            compInsumos[compActivo].proveedores.map((prov,pi)=>{
+              const precioPorUnidad = prov.precio;
+              const precioConFlete = prov.cantMin > 0 ? (prov.precio * prov.cantMin + prov.flete) / prov.cantMin : prov.precio;
+              const esMejor = compInsumos[compActivo].proveedores.length > 1 &&
+                precioConFlete === Math.min(...compInsumos[compActivo].proveedores.map(p2=>p2.cantMin>0?(p2.precio*p2.cantMin+p2.flete)/p2.cantMin:p2.precio));
+              return h("div",{key:prov.id,style:{background:"#12121f",border:"1px solid "+(esMejor?"#22d07a":"#1e1e35"),borderRadius:14,padding:20,position:"relative"}},
+                esMejor && h("div",{style:{position:"absolute",top:-1,right:16,background:"#22d07a",color:"#0a0a14",fontSize:9,fontWeight:800,padding:"3px 10px",borderRadius:"0 0 8px 8px",letterSpacing:"0.08em"}},"✓ MEJOR PRECIO"),
+                h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
+                  h("input",{value:prov.nombre,onChange:e=>setCompInsumos(p=>p.map((x,i)=>i===compActivo?{...x,proveedores:x.proveedores.map((v,j)=>j===pi?{...v,nombre:e.target.value}:v)}:x)),style:{background:"none",border:"none",color:"#fff",fontSize:14,fontWeight:700,fontFamily:"inherit",flex:1,outline:"none"}}),
+                  h("button",{onClick:()=>setCompInsumos(p=>p.map((x,i)=>i===compActivo?{...x,proveedores:x.proveedores.filter((_,j)=>j!==pi)}:x)),style:{...BTN,background:"transparent",border:"none",color:"#f87171",fontSize:14,padding:"4px"}},"×")
+                ),
+                h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},
+                  [
+                    ["Precio por "+compInsumos[compActivo].unidad, prov.precio, v=>setCompInsumos(p=>p.map((x,i)=>i===compActivo?{...x,proveedores:x.proveedores.map((v2,j)=>j===pi?{...v2,precio:parseFloat(v)||0}:v2)}:x))],
+                    ["Cantidad mínima", prov.cantMin, v=>setCompInsumos(p=>p.map((x,i)=>i===compActivo?{...x,proveedores:x.proveedores.map((v2,j)=>j===pi?{...v2,cantMin:parseFloat(v)||1}:v2)}:x))],
+                    ["Flete / envío $", prov.flete, v=>setCompInsumos(p=>p.map((x,i)=>i===compActivo?{...x,proveedores:x.proveedores.map((v2,j)=>j===pi?{...v2,flete:parseFloat(v)||0}:v2)}:x))],
+                  ].map(([lbl,val,change])=>
+                    h("div",{key:lbl},
+                      h("label",{style:{display:"block",fontSize:9,fontWeight:700,color:MUTED,letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:4}},lbl),
+                      h("input",{type:"number",min:0,value:val,onChange:e=>change(e.target.value),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:6,padding:"8px 10px",color:"#fff",fontSize:14,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},onFocus:e=>e.target.style.borderColor="#38bdf8",onBlur:e=>e.target.style.borderColor="#2a2a4a"})
+                    )
+                  )
+                ),
+                h("div",{style:{marginTop:14,paddingTop:14,borderTop:"1px solid #1a1a2e",display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                  h("span",{style:{fontSize:12,color:MUTED}},"Precio real por "+compInsumos[compActivo].unidad+":"),
+                  h("span",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:esMejor?"#22d07a":"#ff5c1a"}},fmt(Math.round(precioConFlete)))
+                ),
+                prov.flete>0 && h("div",{style:{fontSize:11,color:"#444",marginTop:4}},"Incluye flete prorrateado en "+prov.cantMin+" unidades")
+              );
+            })
+          ),
+
+          h("button",{onClick:()=>setCompInsumos(p=>p.map((x,i)=>i===compActivo?{...x,proveedores:[...x.proveedores,{id:Date.now(),nombre:"Proveedor "+(x.proveedores.length+1),precio:0,cantMin:1,flete:0}]}:x)),style:{...BTN,width:"100%",background:"transparent",border:"1px dashed #38bdf830",color:"#38bdf8",padding:"12px",fontSize:13,borderRadius:10,marginBottom:16}},"+ Agregar proveedor"),
+
+          // Resumen comparativo
+          compInsumos[compActivo].proveedores.length>1 && h("div",{style:{background:"linear-gradient(135deg,#0a1220,#12121f)",border:"1px solid #38bdf840",borderRadius:14,padding:20}},
+            h("div",{style:{fontSize:10,fontWeight:700,color:"#38bdf8",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:14}},"📊 Comparativa"),
+            [...compInsumos[compActivo].proveedores].sort((a,b)=>{
+              const pa=a.cantMin>0?(a.precio*a.cantMin+a.flete)/a.cantMin:a.precio;
+              const pb=b.cantMin>0?(b.precio*b.cantMin+b.flete)/b.cantMin:b.precio;
+              return pa-pb;
+            }).map((prov,i)=>{
+              const precioReal = prov.cantMin>0?(prov.precio*prov.cantMin+prov.flete)/prov.cantMin:prov.precio;
+              const mejor = [...compInsumos[compActivo].proveedores].sort((a,b)=>{const pa=a.cantMin>0?(a.precio*a.cantMin+a.flete)/a.cantMin:a.precio;const pb=b.cantMin>0?(b.precio*b.cantMin+b.flete)/b.cantMin:b.precio;return pa-pb;})[0];
+              const mejorPrecio=mejor.cantMin>0?(mejor.precio*mejor.cantMin+mejor.flete)/mejor.cantMin:mejor.precio;
+              const diff = i===0?0:Math.round(precioReal-mejorPrecio);
+              return h("div",{key:prov.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #1a1a2e"}},
+                h("div",null,
+                  h("span",{style:{fontWeight:700,fontSize:14,color:i===0?"#22d07a":"#f0eeff"}},(i===0?"✓ ":""+(i+1)+". ")+prov.nombre),
+                  prov.flete>0&&h("span",{style:{fontSize:11,color:MUTED,marginLeft:8}},"(compra mín: "+prov.cantMin+" u)")
+                ),
+                h("div",{style:{textAlign:"right"}},
+                  h("div",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:i===0?"#22d07a":"#f0eeff"}},fmt(Math.round(precioReal))+"/"+compInsumos[compActivo].unidad),
+                  i>0&&h("div",{style:{fontSize:11,color:"#f87171"}},"+"+fmt(diff)+" más caro")
+                )
+              );
+            })
+          )
+        )
+      )
+    ),
+
+    // ── SIMULADOR QUÉ PASA SI ──
+    screen===6 && h("div",{style:{maxWidth:900,margin:"0 auto",padding:"24px"}},
+      !esPro && lockScreen("🎯","Simulador Pro","Simulá cambios en tus costos y ves el impacto en el precio antes de que ocurran."),
+      esPro && h(React.Fragment,null,
+        h("div",{style:{marginBottom:20}},
+          h("div",{style:{fontWeight:700,fontSize:20,marginBottom:4}},"🎯 Simulador ¿Qué pasa si...?"),
+          h("div",{style:{fontSize:13,color:MUTED,lineHeight:1.6}},"Ajustá los porcentajes de cambio y ve en tiempo real cómo impactan en tu precio. Ideal para anticipar aumentos de proveedores o cambios en tu negocio.")
+        ),
+
+        h("div",{style:{display:"flex",gap:8,marginBottom:20}},
+          h("button",{onClick:()=>setSimUseCalc(true),style:tabBtn(simUseCalc,"#a78bfa")},"📊 Usar valores actuales de la calculadora"),
+          h("button",{onClick:()=>setSimUseCalc(false),style:tabBtn(!simUseCalc,"#a78bfa")},"✏️ Ingresar valores base")
+        ),
+
+        h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}},
+
+          // Columna izquierda — controles
+          h("div",null,
+            h("div",{style:CARD},
+              h("div",{style:{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"🎛️ Ajustes de cambio"),
+              h("div",{style:{fontSize:12,color:MUTED,marginBottom:16,lineHeight:1.5}},"Mové cada slider para simular un aumento o reducción. Valores positivos = aumento, negativos = reducción."),
+              [
+                ["📦 Materiales", "mat", "#ff5c1a"],
+                ["⚡ Electricidad y fijos", "fijos", "#38bdf8"],
+                ["🧑‍🔧 Mano de obra", "mano", "#a78bfa"],
+                ["💰 Mi margen", "margen", "#22d07a"],
+              ].map(([label, campo, color])=>
+                h("div",{key:campo,style:{marginBottom:20}},
+                  h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:8}},
+                    h("span",{style:{fontSize:13,fontWeight:600}},label),
+                    h("span",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:simPct[campo]>0?"#f87171":simPct[campo]<0?"#22d07a":"#666"}},(simPct[campo]>0?"+":"")+simPct[campo]+"%")
+                  ),
+                  h("input",{type:"range",min:-50,max:100,step:5,value:simPct[campo],
+                    onChange:e=>setSimPct(p=>({...p,[campo]:parseInt(e.target.value)})),
+                    style:{width:"100%",accentColor:color}
+                  }),
+                  h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:10,color:MUTED,marginTop:2}},
+                    h("span",null,"-50%"),h("span",null,"0"),h("span",null,"+100%")
+                  )
+                )
+              )
+            )
+          ),
+
+          // Columna derecha — resultado
+          h("div",null,
+            h("div",{style:{background:"linear-gradient(145deg,#1a0d00,#12121f)",border:"1px solid #a78bfa30",borderRadius:16,padding:24}},
+              h("div",{style:{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"📊 Impacto en tiempo real"),
+              (() => {
+                // Use current calculator values or base values
+                const base = {
+                  mat: simUseCalc ? res.costoMat : 2800,
+                  elec: simUseCalc ? res.electricidad : 480,
+                  fijos: simUseCalc ? res.fijos : 800,
+                  mano: simUseCalc ? res.manoObra : 0,
+                  margen: simUseCalc ? vals.margenDeseado : 40,
+                };
+                const sim = {
+                  mat: base.mat * (1 + simPct.mat/100),
+                  elec: base.elec * (1 + simPct.fijos/100),
+                  fijos: base.fijos * (1 + simPct.fijos/100),
+                  mano: base.mano * (1 + simPct.mano/100),
+                  margen: Math.min(95, Math.max(1, base.margen + simPct.margen)),
+                };
+                const costoBase = (base.mat + base.elec + base.fijos + base.mano) * (simUseCalc?vals.cantidad:1);
+                const costoSim = (sim.mat + sim.elec + sim.fijos + sim.mano) * (simUseCalc?vals.cantidad:1);
+                const precioBase = costoBase / (1 - base.margen/100);
+                const precioSim = costoSim / (1 - sim.margen/100);
+                const diff = precioSim - precioBase;
+                const diffPct = Math.round(diff/precioBase*100);
+
+                return h(React.Fragment,null,
+                  h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}},
+                    h("div",{style:{background:"#0a0a14",borderRadius:10,padding:16,textAlign:"center"}},
+                      h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},"Precio actual"),
+                      h("div",{style:{fontSize:26,fontWeight:800,fontFamily:"monospace",color:"#666"}},fmt(Math.round(precioBase)))
+                    ),
+                    h("div",{style:{background:"#0a0a14",borderRadius:10,padding:16,textAlign:"center",border:"1px solid #a78bfa40"}},
+                      h("div",{style:{fontSize:11,color:"#a78bfa",marginBottom:6}},"Precio simulado"),
+                      h("div",{style:{fontSize:26,fontWeight:800,fontFamily:"monospace",color:"#a78bfa"}},fmt(Math.round(precioSim)))
+                    )
+                  ),
+                  h("div",{style:{textAlign:"center",padding:"16px 0",background:diff>0?"#f8717112":"#22d07a12",borderRadius:12,marginBottom:20,border:"1px solid "+(diff>0?"#f8717130":"#22d07a30")}},
+                    h("div",{style:{fontSize:12,color:MUTED,marginBottom:4}},"Diferencia en el precio"),
+                    h("div",{style:{fontSize:32,fontWeight:900,fontFamily:"monospace",color:diff>0?"#f87171":"#22d07a"}},(diff>0?"+":"")+fmt(Math.round(diff))),
+                    h("div",{style:{fontSize:13,color:diff>0?"#f87171":"#22d07a",marginTop:4}},(diffPct>0?"+":"")+diffPct+"% vs precio actual")
+                  ),
+                  // Desglose de cambios
+                  h("div",{style:{fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"Detalle de cambios"),
+                  [
+                    ["Materiales", base.mat, sim.mat, "#ff5c1a"],
+                    ["Electricidad/fijos", base.elec+base.fijos, sim.elec+sim.fijos, "#38bdf8"],
+                    ["Mano de obra", base.mano, sim.mano, "#a78bfa"],
+                    ["Margen", base.margen+"%", sim.margen+"%", "#22d07a"],
+                  ].filter(([,bv])=>typeof bv==="number"?bv>0:true).map(([l,bv,sv,c])=>
+                    h("div",{key:l,style:{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #1a1a2e",fontSize:13}},
+                      h("span",{style:{color:MUTED}},l),
+                      h("span",null,
+                        h("span",{style:{fontFamily:"monospace",color:"#666",marginRight:8}},typeof bv==="number"?fmt(Math.round(bv)):bv),
+                        h("span",{style:{color:"#444"}},"→"),
+                        h("span",{style:{fontFamily:"monospace",color:c,marginLeft:8}},typeof sv==="number"?fmt(Math.round(sv)):sv)
+                      )
+                    )
+                  )
+                );
+              })()
+            )
+          )
         )
       )
     ),
