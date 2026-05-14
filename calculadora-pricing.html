@@ -542,6 +542,7 @@ function App() {
   // Simulador qué pasa si
   const [simUseCalc, setSimUseCalc] = useState(true);
   const [simPct, setSimPct] = useState({ mat:0, elec:0, fijos:0, mano:0, margen:0 });
+  const [recalcEntry, setRecalcEntry] = useState(null); // entrada del historial seleccionada para recalcular
 
   // Pro features
   const [proLoading, setProLoading] = useState(false);
@@ -618,6 +619,33 @@ function App() {
       // Existente — actualizar
       await sb.from("insumos").update({nombre:ins.nombre,tipo:ins.tipo,unidad:ins.unidad,costo:ins.costo,activo:ins.activo}).eq("id",ins.id);
     }
+  }
+
+  // Recalcular presupuesto guardado con precios actuales
+  function recalcularEntrada(entry) {
+    // Reconstruir resultado con los valores guardados pero costos de insumos actuales
+    const v = entry.vals || {};
+    const tipoId = entry.tipo.includes("3D") ? "3D" : entry.tipo.includes("Sub") ? "SUB" : entry.tipo.includes("Bord") ? "BOR" : entry.tipo.includes("Vinilo") ? "VIN" : "LAS";
+    
+    // Buscar insumos actualizados
+    const filActual = insumos.find(i => i.tipo === "3D" && i.activo);
+    const susActual = insumos.find(i => i.tipo === "SUB" && i.activo);
+    
+    let resActual;
+    if (tipoId === "3D") {
+      const vActual = { ...v, costoPorGramo: filActual ? filActual.costo : v.costoPorGramo };
+      resActual = calc3D(vActual, null, null);
+    } else if (tipoId === "SUB") {
+      const vActual = { ...v, costoSustrato: susActual ? susActual.costo : v.costoSustrato };
+      resActual = calcSub(vActual, null, null, null);
+    } else if (tipoId === "BOR") resActual = calcBor(v, null);
+    else if (tipoId === "VIN") resActual = calcVin(v, null);
+    else resActual = calcLas(v, null);
+
+    // Resultado original reconstruido
+    const resOriginal = { costoTotal: entry.costoTotal, precioSugerido: entry.precioSugerido, ganancia: entry.ganancia };
+
+    setRecalcEntry({ entry, resOriginal, resActual, tipoId });
   }
 
   function saveToHistorial() {
@@ -1113,7 +1141,10 @@ function App() {
                 h("span",{style:{fontSize:12,color:MUTED}},"Precio sugerido"),
                 h("span",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:"#ff5c1a"}},fmt(entry.precioSugerido))
               ),
-              h("button",{onClick:()=>exportarPDF(entry.tipo,entry.vals,{costoMat:entry.costoTotal-entry.ganancia,electricidad:0,fijos:0,manoObra:0,otrosGastos:0,amortizacion:0,costoTotal:entry.costoTotal,precioSugerido:entry.precioSugerido,ganancia:entry.ganancia},{nroPedido:""}),style:{...BTN,width:"100%",marginTop:10,background:"#1a1408",border:"1px solid #ff5c1a30",color:"#ff5c1a",padding:10,fontSize:12,borderRadius:8}},"📄 Exportar PDF")
+              h("div",{style:{display:"flex",gap:8,marginTop:10}},
+                h("button",{onClick:()=>recalcularEntrada(entry),style:{...BTN,flex:1,background:"#38bdf812",border:"1px solid #38bdf830",color:"#38bdf8",padding:10,fontSize:11,borderRadius:8}},"🔄 Recalcular"),
+                h("button",{onClick:()=>exportarPDF(entry.tipo,entry.vals,{costoMat:entry.costoTotal-entry.ganancia,electricidad:0,fijos:0,manoObra:0,otrosGastos:0,amortizacion:0,costoTotal:entry.costoTotal,precioSugerido:entry.precioSugerido,ganancia:entry.ganancia},{nroPedido:""}),style:{...BTN,flex:1,background:"#1a1408",border:"1px solid #ff5c1a30",color:"#ff5c1a",padding:10,fontSize:11,borderRadius:8}},"📄 PDF")
+              )
             );
           })
         )
@@ -1640,6 +1671,59 @@ function App() {
         )
       )
     ),
+    // Modal recalcular
+    recalcEntry && h(Modal,{title:"🔄 Recalcular con precios actuales",onClose:()=>setRecalcEntry(null)},
+      h("div",null,
+        h("div",{style:{fontSize:12,color:MUTED,marginBottom:16,lineHeight:1.6}},
+          "Comparación entre el presupuesto original (",recalcEntry.entry.fecha,") y los precios actuales de tus insumos."
+        ),
+        h("div",{style:{background:"#0a0a14",borderRadius:12,overflow:"hidden",marginBottom:16}},
+          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr"}},
+            ["Concepto","Original","Actual"].map(h2=>
+              h("div",{key:h2,style:{padding:"10px 12px",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",borderBottom:"1px solid #1e1e35",background:"#12121f"}},h2)
+            ),
+            ...[
+              ["Costo total",recalcEntry.resOriginal.costoTotal,recalcEntry.resActual.costoTotal],
+              ["Precio sugerido",recalcEntry.resOriginal.precioSugerido,recalcEntry.resActual.precioSugerido],
+              ["Ganancia",recalcEntry.resOriginal.ganancia,recalcEntry.resActual.ganancia],
+            ].flatMap(([label,orig,actual])=>{
+              const diff=actual-orig;
+              const diffPct=orig>0?Math.round(diff/orig*100):0;
+              const color=diff>0?"#f87171":diff<0?"#22d07a":MUTED;
+              return [
+                h("div",{key:label+"l",style:{padding:"12px",fontSize:13,borderBottom:"1px solid #0a0a14"}},label),
+                h("div",{key:label+"o",style:{padding:"12px",fontSize:13,fontFamily:"monospace",color:"#888",borderBottom:"1px solid #0a0a14"}},fmt(Math.round(orig))),
+                h("div",{key:label+"a",style:{padding:"12px",fontSize:13,fontFamily:"monospace",fontWeight:700,color,borderBottom:"1px solid #0a0a14"}},fmt(Math.round(actual)),diff!==0&&h("span",{style:{fontSize:10,marginLeft:6}},(diff>0?"+":"")+diffPct+"%")),
+              ];
+            })
+          )
+        ),
+        (()=>{
+          const diff=recalcEntry.resActual.precioSugerido-recalcEntry.resOriginal.precioSugerido;
+          const diffPct=Math.round(diff/recalcEntry.resOriginal.precioSugerido*100);
+          const subio=diff>0;
+          return h("div",{style:{background:subio?"#f8717112":"#22d07a12",border:"1px solid "+(subio?"#f8717130":"#22d07a30"),borderRadius:12,padding:16,textAlign:"center",marginBottom:16}},
+            h("div",{style:{fontSize:13,color:MUTED,marginBottom:6}},"Diferencia en precio de venta"),
+            h("div",{style:{fontSize:32,fontWeight:900,fontFamily:"monospace",color:subio?"#f87171":"#22d07a"}},(diff>0?"+":"")+fmt(Math.round(diff))),
+            h("div",{style:{fontSize:13,color:subio?"#f87171":"#22d07a",marginTop:4}},(diffPct>0?"+":"")+diffPct+"% vs precio original"),
+            h("div",{style:{fontSize:12,color:MUTED,marginTop:8}},subio?"📈 Los costos subieron — deberías actualizar tu precio":"📉 Los costos bajaron — podés ser más competitivo")
+          );
+        })(),
+        h("div",{style:{display:"flex",gap:8}},
+          h("button",{onClick:()=>setRecalcEntry(null),style:{...BTN,flex:1,background:"transparent",border:"1px solid #2a2a4a",color:MUTED,padding:12,borderRadius:10,fontSize:13}},"Cerrar"),
+          h("button",{
+            onClick:()=>{
+              const nueva={...recalcEntry.entry,id:Date.now(),costoTotal:recalcEntry.resActual.costoTotal,precioSugerido:recalcEntry.resActual.precioSugerido,ganancia:recalcEntry.resActual.ganancia,fecha:new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"short",year:"numeric"}),hora:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})};
+              setHistorial(p=>[nueva,...p].slice(0,50));
+              saveEntryToDB(nueva);
+              setRecalcEntry(null);
+            },
+            style:{...BTN,flex:2,background:"#38bdf8",color:"#0a0a14",padding:12,borderRadius:10,fontSize:13,fontWeight:700}
+          },"💾 Guardar precio actualizado")
+        )
+      )
+    ),
+
     showCodigo && h(Modal,{title:"⭐ Activar Plan Pro",onClose:()=>{setShowCodigo(false);setCodigoError("");setCodigoInput("");}},
       h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:13,color:"#d4a82a",lineHeight:1.6}},"Ingresá el código que recibiste al suscribirte al plan Pro."),
       h(Field,{label:"Código de acceso",value:codigoInput,onChange:v=>{setCodigoInput(v.toUpperCase());setCodigoError("");},placeholder:"Ej: JP-2026-001"}),
