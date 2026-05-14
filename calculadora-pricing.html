@@ -248,8 +248,8 @@ ${res.manoObra>0?`<tr><td>Mano de obra</td><td>${f(res.manoObra)}</td></tr>`:""}
 }
 
 // ── Auth Screen ──────────────────────────────────────────────────────
-function AuthScreen({ onAuth }) {
-  const [modo, setModo] = useState("login");
+function AuthScreen({ onAuth, modoInicial = "login" }) {
+  const [modo, setModo] = useState(modoInicial);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -543,7 +543,9 @@ function App() {
   // Simulador qué pasa si
   const [simUseCalc, setSimUseCalc] = useState(true);
   const [simPct, setSimPct] = useState({ mat:0, elec:0, fijos:0, mano:0, margen:0 });
-  const [recalcEntry, setRecalcEntry] = useState(null); // entrada del historial seleccionada para recalcular
+  const [recalcEntry, setRecalcEntry] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModoInicial, setAuthModoInicial] = useState("login"); // entrada del historial seleccionada para recalcular
 
   // Pro features
   const [proLoading, setProLoading] = useState(false);
@@ -651,6 +653,7 @@ function App() {
 
   function saveToHistorial() {
     if (!esPro) { setShowCodigo(true); return; }
+    if (!user) { setAuthModoInicial("registro"); setShowAuthModal(true); return; }
     const e={ id:Date.now(), fecha:new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"short",year:"numeric"}), hora:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}), tipo:tab.label, vals:{...vals}, costoTotal:res.costoTotal, precioSugerido:res.precioSugerido, ganancia:res.ganancia, margen:vals.margenDeseado };
     setHistorial(p=>[e,...p].slice(0,50));
     saveEntryToDB(e);
@@ -732,7 +735,8 @@ function App() {
       h("div",{style:{fontSize:40,marginBottom:12,display:"inline-block",animation:"spin 1s linear infinite"}},"⚙️"),
       h("div",{style:{fontSize:14,color:"#444"}},"Cargando..."))
   );
-  if (!user) return h(AuthScreen,{onAuth:handleAuth});
+
+  // Sin login — la calculadora funciona igual pero con banner de invitación
 
   return h("div", { style:{ minHeight:"100vh", background:"#0a0a14", fontFamily:"'Sora',sans-serif", color:"#f0eeff" } },
 
@@ -753,16 +757,42 @@ function App() {
           esPro
             ? h("div", { title:"Clic para desactivar", onClick:()=>{saveLS("jp_codigo","");setEsPro(false);}, style:{ marginLeft:6, background:"#fbbf2418", border:"1px solid #fbbf2440", color:"#fbbf24", fontSize:10, fontWeight:800, padding:"5px 10px", borderRadius:100, cursor:"pointer" } }, "⭐ PRO")
             : h("button", { onClick:()=>setShowCodigo(true), style:{ marginLeft:6, background:"#fbbf2412", border:"1px solid #fbbf2430", color:"#fbbf24", fontSize:11, fontWeight:700, padding:"5px 12px", borderRadius:100, cursor:"pointer", fontFamily:"inherit" } }, "⭐ Activar Pro"),
-          h("div", { style:{ display:"flex", alignItems:"center", gap:8, marginLeft:8, paddingLeft:8, borderLeft:"1px solid #1e1e35" } },
-            syncLoading && h("div",{style:{fontSize:10,color:"#444"}},"↻ Sincronizando..."),
-            h("div",{style:{fontSize:11,color:"#555",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},user.email),
-            h("button",{onClick:handleLogout,style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#444",padding:"5px 10px",fontSize:10,borderRadius:8}},"Salir")
-          )
+          user
+            ? h("div", { style:{ display:"flex", alignItems:"center", gap:8, marginLeft:8, paddingLeft:8, borderLeft:"1px solid #1e1e35" } },
+                syncLoading && h("div",{style:{fontSize:10,color:"#444"}},"↻"),
+                h("div",{style:{fontSize:11,color:"#555",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},user.email),
+                h("button",{onClick:handleLogout,style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#444",padding:"5px 10px",fontSize:10,borderRadius:8}},"Salir")
+              )
+            : h("div", { style:{ display:"flex", gap:6, marginLeft:8, paddingLeft:8, borderLeft:"1px solid #1e1e35" } },
+                h("button",{onClick:()=>setShowAuthModal(true),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#aaa",padding:"6px 12px",fontSize:11,borderRadius:8}},"Iniciar sesión"),
+                h("button",{onClick:()=>{ setShowAuthModal(true); setAuthModoInicial("registro"); },style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"6px 12px",fontSize:11,borderRadius:8}},"Crear cuenta →")
+              )
         )
       )
     ),
 
-    // ── CALCULAR ──
+    // Banner para usuarios sin cuenta
+    !user && h("div",{style:{background:"linear-gradient(135deg,#1a0d00,#0d0d1a)",borderBottom:"1px solid #ff5c1a20",padding:"10px 24px"}},
+      h("div",{style:{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}},
+          h("span",{style:{fontSize:13,color:"#ff8c5a"}},"🎉 Estás probando JotaPrecios gratis"),
+          h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+            [
+              ["☁️","Guardá en la nube"],
+              ["📱","Usalo en cualquier dispositivo"],
+              ["📋","Historial ilimitado"],
+              ["🔒","Tus datos seguros"],
+            ].map(([icon,txt])=>
+              h("span",{key:txt,style:{fontSize:11,color:"#555",display:"flex",alignItems:"center",gap:3}},icon," ",txt)
+            )
+          )
+        ),
+        h("div",{style:{display:"flex",gap:8}},
+          h("button",{onClick:()=>{setShowAuthModal(true);setAuthModoInicial("registro");},style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"7px 16px",fontSize:12,borderRadius:8}},"Crear cuenta gratis →"),
+          h("button",{onClick:()=>{setShowAuthModal(true);setAuthModoInicial("login");},style:{...BTN,background:"transparent",border:"1px solid #2a2a4a",color:"#666",padding:"7px 12px",fontSize:12,borderRadius:8}},"Ya tengo cuenta")
+        )
+      )
+    ),
     screen===0 && h("div", { className:"calc-grid" },
 
       // Left column — inputs
@@ -1707,6 +1737,11 @@ function App() {
         )
       )
     ),
+    // Modal auth (login/registro inline)
+    showAuthModal && h(Modal,{title:"",onClose:()=>setShowAuthModal(false)},
+      h(AuthScreen,{onAuth:(u)=>{ setShowAuthModal(false); handleAuth(u); }, modoInicial:authModoInicial})
+    ),
+
     // Modal recalcular
     recalcEntry && h(Modal,{title:"🔄 Recalcular con precios actuales",onClose:()=>setRecalcEntry(null)},
       h("div",null,
