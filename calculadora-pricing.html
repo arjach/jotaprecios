@@ -660,17 +660,63 @@ function App() {
     setSavedFlash(true); setTimeout(()=>setSavedFlash(false),1800);
   }
 
-  function saveInsumo() {
+  async function saveInsumo() {
     if (!newIns.nombre.trim()) return;
-    if (editIns) setInsumos(p=>p.map(i=>i.id===editIns.id?{...i,...newIns}:i));
-    else setInsumos(p=>[...p,{id:Date.now(),...newIns,activo:true}]);
+    if (editIns) {
+      setInsumos(p=>p.map(i=>i.id===editIns.id?{...i,...newIns}:i));
+      if (user) await sb.from("insumos").eq("id",editIns.id).update({nombre:newIns.nombre,tipo:newIns.tipo,unidad:newIns.unidad,costo:newIns.costo,activo:newIns.activo});
+    } else {
+      const tempId = Date.now();
+      setInsumos(p=>[...p,{id:tempId,...newIns,activo:true}]);
+      if (user) {
+        const {data} = await sb.from("insumos").insert({user_id:user.id,nombre:newIns.nombre,tipo:newIns.tipo,unidad:newIns.unidad,costo:newIns.costo,activo:true}).select().single();
+        // Actualizar con el ID real de Supabase
+        if (data?.id) setInsumos(p=>p.map(i=>i.id===tempId?{...i,id:data.id}:i));
+      }
+    }
     setShowInsumo(false); setEditIns(null);
   }
-  function savePerfil() {
+
+  async function savePerfil() {
     if (!newPerf.nombre.trim()) return;
-    if (editPerf) setPerfiles(p=>p.map(x=>x.id===editPerf.id?{...x,...newPerf}:x));
-    else setPerfiles(p=>[...p,{id:Date.now(),...newPerf}]);
+    if (editPerf) {
+      setPerfiles(p=>p.map(x=>x.id===editPerf.id?{...x,...newPerf}:x));
+      if (user) await sb.from("perfiles_taller").eq("id",editPerf.id).update({nombre:newPerf.nombre,electricidad:newPerf.electricidad,fijos_3d:newPerf.fijos3D,fijos_sub:newPerf.fijosSub,fijos_bor:newPerf.fiosBor,fijos_vin:newPerf.fijosVin,fijos_las:newPerf.fijosLas});
+    } else {
+      const tempId = Date.now();
+      setPerfiles(p=>[...p,{id:tempId,...newPerf}]);
+      if (user) {
+        const {data} = await sb.from("perfiles_taller").insert({user_id:user.id,nombre:newPerf.nombre,electricidad:newPerf.electricidad,fijos_3d:newPerf.fijos3D,fijos_sub:newPerf.fijosSub,fijos_bor:newPerf.fiosBor,fijos_vin:newPerf.fijosVin,fijos_las:newPerf.fijosLas}).select().single();
+        if (data?.id) setPerfiles(p=>p.map(x=>x.id===tempId?{...x,id:data.id}:x));
+      }
+    }
     setShowPerf(false); setEditPerf(null);
+  }
+
+  // Guardar gastos fijos en Supabase
+  async function saveGastosFijosDB(gastos) {
+    if (!user) return;
+    // Borrar todos y reinsertar (más simple que sync individual)
+    await sb.from("gastos_fijos").eq("user_id",user.id).delete();
+    if (gastos.length > 0) {
+      await sb.from("gastos_fijos").insert(gastos.map((g,i)=>({
+        user_id:user.id, nombre:g.nombre, monto:g.monto, pct:g.pct, activo:g.activo, orden:i
+      })));
+    }
+  }
+
+  // Guardar plantilla en Supabase
+  async function savePlantillaDB(plantilla) {
+    if (!user) return;
+    await sb.from("plantillas").insert({user_id:user.id,nombre:plantilla.nombre,tipo:plantilla.tipo,vals:plantilla.vals});
+  }
+
+  // Guardar configuración del calculador en Supabase (debounced)
+  async function saveConfigDB() {
+    if (!user) return;
+    await sb.from("configuracion").eq("user_id",user.id).update({
+      trabajos_mes:trabajosMes, v3d:v3D, vsub:vSub, vbor:vBor, vvin:vVin, vlas:vLas, updated_at:new Date().toISOString()
+    });
   }
 
   async function llamarGemini(texto) {
@@ -703,13 +749,15 @@ function App() {
     if (!proUrl.trim()) return;
     setProLoading(true); setProError(null); setProResultado(null);
     try {
-      const proxyRes = await fetch("https://api.allorigins.win/get?url="+encodeURIComponent(proUrl.trim()));
-      if (!proxyRes.ok) throw new Error("No se pudo acceder a la URL");
-      const pd = await proxyRes.json();
-      const texto = (pd.contents||"").replace(/<script[^>]*>[\s\S]*?<\/script>/gi,"").replace(/<style[^>]*>[\s\S]*?<\/style>/gi,"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
-      if (!texto||texto.length<20) throw new Error("La página no tiene contenido legible");
-      const resultado = await llamarGemini(texto);
-      setProResultado({ok:true,...resultado});
+      // El servidor fetchea la URL sin problemas de CORS
+      const res = await fetch(GEMINI_PROXY, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: proUrl.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Error al procesar la URL");
+      setProResultado({ ok:true, ...data });
     } catch(e) { setProError(e.message); }
     finally { setProLoading(false); }
   }
@@ -1064,7 +1112,7 @@ function App() {
             h("div",{style:{display:"flex",gap:4}},
               h("button",{onClick:()=>setInsumos(p=>p.map(i=>i.id===ins.id?{...i,activo:!i.activo}:i)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:ins.activo?"#22d07a":"#333",padding:"5px 9px",fontSize:13}},ins.activo?"●":"○"),
               h("button",{onClick:()=>{setEditIns(ins);setNewIns({nombre:ins.nombre,tipo:ins.tipo,unidad:ins.unidad,costo:ins.costo});setShowInsumo(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"5px 9px"}},"✏️"),
-              h("button",{onClick:()=>setInsumos(p=>p.filter(i=>i.id!==ins.id)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"5px 9px"}},"🗑")
+              h("button",{onClick:async()=>{setInsumos(p=>p.filter(i=>i.id!==ins.id));if(user)await sb.from("insumos").eq("id",ins.id).delete();},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"5px 9px"}},"🗑")
             )
           )
         )),
@@ -1092,7 +1140,7 @@ function App() {
             h("div",{style:{display:"flex",flexDirection:"column",gap:5,marginLeft:10}},
               h("button",{onClick:()=>setSelPerf(selPerf===String(perf.id)?"":String(perf.id)),style:{...BTN,background:"transparent",border:"1px solid",borderColor:selPerf===String(perf.id)?"#22d07a":"#2a2a4a",color:selPerf===String(perf.id)?"#22d07a":MUTED,padding:"6px 10px",fontSize:11}},selPerf===String(perf.id)?"✓ Activo":"Usar"),
               h("button",{onClick:()=>{setEditPerf(perf);setNewPerf({...perf});setShowPerf(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"6px 10px"}},"✏️"),
-              h("button",{onClick:()=>{setPerfiles(p=>p.filter(x=>x.id!==perf.id));if(selPerf===String(perf.id))setSelPerf("");},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"6px 10px"}},"🗑")
+              h("button",{onClick:async()=>{setPerfiles(p=>p.filter(x=>x.id!==perf.id));if(selPerf===String(perf.id))setSelPerf("");if(user)await sb.from("perfiles_taller").eq("id",perf.id).delete();},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"6px 10px"}},"🗑")
             )
           )
         ))
@@ -1104,7 +1152,7 @@ function App() {
         plantillas.map(p=>h("div",{key:p.id,style:{...CARD,marginBottom:10}},
           h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
             h("div",null,h("div",{style:{fontWeight:700,fontSize:14}},p.nombre),h("div",{style:{fontSize:11,color:MUTED}},p.tipo+" · margen "+p.vals.margenDeseado+"%")),
-            h("button",{onClick:()=>setPlantillas(pl=>pl.filter(x=>x.id!==p.id)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"6px 10px"}},"🗑")
+            h("button",{onClick:async()=>{setPlantillas(pl=>pl.filter(x=>x.id!==p.id));if(user)await sb.from("plantillas").eq("id",p.id).delete();},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"6px 10px"}},"🗑")
           )
         ))
       ),
@@ -1133,7 +1181,7 @@ function App() {
           h("div",{style:{fontSize:10,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"📋 Gastos mensuales"),
           gastosFijos.map(g=>h("div",{key:g.id,style:{padding:"14px 0",borderBottom:"1px solid #1a1a2e"}},
             h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:10}},
-              h("button",{onClick:()=>setGastosFijos(p=>p.map(x=>x.id===g.id?{...x,activo:!x.activo}:x)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:g.activo?"#22d07a":"#333",padding:"4px 8px",fontSize:12,flexShrink:0}},g.activo?"●":"○"),
+              h("button",{onClick:()=>{const ng=gastosFijos.map(x=>x.id===g.id?{...x,activo:!x.activo}:x);setGastosFijos(ng);saveGastosFijosDB(ng);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:g.activo?"#22d07a":"#333",padding:"4px 8px",fontSize:12,flexShrink:0}},g.activo?"●":"○"),
               h("span",{style:{fontWeight:600,fontSize:14,flex:1,color:g.activo?"#f0eeff":MUTED}},g.nombre),
               h("button",{onClick:()=>setGastosFijos(p=>p.filter(x=>x.id!==g.id)),style:{...BTN,background:"transparent",border:"none",color:"#f87171",fontSize:14,padding:"4px",flexShrink:0}},"×")
             ),
@@ -1173,7 +1221,7 @@ function App() {
             )
           ),
           h("button",{
-            onClick:()=>{ ["costosFijos"].forEach(()=>{ if(is3D)setV3D(p=>({...p,costosFijos:costoFijoPorTrabajo})); else if(isSub)setVSub(p=>({...p,costosFijos:costoFijoPorTrabajo})); else if(isBor)setVBor(p=>({...p,costosFijos:costoFijoPorTrabajo})); else if(isVin)setVVin(p=>({...p,costosFijos:costoFijoPorTrabajo})); else setVLas(p=>({...p,costosFijos:costoFijoPorTrabajo})); }); setScreen(0); },
+            onClick:()=>{ if(is3D)setV3D(p=>({...p,costosFijos:costoFijoPorTrabajo})); else if(isSub)setVSub(p=>({...p,costosFijos:costoFijoPorTrabajo})); else if(isBor)setVBor(p=>({...p,costosFijos:costoFijoPorTrabajo})); else if(isVin)setVVin(p=>({...p,costosFijos:costoFijoPorTrabajo})); else setVLas(p=>({...p,costosFijos:costoFijoPorTrabajo})); setScreen(0); },
             style:{...BTN,width:"100%",background:"#22d07a",color:"#0a0a14",padding:14,fontSize:14,borderRadius:10}
           },"✓ Aplicar $"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo)+" a la calculadora →")
         )
@@ -1832,7 +1880,7 @@ function App() {
     showPlantilla && h(Modal,{title:"📋 Guardar plantilla",onClose:()=>setShowPlantilla(false)},
       h("div",{style:{fontSize:12,color:MUTED,marginBottom:16,lineHeight:1.6}},"Guardás la configuración actual de "+tab.label+" como plantilla reutilizable."),
       h(Field,{label:"Nombre de la plantilla",value:plantillaNombre,onChange:setPlantillaNombre,placeholder:"Ej: Taza cerámica estándar"}),
-      h("button",{onClick:()=>{if(!plantillaNombre.trim())return;setPlantillas(p=>[{id:Date.now(),nombre:plantillaNombre,tipo:tab.id,vals:{...vals}},...p]);setShowPlantilla(false);setPlantillaNombre("");},style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,marginTop:4,borderRadius:10,fontSize:14}},"💾 Guardar plantilla")
+      h("button",{onClick:async()=>{if(!plantillaNombre.trim())return;const nueva={id:Date.now(),nombre:plantillaNombre,tipo:tab.id,vals:{...vals}};setPlantillas(p=>[nueva,...p]);await savePlantillaDB(nueva);setShowPlantilla(false);setPlantillaNombre("");},style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,marginTop:4,borderRadius:10,fontSize:14}},"💾 Guardar plantilla")
     )
   );
 }
