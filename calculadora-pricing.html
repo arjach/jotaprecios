@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.3/umd/supabase.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; }
@@ -30,7 +30,7 @@ const { createRoot } = ReactDOM;
 // ── Supabase ─────────────────────────────────────────────────────────
 const SUPA_URL = "https://lrshvldiiwenazyqswyr.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxyc2h2bGRpaXdlbmF6eXFzd3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MTYwNzgsImV4cCI6MjA5NDI5MjA3OH0.xn2HM5ZJgy6jfIegl7gywEgBGw-kR-a-nmT8JuWXykE";
-const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+const sb = (window.supabase || window.supabaseJs || {createClient:()=>null}).createClient(SUPA_URL, SUPA_KEY);
 
 // ── Códigos Pro ─────────────────────────────────────────────────────
 const CODIGOS_PRO = [
