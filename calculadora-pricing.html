@@ -148,8 +148,8 @@ const CODIGOS_PRO = [
 ];
 
 // ── Gemini API ───────────────────────────────────────────────────────
-const GEMINI_KEY = "AIzaSyCpauJWlfsHDxMAjZE6EnVgmAYYi-tSCnY";
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_KEY;
+// ── Gemini via proxy seguro ──────────────────────────────────────────
+const GEMINI_PROXY = "/api/gemini-proxy";
 
 // ── LocalStorage helpers ─────────────────────────────────────────────
 function loadLS(key, def) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } }
@@ -674,12 +674,14 @@ function App() {
   }
 
   async function llamarGemini(texto) {
-    const prompt = `Analizá esta lista de precios y extraé productos con precios. Respondé SOLO JSON sin backticks:\n{"proveedor":null,"fecha":null,"insumos":[{"nombre":"nombre","precio":1234,"unidad":"gr o kg o u","tipo":"3D o SUB o General","notas":null}]}\nReglas: precio como número sin símbolos. tipo "3D" para filamentos, "SUB" para sustratos/tintas, "General" para otros.\n\nContenido:\n${texto.substring(0,8000)}`;
-    const res = await fetch(GEMINI_URL,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.1} }) });
+    const res = await fetch(GEMINI_PROXY, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto })
+    });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message||"Error "+res.status);
-    const txt = data.candidates[0].content.parts[0].text.trim().replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
-    return JSON.parse(txt);
+    if (!res.ok || !data.ok) throw new Error(data.error || "Error del servidor");
+    return data;
   }
 
   async function leerPDF(archivo) {
