@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; }
@@ -23,8 +24,13 @@ select:focus { outline:none; }
 <body>
 <div id="root"></div>
 <script>
-const { useState, useRef, createElement: h } = React;
+const { useState, useRef, useEffect, createElement: h } = React;
 const { createRoot } = ReactDOM;
+
+// ── Supabase ─────────────────────────────────────────────────────────
+const SUPA_URL = "https://lrshvldiiwenazyqswyr.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxyc2h2bGRpaXdlbmF6eXFzd3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MTYwNzgsImV4cCI6MjA5NDI5MjA3OH0.xn2HM5ZJgy6jfIegl7gywEgBGw-kR-a-nmT8JuWXykE";
+const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // ── Códigos Pro ─────────────────────────────────────────────────────
 const CODIGOS_PRO = [
@@ -132,6 +138,108 @@ ${res.manoObra>0?`<tr><td>Mano de obra</td><td>${f(res.manoObra)}</td></tr>`:""}
   const w = window.open("","_blank"); w.document.write(html); w.document.close();
 }
 
+// ── Auth Screen ──────────────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+  const [modo, setModo] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [mensaje, setMensaje] = useState("");
+
+  async function handleLogin() {
+    if (!email||!password){setError("Completá email y contraseña");return;}
+    setLoading(true);setError("");
+    const {data,error:e} = await sb.auth.signInWithPassword({email,password});
+    if(e) setError(e.message==="Invalid login credentials"?"Email o contraseña incorrectos":e.message);
+    else onAuth(data.user);
+    setLoading(false);
+  }
+
+  async function handleRegistro() {
+    if (!email||!password){setError("Completá email y contraseña");return;}
+    if (password.length<6){setError("La contraseña debe tener al menos 6 caracteres");return;}
+    setLoading(true);setError("");
+    const {data,error:e} = await sb.auth.signUp({email,password});
+    if(e) setError(e.message);
+    else if(data.user?.identities?.length===0) setError("Ya existe una cuenta con ese email");
+    else {setMensaje("¡Cuenta creada! Revisá tu email para confirmar.");setModo("login");}
+    setLoading(false);
+  }
+
+  async function handleReset() {
+    if (!email){setError("Ingresá tu email");return;}
+    setLoading(true);setError("");
+    const {error:e} = await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
+    if(e) setError(e.message);
+    else setMensaje("Te enviamos un email para restablecer tu contraseña.");
+    setLoading(false);
+  }
+
+  const inp = {width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:10,padding:"13px 16px",color:"#fff",fontSize:15,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12};
+  const btn = {width:"100%",background:"#ff5c1a",border:"none",borderRadius:10,padding:"14px",color:"#fff",fontSize:15,fontWeight:800,fontFamily:"inherit",cursor:"pointer",marginBottom:10};
+
+  return h("div",{style:{minHeight:"100vh",background:"#0a0a14",display:"flex",alignItems:"center",justifyContent:"center",padding:20}},
+    h("div",{style:{width:"100%",maxWidth:420}},
+      h("div",{style:{textAlign:"center",marginBottom:36}},
+        h("a",{href:"/",style:{textDecoration:"none"}},
+          h("div",{style:{width:56,height:56,borderRadius:14,background:"#ff5c1a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:800,color:"#fff",margin:"0 auto 12px"}},"J"),
+          h("div",{style:{fontSize:24,fontWeight:800,color:"#fff"}},"JotaPrecios"),
+          h("div",{style:{fontSize:13,color:"#444",marginTop:4}},"Calculadora de precios para makers")
+        )
+      ),
+      h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:20,padding:32}},
+        modo!=="reset" && h("div",{style:{display:"flex",gap:0,marginBottom:24,background:"#0a0a14",borderRadius:10,padding:4}},
+          ["login","registro"].map(m=>
+            h("button",{key:m,onClick:()=>{setModo(m);setError("");setMensaje("");},style:{flex:1,padding:"9px",border:"none",borderRadius:8,background:modo===m?"#ff5c1a":"transparent",color:modo===m?"#fff":"#555",fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer"}},
+              m==="login"?"Iniciar sesión":"Crear cuenta"
+            )
+          )
+        ),
+        modo==="reset" && h("div",{style:{marginBottom:20}},
+          h("button",{onClick:()=>{setModo("login");setError("");setMensaje("");},style:{background:"none",border:"none",color:"#555",fontFamily:"inherit",fontSize:13,cursor:"pointer",padding:0,marginBottom:16}},"← Volver"),
+          h("div",{style:{fontWeight:700,fontSize:18,marginBottom:4}},"Recuperar contraseña"),
+          h("div",{style:{fontSize:13,color:"#555",lineHeight:1.6}},"Te enviamos un email con un link para restablecer tu contraseña.")
+        ),
+        mensaje && h("div",{style:{background:"#0a1a0a",border:"1px solid #22d07a30",borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:13,color:"#22d07a"}},"✓ "+mensaje),
+        error && h("div",{style:{background:"#1a0808",border:"1px solid #f8717130",borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:13,color:"#f87171"}},"❌ "+error),
+        h("input",{type:"email",placeholder:"tu@email.com",value:email,onChange:e=>{setEmail(e.target.value);setError("");},style:inp,onKeyDown:e=>e.key==="Enter"&&(modo==="login"?handleLogin():modo==="registro"?handleRegistro():handleReset())}),
+        modo!=="reset" && h("input",{type:"password",placeholder:"Contraseña (mín. 6 caracteres)",value:password,onChange:e=>{setPassword(e.target.value);setError("");},style:inp,onKeyDown:e=>e.key==="Enter"&&(modo==="login"?handleLogin():handleRegistro())}),
+        modo==="login" && h("button",{onClick:handleLogin,disabled:loading,style:{...btn,opacity:loading?0.7:1}},loading?"Ingresando...":"Entrar →"),
+        modo==="registro" && h("button",{onClick:handleRegistro,disabled:loading,style:{...btn,opacity:loading?0.7:1}},loading?"Creando cuenta...":"Crear cuenta →"),
+        modo==="reset" && h("button",{onClick:handleReset,disabled:loading,style:{...btn,opacity:loading?0.7:1}},loading?"Enviando...":"Enviar email →"),
+        modo==="login" && h("button",{onClick:()=>{setModo("reset");setError("");setMensaje("");},style:{background:"none",border:"none",color:"#444",fontFamily:"inherit",fontSize:12,cursor:"pointer",width:"100%",padding:"6px 0"}},"¿Olvidaste tu contraseña?")
+      ),
+      h("div",{style:{textAlign:"center",marginTop:20,fontSize:12,color:"#333",lineHeight:1.7}},
+        "Al crear una cuenta aceptás nuestros ",
+        h("a",{href:"/terminos.html",style:{color:"#555",textDecoration:"underline"}},"Términos"),
+        " y ",
+        h("a",{href:"/privacidad.html",style:{color:"#555",textDecoration:"underline"}},"Política de privacidad")
+      )
+    )
+  );
+}
+
+// ── Sync from Supabase ────────────────────────────────────────────────
+async function syncFromDB(userId, setters) {
+  const [insR,perfR,histR,plantR,gastR,confR,compR] = await Promise.all([
+    sb.from("insumos").select("*").eq("user_id",userId).order("created_at"),
+    sb.from("perfiles_taller").select("*").eq("user_id",userId),
+    sb.from("historial").select("*").eq("user_id",userId).order("created_at",{ascending:false}),
+    sb.from("plantillas").select("*").eq("user_id",userId),
+    sb.from("gastos_fijos").select("*").eq("user_id",userId).order("orden"),
+    sb.from("configuracion").select("*").eq("user_id",userId).maybeSingle(),
+    sb.from("comparador").select("*").eq("user_id",userId),
+  ]);
+  if(insR.data?.length) setters.setInsumos(insR.data.map(i=>({id:i.id,nombre:i.nombre,tipo:i.tipo,unidad:i.unidad,costo:i.costo,activo:i.activo})));
+  if(perfR.data?.length) setters.setPerfiles(perfR.data.map(p=>({id:p.id,nombre:p.nombre,electricidad:p.electricidad,fijos3D:p.fijos_3d,fijosSub:p.fijos_sub,fiosBor:p.fijos_bor,fijosVin:p.fijos_vin,fijosLas:p.fijos_las})));
+  if(histR.data?.length) setters.setHistorial(histR.data.map(e=>({id:e.id,tipo:e.tipo,fecha:e.fecha,hora:e.hora,costoTotal:e.costo_total,precioSugerido:e.precio_sugerido,ganancia:e.ganancia,margen:e.margen,vals:e.vals||{}})));
+  if(plantR.data?.length) setters.setPlantillas(plantR.data.map(p=>({id:p.id,nombre:p.nombre,tipo:p.tipo,vals:p.vals||{}})));
+  if(gastR.data?.length) setters.setGastosFijos(gastR.data.map(g=>({id:g.id,nombre:g.nombre,monto:g.monto,pct:g.pct,activo:g.activo})));
+  if(confR.data){const c=confR.data;if(c.trabajos_mes)setters.setTrabajosMes(c.trabajos_mes);if(c.v3d)setters.setV3D(c.v3d);if(c.vsub)setters.setVSub(c.vsub);if(c.vbor)setters.setVBor(c.vbor);if(c.vvin)setters.setVVin(c.vvin);if(c.vlas)setters.setVLas(c.vlas);}
+  if(compR.data?.length) setters.setCompInsumos(compR.data.map(c=>({id:c.id,nombre:c.nombre,unidad:c.unidad,proveedores:c.proveedores||[]})));
+}
+
 // ── Searchable combo input ────────────────────────────────────────────
 function ComboInput({ label, color, value, onChange, options, onSelect, unit }) {
   const [open, setOpen] = useState(false);
@@ -234,6 +342,11 @@ function ResultRow({ label, value, hi, big }) {
 function App() {
   const [screen, setScreen] = useState(0);
   const [onboardingStep, setOnboardingStep] = useState(() => loadLS("jp_onboarding_done", false) ? -1 : 0);
+
+  // Auth
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [syncLoading, setSyncLoading] = useState(false);
   const [tabIdx, setTabIdx] = useState(0);
   const [tallerTab, setTallerTab] = useState(0);
   const [filterTipo, setFilterTipo] = useState("Todos");
@@ -343,10 +456,66 @@ function App() {
   const insSub = insumos.filter(i=>(i.tipo==="SUB"||i.tipo==="General")&&i.activo);
   const insF = filterTipo==="Todos"?insumos:insumos.filter(i=>i.tipo===filterTipo);
 
+  // Auth effect — detectar sesión al cargar
+  useEffect(()=>{
+    sb.auth.getSession().then(({data:{session}})=>{
+      if(session?.user){ setUser(session.user); handleSync(session.user); }
+      setAuthLoading(false);
+    });
+    const {data:{subscription}} = sb.auth.onAuthStateChange((_,session)=>{
+      if(session?.user){ setUser(session.user); }
+      else setUser(null);
+    });
+    return ()=>subscription.unsubscribe();
+  },[]);
+
+  const setters = { setInsumos, setPerfiles, setHistorial, setPlantillas, setGastosFijos, setTrabajosMes, setV3D, setVSub, setVBor, setVVin, setVLas, setCompInsumos };
+
+  async function handleSync(u) {
+    setSyncLoading(true);
+    await syncFromDB(u.id, setters);
+    setSyncLoading(false);
+  }
+
+  async function handleAuth(u) {
+    setUser(u);
+    await handleSync(u);
+    setOnboardingStep(loadLS("jp_onboarding_done",false)?-1:0);
+  }
+
+  async function handleLogout() {
+    await sb.auth.signOut();
+    setUser(null);
+  }
+
+  // Guardar historial en Supabase
+  async function saveEntryToDB(entry) {
+    if(!user) return;
+    await sb.from("historial").insert({
+      user_id:user.id, tipo:entry.tipo, fecha:entry.fecha, hora:entry.hora,
+      costo_total:entry.costoTotal, precio_sugerido:entry.precioSugerido,
+      ganancia:entry.ganancia, margen:entry.margen, vals:entry.vals
+    });
+  }
+
+  // Guardar insumo en Supabase
+  async function saveInsumoDB(ins) {
+    if(!user) return;
+    if(typeof ins.id === "number") {
+      // Nuevo — insertar
+      const {data} = await sb.from("insumos").insert({user_id:user.id,nombre:ins.nombre,tipo:ins.tipo,unidad:ins.unidad,costo:ins.costo,activo:ins.activo}).select().single();
+      return data?.id;
+    } else {
+      // Existente — actualizar
+      await sb.from("insumos").update({nombre:ins.nombre,tipo:ins.tipo,unidad:ins.unidad,costo:ins.costo,activo:ins.activo}).eq("id",ins.id);
+    }
+  }
+
   function saveToHistorial() {
     if (!esPro) { setShowCodigo(true); return; }
     const e={ id:Date.now(), fecha:new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"short",year:"numeric"}), hora:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}), tipo:tab.label, vals:{...vals}, costoTotal:res.costoTotal, precioSugerido:res.precioSugerido, ganancia:res.ganancia, margen:vals.margenDeseado };
     setHistorial(p=>[e,...p].slice(0,50));
+    saveEntryToDB(e);
     setSavedFlash(true); setTimeout(()=>setSavedFlash(false),1800);
   }
 
@@ -419,6 +588,14 @@ function App() {
     )
   );
 
+  // Auth guards
+  if (authLoading) return h("div",{style:{minHeight:"100vh",background:"#0a0a14",display:"flex",alignItems:"center",justifyContent:"center"}},
+    h("div",{style:{textAlign:"center"}},
+      h("div",{style:{fontSize:40,marginBottom:12,display:"inline-block",animation:"spin 1s linear infinite"}},"⚙️"),
+      h("div",{style:{fontSize:14,color:"#444"}},"Cargando..."))
+  );
+  if (!user) return h(AuthScreen,{onAuth:handleAuth});
+
   return h("div", { style:{ minHeight:"100vh", background:"#0a0a14", fontFamily:"'Sora',sans-serif", color:"#f0eeff" } },
 
     // ── Header ──
@@ -437,7 +614,12 @@ function App() {
           ),
           esPro
             ? h("div", { title:"Clic para desactivar", onClick:()=>{saveLS("jp_codigo","");setEsPro(false);}, style:{ marginLeft:6, background:"#fbbf2418", border:"1px solid #fbbf2440", color:"#fbbf24", fontSize:10, fontWeight:800, padding:"5px 10px", borderRadius:100, cursor:"pointer" } }, "⭐ PRO")
-            : h("button", { onClick:()=>setShowCodigo(true), style:{ marginLeft:6, background:"#fbbf2412", border:"1px solid #fbbf2430", color:"#fbbf24", fontSize:11, fontWeight:700, padding:"5px 12px", borderRadius:100, cursor:"pointer", fontFamily:"inherit" } }, "⭐ Activar Pro")
+            : h("button", { onClick:()=>setShowCodigo(true), style:{ marginLeft:6, background:"#fbbf2412", border:"1px solid #fbbf2430", color:"#fbbf24", fontSize:11, fontWeight:700, padding:"5px 12px", borderRadius:100, cursor:"pointer", fontFamily:"inherit" } }, "⭐ Activar Pro"),
+          h("div", { style:{ display:"flex", alignItems:"center", gap:8, marginLeft:8, paddingLeft:8, borderLeft:"1px solid #1e1e35" } },
+            syncLoading && h("div",{style:{fontSize:10,color:"#444"}},"↻ Sincronizando..."),
+            h("div",{style:{fontSize:11,color:"#555",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},user.email),
+            h("button",{onClick:handleLogout,style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#444",padding:"5px 10px",fontSize:10,borderRadius:8}},"Salir")
+          )
         )
       )
     ),
