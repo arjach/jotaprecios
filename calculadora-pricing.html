@@ -538,6 +538,7 @@ function App() {
   ]));
   const setCompInsumos = fn => setCompInsumosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_comp_insumos",n); return n; });
   const [compActivo, setCompActivo] = useState(0);
+  const [selBambu, setSelBambu] = useState("");
 
   // Simulador qué pasa si
   const [simUseCalc, setSimUseCalc] = useState(true);
@@ -829,13 +830,37 @@ function App() {
         // Electricidad y fijos
         h("div",{style:CARD},
           h("div",{style:{fontSize:10,fontWeight:700,color:"#38bdf8",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"⚡ Costos operativos"),
-          h(NumInput,{label:"Electricidad",val:vals.costoElectricidadHora,onChange:mkV("costoElectricidadHora"),step:10,unit:"$/hr",disabled:!!perfil,tooltip:"Costo por hora de máquina encendida."}),
+          h(NumInput,{label:"Electricidad",val:vals.costoElectricidadHora,onChange:v=>{mkV("costoElectricidadHora")(v);setSelBambu("");},step:10,unit:"$/hr",disabled:!!perfil,tooltip:"Costo por hora de máquina encendida. Podés calcularlo con los presets de Bambu Lab abajo."}),
           is3D && h("div",{style:{marginBottom:14}},
-            h("div",{style:{fontSize:10,color:"#333",marginBottom:8}},"Presets Bambu Lab:"),
-            h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
-              [["A1 mini",70],["A1",90],["P1S",100],["X1C",150]].map(([m,w])=>
-                h("button",{key:m,onClick:()=>mk3D("costoElectricidadHora")(Math.round(w/1000*(v3D.costoElectricidadHora||120))),style:{background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:8,padding:"6px 12px",color:"#666",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}},m+" ~"+w+"W")
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+              h("div",{style:{fontSize:10,color:"#555"}},"⚡ Presets Bambu Lab — ingresá tu tarifa eléctrica:"),
+              h("div",{style:{display:"flex",alignItems:"center",gap:6}},
+                h("span",{style:{fontSize:10,color:MUTED}},"$/kWh:"),
+                h("input",{
+                  type:"number", min:0, step:10,
+                  value:loadLS("jp_tarifa_kwh", 150),
+                  onChange:e=>saveLS("jp_tarifa_kwh", parseFloat(e.target.value)||0),
+                  style:{width:70,background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:6,padding:"4px 8px",color:"#fff",fontSize:12,fontFamily:"monospace",boxSizing:"border-box"},
+                  onFocus:e=>e.target.style.borderColor="#ff5c1a",
+                  onBlur:e=>e.target.style.borderColor="#2a2a4a"
+                })
               )
+            ),
+            h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+              [["A1 mini",70],["A1",90],["P1S",100],["X1C",150]].map(([m,w])=>{
+                const tarifa = loadLS("jp_tarifa_kwh", 150);
+                const costoHora = Math.round(w / 1000 * tarifa);
+                const isSelected = selBambu === m;
+                return h("button",{key:m,
+                  onClick:()=>{ mk3D("costoElectricidadHora")(costoHora); setSelBambu(m); },
+                  style:{background:isSelected?"#ff5c1a18":"#0a0a14",border:"1px solid",borderColor:isSelected?"#ff5c1a":"#1e1e35",borderRadius:8,padding:"8px 12px",color:isSelected?"#ff5c1a":"#666",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}},
+                  h("div",null,m),
+                  h("div",{style:{fontSize:9,opacity:0.8,marginTop:2}},w+"W · "+new Intl.NumberFormat("es-AR").format(costoHora)+"$/hr")
+                );
+              })
+            ),
+            selBambu && h("div",{style:{fontSize:11,color:"#ff5c1a",marginTop:6,display:"flex",alignItems:"center",gap:4}},
+              "✓ Usando ",h("strong",null,selBambu)," — ",new Intl.NumberFormat("es-AR").format(v3D.costoElectricidadHora),"$/hr"
             )
           ),
           h(NumInput,{label:"Costos fijos",val:vals.costosFijos,onChange:mkV("costosFijos"),step:100,unit:"$/trabajo",disabled:!!perfil,tooltip:"Alquiler + internet + otros ÷ cantidad de trabajos por mes."}),
@@ -890,9 +915,20 @@ function App() {
             h("div",{style:{fontSize:10,color:MUTED,marginBottom:8}},"📋 Cargar plantilla:"),
             h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},
               plantillas.filter(p=>p.tipo===tab.id).map(p=>
-                h("button",{key:p.id,onClick:()=>{ if(is3D)setV3D({...p.vals}); else if(isSub)setVSub({...p.vals}); else if(isBor)setVBor({...p.vals}); else if(isVin)setVVin({...p.vals}); else setVLas({...p.vals}); },
-                  style:{background:"#ff5c1a12",border:"1px solid #ff5c1a30",borderRadius:8,padding:"5px 12px",color:"#ff5c1a",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}
-                },p.nombre)
+                h("button",{key:p.id,
+                  onClick:()=>{
+                    const v = {...p.vals};
+                    if(is3D){setV3D(v);saveLS("jp_v3D",v);}
+                    else if(isSub){setVSub(v);saveLS("jp_vSub",v);}
+                    else if(isBor){setVBor(v);saveLS("jp_vBor",v);}
+                    else if(isVin){setVVin(v);saveLS("jp_vVin",v);}
+                    else{setVLas(v);saveLS("jp_vLas",v);}
+                    setSelBambu("");
+                  },
+                  style:{background:"#ff5c1a12",border:"1px solid #ff5c1a30",borderRadius:8,padding:"6px 14px",color:"#ff5c1a",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}
+                },
+                  "📋 "+p.nombre
+                )
               )
             )
           )
