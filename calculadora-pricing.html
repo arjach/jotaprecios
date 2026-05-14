@@ -617,6 +617,26 @@ function App() {
             )
           ),
 
+          // Descuentos por cantidad
+          h("div",{style:{marginBottom:16}},
+            h("div",{style:{fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"📦 Precio por cantidad"),
+            h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}},
+              [1,5,10,50].map(cant=>{
+                const costoU = res.costoTotal/vals.cantidad;
+                const desc = cant===1?0:cant<=5?5:cant<=10?10:20;
+                const precioU = (costoU/(1-vals.margenDeseado/100))*(1-desc/100);
+                const total = precioU*cant;
+                return h("div",{key:cant,style:{background:cant===1?"#ff5c1a12":"#0a0a14",border:"1px solid",borderColor:cant===1?"#ff5c1a30":"#1e1e35",borderRadius:10,padding:"10px 8px",textAlign:"center"}},
+                  h("div",{style:{fontSize:11,fontWeight:700,color:cant===1?"#ff5c1a":MUTED,marginBottom:4}},cant===1?"1 ud":cant+" uds"),
+                  h("div",{style:{fontSize:15,fontWeight:800,fontFamily:"monospace",color:cant===1?"#ff5c1a":"#f0eeff",marginBottom:2}},fmt(Math.round(precioU))),
+                  h("div",{style:{fontSize:9,color:MUTED}},"c/u"),
+                  cant>1 && h("div",{style:{fontSize:10,color:"#22d07a",marginTop:3}},"-"+desc+"%"),
+                  cant>1 && h("div",{style:{fontSize:10,color:MUTED}},fmt(Math.round(total))+" total")
+                );
+              })
+            )
+          ),
+
           h("div",{style:{display:"flex",gap:8,marginBottom:8}},
             h("button",{onClick:saveToHistorial,style:{...BTN,flex:1,background:savedFlash?"#22d07a":esPro?"#22d07a12":"#1a1a2e",border:"1px solid",borderColor:savedFlash?"#22d07a":esPro?"#22d07a40":"#2a2a4a",padding:13,color:savedFlash?"#0a0a14":esPro?"#22d07a":MUTED,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"all 0.3s",borderRadius:10}},
               savedFlash?"✓ Guardado":esPro?"💾 Guardar":"🔒 Guardar"
@@ -847,6 +867,112 @@ function App() {
             )
           ),
           historial.length===0 && h("div",{style:{textAlign:"center",padding:"20px 0",color:"#2a2a3a",fontSize:13}},"Guardá presupuestos para calcular el punto de equilibrio")
+        ),
+
+        // Resumen semanal
+        historial.length>0 && h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:24,marginBottom:16}},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#fbbf24",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"📅 Resumen semanal"),
+          (() => {
+            const ahora = new Date();
+            const inicioSemana = new Date(ahora); inicioSemana.setDate(ahora.getDate()-7);
+            const inicioSemanaAnt = new Date(ahora); inicioSemanaAnt.setDate(ahora.getDate()-14);
+            const estaSemanaParsed = (e) => {
+              const [d,m,y] = e.fecha.split(" ");
+              const meses = {ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sep:8,oct:9,nov:10,dic:11};
+              return new Date(y, meses[m?.toLowerCase()], parseInt(d));
+            };
+            const estaSemana = historial.filter(e => { try { return estaSemanaParsed(e) >= inicioSemana; } catch { return false; } });
+            const semanaAnt = historial.filter(e => { try { const d=estaSemanaParsed(e); return d>=inicioSemanaAnt && d<inicioSemana; } catch { return false; } });
+            const facEstaSem = estaSemana.reduce((s,e)=>s+e.precioSugerido,0);
+            const facSemAnt = semanaAnt.reduce((s,e)=>s+e.precioSugerido,0);
+            const diff = facEstaSem - facSemAnt;
+            const ganEstaSem = estaSemana.reduce((s,e)=>s+e.ganancia,0);
+            return h("div",null,
+              h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:16}},
+                [
+                  ["Esta semana",estaSemana.length+" trabajos","📋","#fbbf24"],
+                  ["Facturación",fmt(facEstaSem),"💰","#22d07a"],
+                  ["Ganancia",fmt(ganEstaSem),"📈","#a78bfa"],
+                  ["vs semana ant.",fmt(Math.abs(diff))+(diff>=0?" ↑":" ↓"),diff>=0?"🟢":"🔴",diff>=0?"#22d07a":"#f87171"],
+                ].map(([l,v,icon,c])=>
+                  h("div",{key:l,style:{background:"#0a0a14",borderRadius:10,padding:14}},
+                    h("div",{style:{fontSize:20,marginBottom:6}},icon),
+                    h("div",{style:{fontSize:16,fontWeight:800,fontFamily:"monospace",color:c,marginBottom:2}},v),
+                    h("div",{style:{fontSize:11,color:MUTED}},l)
+                  )
+                )
+              ),
+              estaSemana.length===0 && h("div",{style:{fontSize:12,color:"#2a2a3a",textAlign:"center",padding:"8px 0"}},"No hay trabajos guardados esta semana")
+            );
+          })()
+        ),
+
+        // Top 5 más rentables
+        historial.length>0 && h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:24,marginBottom:16}},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#ff5c1a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"🏆 Top 5 trabajos más rentables"),
+          h("div",null,
+            [...historial].sort((a,b)=>b.margen-a.margen).slice(0,5).map((e,i)=>{
+              const medals = ["🥇","🥈","🥉","4️⃣","5️⃣"];
+              const colors = ["#fbbf24","#9ca3af","#cd7c3a","#666","#555"];
+              return h("div",{key:e.id,style:{display:"flex",alignItems:"center",gap:14,padding:"12px 0",borderBottom:"1px solid #1a1a2e"}},
+                h("div",{style:{fontSize:24,flexShrink:0}},medals[i]),
+                h("div",{style:{flex:1}},
+                  h("div",{style:{fontWeight:700,fontSize:13,marginBottom:2}},e.tipo),
+                  h("div",{style:{fontSize:11,color:MUTED}},e.fecha+" · "+e.hora)
+                ),
+                h("div",{style:{textAlign:"right"}},
+                  h("div",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:colors[i]}},e.margen+"%"),
+                  h("div",{style:{fontSize:11,color:"#22d07a"}},"+"+fmt(e.ganancia))
+                )
+              );
+            })
+          )
+        ),
+
+        // Gráfico evolución de precios
+        historial.length>1 && h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:24,marginBottom:16}},
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#38bdf8",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"📈 Evolución de precios"),
+          (() => {
+            const datos = [...historial].reverse().slice(-20);
+            const maxP = Math.max(...datos.map(e=>e.precioSugerido));
+            const minP = Math.min(...datos.map(e=>e.precioSugerido));
+            const range = maxP - minP || 1;
+            const W = 100, H = 120;
+            const pts = datos.map((e,i)=>{
+              const x = (i/(datos.length-1||1))*W;
+              const y = H - ((e.precioSugerido-minP)/range)*H*0.8 - H*0.1;
+              return [x,y,e];
+            });
+            const pathD = pts.map(([x,y],i)=>`${i===0?"M":"L"}${x},${y}`).join(" ");
+            const areaD = `${pathD} L${W},${H} L0,${H} Z`;
+            return h("div",null,
+              h("svg",{viewBox:`0 0 ${W} ${H}`,style:{width:"100%",height:120,overflow:"visible"}},
+                // Área
+                h("defs",null,
+                  h("linearGradient",{id:"areaGrad",x1:"0",y1:"0",x2:"0",y2:"1"},
+                    h("stop",{offset:"0%",stopColor:"#38bdf8",stopOpacity:"0.3"}),
+                    h("stop",{offset:"100%",stopColor:"#38bdf8",stopOpacity:"0"})
+                  )
+                ),
+                h("path",{d:areaD,fill:"url(#areaGrad)"}),
+                // Línea
+                h("path",{d:pathD,fill:"none",stroke:"#38bdf8",strokeWidth:"0.8",strokeLinecap:"round",strokeLinejoin:"round"}),
+                // Puntos
+                pts.map(([x,y,e],i)=>
+                  h("circle",{key:i,cx:x,cy:y,r:"1.5",fill:"#38bdf8"})
+                )
+              ),
+              h("div",{style:{display:"flex",justifyContent:"space-between",marginTop:8}},
+                h("div",{style:{fontSize:11,color:MUTED}},datos[0]?.fecha||""),
+                h("div",{style:{fontSize:11,color:MUTED}},datos[datos.length-1]?.fecha||"")
+              ),
+              h("div",{style:{display:"flex",justifyContent:"space-between",marginTop:12,paddingTop:12,borderTop:"1px solid #1a1a2e"}},
+                h("div",null,h("div",{style:{fontSize:11,color:MUTED}},"Mínimo"),h("div",{style:{fontFamily:"monospace",fontWeight:700,fontSize:14}},fmt(minP))),
+                h("div",{style:{textAlign:"center"}},h("div",{style:{fontSize:11,color:MUTED}},"Promedio"),h("div",{style:{fontFamily:"monospace",fontWeight:700,fontSize:14,color:"#38bdf8"}},fmt(Math.round(datos.reduce((s,e)=>s+e.precioSugerido,0)/datos.length)))),
+                h("div",{style:{textAlign:"right"}},h("div",{style:{fontSize:11,color:MUTED}},"Máximo"),h("div",{style:{fontFamily:"monospace",fontWeight:700,fontSize:14}},fmt(maxP)))
+              )
+            );
+          })()
         )
       )
     ),
