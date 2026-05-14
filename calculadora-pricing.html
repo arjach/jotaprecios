@@ -8,7 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.3/umd/supabase.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; }
@@ -30,7 +29,117 @@ const { createRoot } = ReactDOM;
 // ── Supabase ─────────────────────────────────────────────────────────
 const SUPA_URL = "https://lrshvldiiwenazyqswyr.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxyc2h2bGRpaXdlbmF6eXFzd3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MTYwNzgsImV4cCI6MjA5NDI5MjA3OH0.xn2HM5ZJgy6jfIegl7gywEgBGw-kR-a-nmT8JuWXykE";
-const sb = (window.supabase || window.supabaseJs || {createClient:()=>null}).createClient(SUPA_URL, SUPA_KEY);
+// ── Supabase REST client (sin SDK) ───────────────────────────────────
+const sb = {
+  _token: null,
+  _uid: null,
+
+  auth: {
+    async signInWithPassword({email, password}) {
+      const r = await fetch(SUPA_URL+"/auth/v1/token?grant_type=password", {
+        method:"POST", headers:{"Content-Type":"application/json","apikey":SUPA_KEY},
+        body: JSON.stringify({email, password})
+      });
+      const d = await r.json();
+      if (!r.ok) return {data:null, error:{message:d.error_description||d.msg||"Error"}};
+      sb._token = d.access_token;
+      sb._uid = d.user.id;
+      localStorage.setItem("jp_token", d.access_token);
+      localStorage.setItem("jp_refresh", d.refresh_token);
+      return {data:{user:d.user}, error:null};
+    },
+    async signUp({email, password}) {
+      const r = await fetch(SUPA_URL+"/auth/v1/signup", {
+        method:"POST", headers:{"Content-Type":"application/json","apikey":SUPA_KEY},
+        body: JSON.stringify({email, password})
+      });
+      const d = await r.json();
+      if (!r.ok) return {data:null, error:{message:d.error_description||d.msg||"Error"}};
+      if (d.access_token) { sb._token = d.access_token; sb._uid = d.user.id; localStorage.setItem("jp_token", d.access_token); localStorage.setItem("jp_refresh", d.refresh_token); }
+      return {data:{user:d.user||d}, error:null};
+    },
+    async signOut() {
+      if (sb._token) await fetch(SUPA_URL+"/auth/v1/logout", { method:"POST", headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+sb._token} }).catch(()=>{});
+      sb._token = null; sb._uid = null;
+      localStorage.removeItem("jp_token"); localStorage.removeItem("jp_refresh");
+    },
+    async getSession() {
+      const token = localStorage.getItem("jp_token");
+      const refresh = localStorage.getItem("jp_refresh");
+      if (!token) return {data:{session:null}};
+      // Try to refresh
+      try {
+        const r = await fetch(SUPA_URL+"/auth/v1/token?grant_type=refresh_token", {
+          method:"POST", headers:{"Content-Type":"application/json","apikey":SUPA_KEY},
+          body: JSON.stringify({refresh_token: refresh})
+        });
+        const d = await r.json();
+        if (r.ok && d.access_token) {
+          sb._token = d.access_token; sb._uid = d.user.id;
+          localStorage.setItem("jp_token", d.access_token);
+          localStorage.setItem("jp_refresh", d.refresh_token);
+          return {data:{session:{user:d.user}}};
+        }
+      } catch(e) {}
+      sb._token = null; sb._uid = null;
+      localStorage.removeItem("jp_token"); localStorage.removeItem("jp_refresh");
+      return {data:{session:null}};
+    },
+    async resetPasswordForEmail(email) {
+      await fetch(SUPA_URL+"/auth/v1/recover", {
+        method:"POST", headers:{"Content-Type":"application/json","apikey":SUPA_KEY},
+        body: JSON.stringify({email})
+      });
+      return {error:null};
+    },
+    onAuthStateChange(cb) { return {data:{subscription:{unsubscribe:()=>{}}}}; }
+  },
+
+  from(table) {
+    const base = SUPA_URL+"/rest/v1/"+table;
+    const headers = {"apikey":SUPA_KEY,"Authorization":"Bearer "+(sb._token||SUPA_KEY),"Content-Type":"application/json","Prefer":"return=representation"};
+    let _filters = [], _order = null, _single = false, _limit = null;
+
+    const q = {
+      select(cols="*") { return q; },
+      eq(col, val) { _filters.push(`${col}=eq.${val}`); return q; },
+      order(col, opts={}) { _order = col+"."+(opts.ascending===false?"desc":"asc"); return q; },
+      limit(n) { _limit = n; return q; },
+      maybeSingle() { _single = true; _limit = 1; return q; },
+      single() { _single = true; _limit = 1; return q; },
+      async then(resolve) {
+        let url = base+"?";
+        if (_filters.length) url += _filters.join("&")+"&";
+        if (_order) url += "order="+_order+"&";
+        if (_limit) url += "limit="+_limit;
+        const r = await fetch(url, {headers});
+        const d = await r.json();
+        if (_single) resolve({data: Array.isArray(d)?d[0]||null:d, error:r.ok?null:d});
+        else resolve({data: r.ok?d:null, error:r.ok?null:d});
+      },
+      async insert(rows) {
+        const body = Array.isArray(rows)?rows:[rows];
+        const r = await fetch(base, {method:"POST", headers, body:JSON.stringify(body)});
+        const d = await r.json();
+        return {data:r.ok?d:null, error:r.ok?null:d};
+      },
+      async update(vals) {
+        let url = base+"?";
+        if (_filters.length) url += _filters.join("&");
+        const r = await fetch(url, {method:"PATCH", headers, body:JSON.stringify(vals)});
+        const d = await r.json();
+        return {data:r.ok?d:null, error:r.ok?null:d};
+      },
+      async delete() {
+        let url = base+"?";
+        if (_filters.length) url += _filters.join("&");
+        const r = await fetch(url, {method:"DELETE", headers});
+        return {data:null, error:r.ok?null:await r.json()};
+      }
+    };
+    return q;
+  }
+};
 
 // ── Códigos Pro ─────────────────────────────────────────────────────
 const CODIGOS_PRO = [
