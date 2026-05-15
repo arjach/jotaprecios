@@ -464,6 +464,33 @@ function NumInput({ label, val, onChange, step=1, unit="", disabled=false, toolt
   );
 }
 
+// Input para gastos fijos — guarda solo al salir (onBlur) y permite borrar libremente
+function GastoInput({ label, value, onCommit, min=0, max=null }) {
+  const [local, setLocal] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+  if (!focused && parseFloat(local) !== value) setLocal(String(value));
+
+  return h("div",null,
+    h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:4}},label),
+    h("input",{
+      type:"text", inputMode:"decimal", value:local,
+      onChange:e=>setLocal(e.target.value),
+      onFocus:e=>{setFocused(true);e.target.style.borderColor="#22d07a";},
+      onBlur:e=>{
+        setFocused(false);
+        e.target.style.borderColor="#2a2a4a";
+        let num = parseFloat(local.replace(",","."));
+        if (isNaN(num)||local.trim()==="") num=0;
+        if (max!==null) num=Math.min(max,num);
+        if (min!==null) num=Math.max(min,num);
+        setLocal(String(num));
+        onCommit(num);
+      },
+      style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"9px 12px",color:"#fff",fontSize:14,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"}
+    })
+  );
+}
+
 function ResultRow({ label, value, hi, big }) {
   return h("div", { style:{ display:"flex",justifyContent:"space-between",padding:big?"14px 0":"8px 0",borderBottom:"1px solid #1a1a2e" } },
     h("span", { style:{ fontSize:big?15:13,color:hi?"#fff":MUTED,fontWeight:hi?700:400 } }, label),
@@ -1269,12 +1296,7 @@ function App() {
               "Dividís tus costos fijos entre la cantidad de trabajos que hacés por mes. Ideal cuando ya sabés cuánto producís."
             ),
             h("div",{style:{fontSize:12,color:MUTED,marginBottom:8}},"¿Cuántos trabajos hacés por mes?"),
-            h("input",{type:"number",min:1,step:1,value:trabajosMes,
-              onChange:e=>{const v=Math.max(1,parseInt(e.target.value)||1);setTrabajosMes(v);saveLS("jp_trabajos_mes",v);},
-              style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:20,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},
-              onFocus:e=>e.target.style.borderColor="#22d07a",
-              onBlur:e=>e.target.style.borderColor="#2a2a4a"
-            }),
+            h(GastoInput,{label:"",value:trabajosMes,min:1,onCommit:v=>{const val=Math.max(1,v);setTrabajosMes(val);saveLS("jp_trabajos_mes",val);}}),
             h("div",{style:{fontSize:11,color:MUTED,marginTop:8}},"Si recién empezás, ponés un número conservador (ej: 10-20 trabajos/mes)")
           ),
 
@@ -1328,12 +1350,7 @@ function App() {
 
             // Input manual
             h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},"O ingresá manualmente:"),
-            h("input",{type:"number",min:1,step:5,value:horasMes,
-              onChange:e=>{const v=Math.max(1,parseInt(e.target.value)||1);setHorasMes(v);saveLS("jp_horas_mes",v);},
-              style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:20,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},
-              onFocus:e=>e.target.style.borderColor="#22d07a",
-              onBlur:e=>e.target.style.borderColor="#2a2a4a"
-            }),
+            h(GastoInput,{label:"",value:horasMes,min:1,onCommit:v=>{const val=Math.max(1,v);setHorasMes(val);saveLS("jp_horas_mes",val);}}),
 
             totalFijosImputables>0 && h("div",{style:{background:"#22d07a12",border:"1px solid #22d07a30",borderRadius:8,padding:"10px 14px",marginTop:12,display:"flex",justifyContent:"space-between",alignItems:"center"}},
               h("span",{style:{fontSize:12,color:"#22d07a"}},"Costo fijo por hora de taller:"),
@@ -1355,13 +1372,15 @@ function App() {
               h("button",{onClick:()=>setGastosFijos(p=>p.filter(x=>x.id!==g.id)),style:{...BTN,background:"transparent",border:"none",color:"#f87171",fontSize:14,padding:"4px",flexShrink:0}},"×")
             ),
             g.activo && h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,paddingLeft:34}},
+              h(GastoInput,{
+                label:"Monto mensual $", value:g.monto,
+                onCommit:v=>{const ng=gastosFijos.map(x=>x.id===g.id?{...x,monto:v}:x);setGastosFijos(ng);saveGastosFijosDB(ng);}
+              }),
               h("div",null,
-                h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:4}},"Monto mensual $"),
-                h("input",{type:"number",min:0,step:1000,value:g.monto,onChange:e=>setGastosFijos(p=>p.map(x=>x.id===g.id?{...x,monto:parseFloat(e.target.value)||0}:x)),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"9px 12px",color:"#fff",fontSize:14,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},onFocus:e=>e.target.style.borderColor="#22d07a",onBlur:e=>e.target.style.borderColor="#2a2a4a"})
-              ),
-              h("div",null,
-                h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:4}},"% que corresponde al taller"),
-                h("input",{type:"number",min:1,max:100,step:5,value:g.pct,onChange:e=>setGastosFijos(p=>p.map(x=>x.id===g.id?{...x,pct:Math.min(100,Math.max(1,parseFloat(e.target.value)||1))}:x)),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"9px 12px",color:"#fff",fontSize:14,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},onFocus:e=>e.target.style.borderColor="#22d07a",onBlur:e=>e.target.style.borderColor="#2a2a4a"}),
+                h(GastoInput,{
+                  label:"% que corresponde al taller", value:g.pct, max:100, min:1,
+                  onCommit:v=>{const ng=gastosFijos.map(x=>x.id===g.id?{...x,pct:Math.min(100,Math.max(1,v))}:x);setGastosFijos(ng);saveGastosFijosDB(ng);}
+                }),
                 h("div",{style:{fontSize:11,color:"#22d07a",marginTop:4}},"= $"+new Intl.NumberFormat("es-AR").format(Math.round(g.monto*g.pct/100))+" del taller")
               )
             )
