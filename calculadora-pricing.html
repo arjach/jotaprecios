@@ -486,12 +486,15 @@ function App() {
   ];
   const [gastosFijos, setGastosFijosR] = useState(()=>loadLS("jp_gastos_fijos", DEF_GASTOS));
   const [trabajosMes, setTrabajosMes] = useState(()=>loadLS("jp_trabajos_mes", 20));
+  const [horasMes, setHorasMes] = useState(()=>loadLS("jp_horas_mes", 40));
+  const [modoFijos, setModoFijos] = useState(()=>loadLS("jp_modo_fijos", "trabajos"));
   const setGastosFijos = fn => setGastosFijosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_gastos_fijos",n); return n; });
 
-  // Calcular costo fijo por trabajo automáticamente
-  const costoFijoPorTrabajo = Math.round(
-    gastosFijos.filter(g=>g.activo).reduce((s,g)=>s+(g.monto*(g.pct/100)),0) / Math.max(trabajosMes,1)
-  );
+  // Calcular costo fijo según el modo elegido
+  const totalFijosImputables = gastosFijos.filter(g=>g.activo).reduce((s,g)=>s+(g.monto*(g.pct/100)),0);
+  const costoFijoPorTrabajo = modoFijos==="trabajos"
+    ? Math.round(totalFijosImputables / Math.max(trabajosMes,1))
+    : Math.round(totalFijosImputables / Math.max(horasMes,1)); // $/hora de taller
   const setInsumos = fn => setInsumosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_insumos",n); return n; });
   const setPerfiles = fn => setPerfilesR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_perfiles",n); return n; });
   const setHistorial = fn => setHistorialR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_historial",n); return n; });
@@ -947,7 +950,7 @@ function App() {
           costoFijoPorTrabajo>0 && !perfil && h("button",{
             onClick:()=>mkV("costosFijos")(costoFijoPorTrabajo),
             style:{...BTN,width:"100%",background:"#22d07a12",border:"1px solid #22d07a30",color:"#22d07a",padding:"8px 14px",fontSize:11,borderRadius:8,marginTop:-8,marginBottom:12}
-          },"✓ Usar costo calculado: "+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo)+"$/trabajo → Configurar en Mi Taller"),
+          },"✓ Usar costo calculado: "+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo)+(modoFijos==="horas"?"$/hr → multiplicá por las horas del trabajo":"$/trabajo → Configurar en Mi Taller")),
           h(NumInput,{label:"🧩 Otros gastos",val:vals.otrosGastos||0,onChange:mkV("otrosGastos"),step:50,unit:"$",tooltip:"Pegamento, lija, alcohol, guantes, sprays, etc."})
         ),
 
@@ -987,7 +990,7 @@ function App() {
         h("div",{style:CARD},
           h("div",{style:{fontSize:10,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"💰 Venta"),
           h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
-            h(NumInput,{label:"Margen de ganancia",val:vals.margenDeseado,onChange:mkV("margenDeseado"),step:5,unit:"%",tooltip:"Porcentaje de ganancia sobre el costo total. 40% es un buen punto de partida."}),
+            h(NumInput,{label:"Margen de ganancia",val:vals.margenDeseado,onChange:mkV("margenDeseado"),step:5,unit:"%",tooltip:"El margen es el porcentaje de ganancia sobre el precio de venta final — no sobre el costo. Ejemplo: con costo $1.000 y margen 40%, el precio es $1.667 y tu ganancia son $667 (el 40% de $1.667). Esto es diferente al markup: si usaras markup 40% sobre el costo, el precio sería $1.400 y tu ganancia real sería solo el 28.6% del precio. Usar margen es el estándar correcto para negocios — te garantiza que siempre ganás exactamente ese porcentaje de cada venta, independientemente del costo."}),
             h(NumInput,{label:"Cantidad",val:vals.cantidad,onChange:mkV("cantidad"),step:1,unit:"uds"})
           ),
           // Plantillas
@@ -1169,11 +1172,54 @@ function App() {
           "💡 ",h("strong",{style:{color:"#22d07a"}},"¿Trabajás desde tu casa?")," No cargues el alquiler completo. Si tu taller ocupa el 20% de tu casa, usá 20% en el porcentaje. Lo mismo con la electricidad — si la máquina representa el 30% del consumo, ponés 30%."
         ),
 
-        // Trabajos por mes
+        // Modo de cálculo — toggle trabajos vs horas
         h("div",{style:{...CARD,marginBottom:16}},
-          h("div",{style:{fontSize:10,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}},"📦 ¿Cuántos trabajos hacés por mes?"),
-          h("div",{style:{fontSize:12,color:MUTED,marginBottom:12,lineHeight:1.6}},"Este número divide el total de costos fijos para saber cuánto le corresponde a cada trabajo. Si recién empezás, podés poner un número conservador (ej: 10-20)."),
-          h("input",{type:"number",min:1,step:1,value:trabajosMes,onChange:e=>{const v=Math.max(1,parseInt(e.target.value)||1);setTrabajosMes(v);saveLS("jp_trabajos_mes",v);},style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:20,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},onFocus:e=>e.target.style.borderColor="#22d07a",onBlur:e=>e.target.style.borderColor="#2a2a4a"})
+          h("div",{style:{fontSize:10,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}},"⚙️ ¿Cómo querés distribuir los costos fijos?"),
+
+          // Toggle
+          h("div",{style:{display:"flex",gap:0,background:"#0a0a14",borderRadius:10,padding:4,marginBottom:16}},
+            h("button",{onClick:()=>{setModoFijos("trabajos");saveLS("jp_modo_fijos","trabajos");},
+              style:{flex:1,padding:"10px",border:"none",borderRadius:8,background:modoFijos==="trabajos"?"#22d07a":"transparent",color:modoFijos==="trabajos"?"#0a0a14":"#555",fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}
+            },"📦 Por trabajos"),
+            h("button",{onClick:()=>{setModoFijos("horas");saveLS("jp_modo_fijos","horas");},
+              style:{flex:1,padding:"10px",border:"none",borderRadius:8,background:modoFijos==="horas"?"#22d07a":"transparent",color:modoFijos==="horas"?"#0a0a14":"#555",fontFamily:"inherit",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}
+            },"⏱️ Por horas")
+          ),
+
+          modoFijos==="trabajos" && h("div",null,
+            h("div",{style:{background:"#0a1a0a",borderRadius:10,padding:"12px 14px",marginBottom:12,fontSize:13,color:"#9ad4b0",lineHeight:1.6}},
+              "Dividís tus costos fijos entre la cantidad de trabajos que hacés por mes. Ideal cuando ya sabés cuánto producís."
+            ),
+            h("div",{style:{fontSize:12,color:MUTED,marginBottom:8}},"¿Cuántos trabajos hacés por mes?"),
+            h("input",{type:"number",min:1,step:1,value:trabajosMes,
+              onChange:e=>{const v=Math.max(1,parseInt(e.target.value)||1);setTrabajosMes(v);saveLS("jp_trabajos_mes",v);},
+              style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:20,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},
+              onFocus:e=>e.target.style.borderColor="#22d07a",
+              onBlur:e=>e.target.style.borderColor="#2a2a4a"
+            }),
+            h("div",{style:{fontSize:11,color:MUTED,marginTop:8}},"Si recién empezás, ponés un número conservador (ej: 10-20 trabajos/mes)")
+          ),
+
+          modoFijos==="horas" && h("div",null,
+            h("div",{style:{background:"#0a1a0a",borderRadius:10,padding:"12px 14px",marginBottom:12,fontSize:13,color:"#9ad4b0",lineHeight:1.6}},
+              "Dividís tus costos fijos entre las horas que trabajás por mes. El resultado es el costo fijo por hora de taller. Perfecto si recién empezás o si la cantidad de trabajos varía mucho."
+            ),
+            h("div",{style:{fontSize:12,color:MUTED,marginBottom:8}},"¿Cuántas horas por mes usás el taller?"),
+            h("input",{type:"number",min:1,step:5,value:horasMes,
+              onChange:e=>{const v=Math.max(1,parseInt(e.target.value)||1);setHorasMes(v);saveLS("jp_horas_mes",v);},
+              style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:20,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},
+              onFocus:e=>e.target.style.borderColor="#22d07a",
+              onBlur:e=>e.target.style.borderColor="#2a2a4a"
+            }),
+            h("div",{style:{fontSize:11,color:MUTED,marginTop:8}},"Ej: si trabajás 2hs por día, 5 días a la semana → ~40 hs/mes"),
+            totalFijosImputables>0 && h("div",{style:{background:"#22d07a12",border:"1px solid #22d07a30",borderRadius:8,padding:"10px 14px",marginTop:12,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              h("span",{style:{fontSize:12,color:"#22d07a"}},"Costo fijo por hora de taller:"),
+              h("span",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:"#22d07a"}},"$"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo)+"/hr")
+            ),
+            h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"10px 14px",marginTop:8,fontSize:12,color:"#555",lineHeight:1.6}},
+              "💡 En la calculadora, el campo 'Costos fijos' se carga con este valor por hora multiplicado por las horas del trabajo. Por ejemplo, un trabajo de 3hs → $"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo*3)+" de costos fijos."
+            )
+          )
         ),
 
         // Lista de gastos
@@ -1210,9 +1256,9 @@ function App() {
           h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}},
             [
               ["Total gastos mensuales","$"+new Intl.NumberFormat("es-AR").format(gastosFijos.filter(g=>g.activo).reduce((s,g)=>s+g.monto,0)),"#f0eeff"],
-              ["Total imputable al taller","$"+new Intl.NumberFormat("es-AR").format(gastosFijos.filter(g=>g.activo).reduce((s,g)=>s+Math.round(g.monto*g.pct/100),0)),"#fbbf24"],
-              ["Trabajos por mes",trabajosMes+" trabajos","#a78bfa"],
-              ["Costo fijo por trabajo","$"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo),"#22d07a"],
+              ["Total imputable al taller","$"+new Intl.NumberFormat("es-AR").format(Math.round(totalFijosImputables)),"#fbbf24"],
+              [modoFijos==="trabajos"?"Trabajos por mes":"Horas de taller/mes", modoFijos==="trabajos"?trabajosMes+" trabajos":horasMes+" horas","#a78bfa"],
+              [modoFijos==="trabajos"?"Costo fijo por trabajo":"Costo fijo por hora","$"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo)+(modoFijos==="horas"?"/hr":""),"#22d07a"],
             ].map(([l,v,c])=>
               h("div",{key:l,style:{background:"#0a0a14",borderRadius:10,padding:14}},
                 h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},l),
