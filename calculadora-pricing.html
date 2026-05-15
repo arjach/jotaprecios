@@ -1273,23 +1273,68 @@ function App() {
           ),
 
           modoFijos==="horas" && h("div",null,
-            h("div",{style:{background:"#0a1a0a",borderRadius:10,padding:"12px 14px",marginBottom:12,fontSize:13,color:"#9ad4b0",lineHeight:1.6}},
-              "Dividís tus costos fijos entre las horas que trabajás por mes. El resultado es el costo fijo por hora de taller. Perfecto si recién empezás o si la cantidad de trabajos varía mucho."
+            h("div",{style:{background:"#0a1a0a",borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:13,color:"#9ad4b0",lineHeight:1.6}},
+              "Dividís tus costos fijos entre las horas que trabajás por mes. Perfecto si recién empezás o si la cantidad de trabajos varía mucho."
             ),
-            h("div",{style:{fontSize:12,color:MUTED,marginBottom:8}},"¿Cuántas horas por mes usás el taller?"),
+
+            // Calculadora guiada
+            h("div",{style:{background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:12,padding:16,marginBottom:14}},
+              h("div",{style:{fontSize:11,fontWeight:700,color:"#22d07a",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:12}},"🧮 Calculadora rápida"),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}},
+                h("div",null,
+                  h("label",{style:{display:"block",fontSize:11,color:MUTED,marginBottom:6}},"¿Cuántas horas por día?"),
+                  h("input",{type:"number",min:1,max:24,step:0.5,
+                    value:loadLS("jp_hs_dia",4),
+                    onChange:e=>{
+                      const hd=Math.max(0.5,parseFloat(e.target.value)||1);
+                      saveLS("jp_hs_dia",hd);
+                      const dm=loadLS("jp_dias_sem",5);
+                      const calc=Math.round(hd*dm*4.3);
+                      setHorasMes(calc);saveLS("jp_horas_mes",calc);
+                    },
+                    style:{width:"100%",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:16,fontFamily:"monospace",boxSizing:"border-box"},
+                    onFocus:e=>e.target.style.borderColor="#22d07a",
+                    onBlur:e=>e.target.style.borderColor="#2a2a4a"
+                  })
+                ),
+                h("div",null,
+                  h("label",{style:{display:"block",fontSize:11,color:MUTED,marginBottom:6}},"¿Cuántos días por semana?"),
+                  h("select",{
+                    value:loadLS("jp_dias_sem",5),
+                    onChange:e=>{
+                      const dm=parseInt(e.target.value);
+                      saveLS("jp_dias_sem",dm);
+                      const hd=loadLS("jp_hs_dia",4);
+                      const calc=Math.round(hd*dm*4.3);
+                      setHorasMes(calc);saveLS("jp_horas_mes",calc);
+                    },
+                    style:{width:"100%",background:"#12121f",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}
+                  },
+                    [1,2,3,4,5,6,7].map(d=>h("option",{key:d,value:d},d+" día"+(d>1?"s":"")))
+                  )
+                )
+              ),
+              h("div",{style:{background:"#22d07a18",border:"1px solid #22d07a30",borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                h("span",{style:{fontSize:12,color:"#22d07a"}},"Total horas/mes calculadas:"),
+                h("span",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:"#22d07a"}},horasMes+" hs")
+              )
+            ),
+
+            // Input manual
+            h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},"O ingresá manualmente:"),
             h("input",{type:"number",min:1,step:5,value:horasMes,
               onChange:e=>{const v=Math.max(1,parseInt(e.target.value)||1);setHorasMes(v);saveLS("jp_horas_mes",v);},
               style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:20,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"},
               onFocus:e=>e.target.style.borderColor="#22d07a",
               onBlur:e=>e.target.style.borderColor="#2a2a4a"
             }),
-            h("div",{style:{fontSize:11,color:MUTED,marginTop:8}},"Ej: si trabajás 2hs por día, 5 días a la semana → ~40 hs/mes"),
+
             totalFijosImputables>0 && h("div",{style:{background:"#22d07a12",border:"1px solid #22d07a30",borderRadius:8,padding:"10px 14px",marginTop:12,display:"flex",justifyContent:"space-between",alignItems:"center"}},
               h("span",{style:{fontSize:12,color:"#22d07a"}},"Costo fijo por hora de taller:"),
               h("span",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:"#22d07a"}},"$"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo)+"/hr")
             ),
             h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"10px 14px",marginTop:8,fontSize:12,color:"#555",lineHeight:1.6}},
-              "💡 En la calculadora, el campo 'Costos fijos' se carga con este valor por hora multiplicado por las horas del trabajo. Por ejemplo, un trabajo de 3hs → $"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo*3)+" de costos fijos."
+              "💡 Un trabajo de 3hs → $"+new Intl.NumberFormat("es-AR").format(costoFijoPorTrabajo*3)+" de costos fijos"
             )
           )
         ),
@@ -1406,22 +1451,90 @@ function App() {
         ),
         // Punto de equilibrio
         h("div",{style:{background:"#12121f",border:"1px solid #22d07a25",borderRadius:14,padding:24,marginBottom:16}},
-          h("div",{style:{fontSize:12,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"⚖️ Punto de equilibrio"),
-          h("div",{style:{fontSize:12,color:MUTED,marginBottom:16,lineHeight:1.6}},"¿Cuántos trabajos necesitás hacer por mes para cubrir tus costos fijos?"),
-          h(NumInput,{label:"Gastos fijos mensuales",val:loadLS("jp_gastos",50000),onChange:v=>saveLS("jp_gastos",v),step:5000,unit:"$/mes",tooltip:"Alquiler + servicios + internet + cualquier gasto fijo mensual."}),
-          historial.length>0 && h(React.Fragment,null,
-            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:14}},
+          h("div",{style:{fontSize:12,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}},"⚖️ Punto de equilibrio"),
+          h("div",{style:{fontSize:12,color:MUTED,marginBottom:20,lineHeight:1.6}},"Calculado con tus costos fijos reales del taller y tu sueldo deseado."),
+
+          // Datos base — solo lectura
+          h("div",{style:{background:"#0a0a14",borderRadius:10,padding:14,marginBottom:16}},
+            h("div",{style:{fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}},"Datos configurados en Mi Taller"),
+            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
               [
-                ["Precio promedio por trabajo",fmt(historial.reduce((s,e)=>s+e.precioSugerido,0)/historial.length),"#ff5c1a"],
-                ["Trabajos para cubrir gastos",Math.ceil(loadLS("jp_gastos",50000)/(historial.reduce((s,e)=>s+e.ganancia,0)/historial.length||1))+" trabajos/mes","#22d07a"],
+                ["Costos fijos del taller",fmt(Math.round(totalFijosImputables))+"/mes","#fbbf24"],
+                ["Sueldo deseado",fmt(sueldoMensual)+"/mes","#a78bfa"],
+                ["Total a cubrir",fmt(Math.round(totalFijosImputables)+sueldoMensual)+"/mes","#ff5c1a"],
+                ["Ganancia promedio/trabajo",historial.length>0?fmt(Math.round(historial.reduce((s,e)=>s+e.ganancia,0)/historial.length)):"-","#22d07a"],
               ].map(([l,v,c])=>
-                h("div",{key:l,style:{background:"#0a0a14",borderRadius:10,padding:14}},
-                  h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},l),
-                  h("div",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:c}},v)
+                h("div",{key:l,style:{padding:"10px 12px",background:"#12121f",borderRadius:8}},
+                  h("div",{style:{fontSize:10,color:MUTED,marginBottom:4}},l),
+                  h("div",{style:{fontSize:16,fontWeight:800,fontFamily:"monospace",color:c}},v)
                 )
               )
+            ),
+            totalFijosImputables===0 && h("div",{style:{fontSize:11,color:"#555",marginTop:8}},
+              "💡 Configurá tus gastos en ",
+              h("span",{style:{color:"#22d07a",cursor:"pointer"},onClick:()=>{setScreen(1);setTallerTab(3);}},"Mi Taller → 💸 Costos fijos")
             )
           ),
+
+          historial.length>0 && h(React.Fragment,null,
+            (() => {
+              const gananciaPromedio = historial.reduce((s,e)=>s+e.ganancia,0)/historial.length;
+              const precioPromedio = historial.reduce((s,e)=>s+e.precioSugerido,0)/historial.length;
+
+              // Nivel 1: solo costos del taller
+              const trabajosNegocio = gananciaPromedio>0 ? Math.ceil(totalFijosImputables/gananciaPromedio) : null;
+
+              // Nivel 2: costos del taller + sueldo
+              const trabajosPersonal = gananciaPromedio>0 ? Math.ceil((totalFijosImputables+sueldoMensual)/gananciaPromedio) : null;
+
+              return h("div",{style:{display:"flex",flexDirection:"column",gap:12}},
+
+                // Nivel 1
+                h("div",{style:{background:"linear-gradient(135deg,#0a1a0a,#12121f)",border:"1px solid #22d07a30",borderRadius:12,padding:18}},
+                  h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}},
+                    h("div",null,
+                      h("div",{style:{fontSize:11,fontWeight:700,color:"#22d07a",marginBottom:2}},"📦 Nivel 1 — El negocio se sostiene solo"),
+                      h("div",{style:{fontSize:11,color:MUTED,lineHeight:1.5}},"Cubre alquiler, electricidad e internet del taller ("+fmt(Math.round(totalFijosImputables))+"/mes)")
+                    ),
+                    h("div",{style:{textAlign:"right"}},
+                      h("div",{style:{fontSize:32,fontWeight:900,fontFamily:"monospace",color:"#22d07a"}},(trabajosNegocio||"—")+(trabajosNegocio?" trab.":"")),
+                      h("div",{style:{fontSize:11,color:MUTED}},"por mes")
+                    )
+                  ),
+                  gananciaPromedio>0 && h("div",{style:{background:"#22d07a08",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#555"}},
+                    "Facturación mínima: "+fmt(Math.round(precioPromedio*(trabajosNegocio||0)))+"/mes"
+                  )
+                ),
+
+                // Nivel 2
+                h("div",{style:{background:"linear-gradient(135deg,#1a0d2e,#12121f)",border:"1px solid #a78bfa30",borderRadius:12,padding:18}},
+                  h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}},
+                    h("div",null,
+                      h("div",{style:{fontSize:11,fontWeight:700,color:"#a78bfa",marginBottom:2}},"💰 Nivel 2 — El negocio te paga el sueldo"),
+                      h("div",{style:{fontSize:11,color:MUTED,lineHeight:1.5}},"Cubre todo lo anterior más tu sueldo de "+fmt(sueldoMensual)+"/mes")
+                    ),
+                    h("div",{style:{textAlign:"right"}},
+                      h("div",{style:{fontSize:32,fontWeight:900,fontFamily:"monospace",color:"#a78bfa"}},(trabajosPersonal||"—")+(trabajosPersonal?" trab.":"")),
+                      h("div",{style:{fontSize:11,color:MUTED}},"por mes")
+                    )
+                  ),
+                  gananciaPromedio>0 && h("div",{style:{background:"#a78bfa08",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#555"}},
+                    "Facturación mínima: "+fmt(Math.round(precioPromedio*(trabajosPersonal||0)))+"/mes"
+                  ),
+                  sueldoMensual===0 && h("div",{style:{fontSize:11,color:"#555",marginTop:8}},
+                    "💡 Configurá tu sueldo en la calculadora → 🧑‍🔧 Mano de obra → 💰 Sueldo fijo"
+                  )
+                ),
+
+                // Diferencia
+                trabajosNegocio&&trabajosPersonal && h("div",{style:{background:"#0a0a14",borderRadius:10,padding:14,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                  h("span",{style:{fontSize:12,color:MUTED}},"Trabajos extra para pagarte el sueldo:"),
+                  h("span",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:"#fbbf24"}},"+"+(trabajosPersonal-trabajosNegocio)+" trabajos/mes")
+                )
+              );
+            })()
+          ),
+
           historial.length===0 && h("div",{style:{textAlign:"center",padding:"20px 0",color:"#2a2a3a",fontSize:13}},"Guardá presupuestos para calcular el punto de equilibrio")
         ),
 
