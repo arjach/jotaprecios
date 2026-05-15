@@ -572,6 +572,12 @@ function App() {
   // Simulador qué pasa si
   const [simUseCalc, setSimUseCalc] = useState(true);
   const [simPct, setSimPct] = useState({ mat:0, elec:0, fijos:0, mano:0, margen:0 });
+  const [pedidos, setPedidosR] = useState(()=>loadLS("jp_pedidos",[]));
+  const setPedidos = fn => setPedidosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_pedidos",n); return n; });
+  const [showNuevoPedido, setShowNuevoPedido] = useState(false);
+  const [editPedido, setEditPedido] = useState(null);
+  const [nuevoPedido, setNuevoPedido] = useState({ cliente:"", descripcion:"", estado:"pendiente", fechaEntrega:"", precio:0, notas:"", tipo:"3D" });
+  const [filtroPedido, setFiltroPedido] = useState("todos");
   const [recalcEntry, setRecalcEntry] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModoInicial, setAuthModoInicial] = useState("login"); // entrada del historial seleccionada para recalcular
@@ -830,7 +836,7 @@ function App() {
           )
         ),
         h("div", { style:{ display:"flex", alignItems:"center", gap:4, flexWrap:"wrap" } },
-          ["🧮 Calcular","🏭 Mi Taller","📋 Historial","📊 Dashboard","⭐ Pro","🔍 Proveedores","🎯 Simulador"].map((s,i) =>
+          ["🧮 Calcular","🏭 Mi Taller","📋 Historial","📊 Dashboard","⭐ Pro","🔍 Proveedores","🎯 Simulador","📦 Pedidos"].map((s,i) =>
             h("button", { key:s, onClick:()=>setScreen(i), style:{ padding:"8px 10px", border:"none", background:screen===i?"#ff5c1a18":"none", borderRadius:8, color:screen===i?(i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a"):MUTED, fontFamily:"inherit", fontWeight:700, fontSize:10, cursor:"pointer", borderBottom:screen===i?`2px solid ${i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a"}`:"2px solid transparent" } }, s)
           ),
           esPro
@@ -1901,6 +1907,119 @@ function App() {
       )
     ),
 
+    // ── PEDIDOS ──
+    screen===7 && h("div",{style:{maxWidth:1100,margin:"0 auto",padding:"24px"}},
+      !esPro && lockScreen("📦","Gestión de pedidos Pro","Llevá el control de tus pedidos: pendientes, en proceso y terminados."),
+      esPro && h(React.Fragment,null,
+
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:12}},
+          h("div",null,
+            h("div",{style:{fontWeight:700,fontSize:20,marginBottom:4}},"📦 Gestión de pedidos"),
+            h("div",{style:{fontSize:13,color:MUTED}},pedidos.length+" pedidos en total")
+          ),
+          h("button",{onClick:()=>{setEditPedido(null);setNuevoPedido({cliente:"",descripcion:"",estado:"pendiente",fechaEntrega:"",precio:0,notas:"",tipo:"3D"});setShowNuevoPedido(true);},style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"10px 20px",fontSize:13,borderRadius:10}},"+ Nuevo pedido")
+        ),
+
+        // Filtros de estado
+        h("div",{style:{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}},
+          [
+            ["todos","📋 Todos",pedidos.length],
+            ["pendiente","🕐 Pendientes",pedidos.filter(p=>p.estado==="pendiente").length],
+            ["proceso","⚙️ En proceso",pedidos.filter(p=>p.estado==="proceso").length],
+            ["terminado","✅ Terminados",pedidos.filter(p=>p.estado==="terminado").length],
+          ].map(([f,label,count])=>
+            h("button",{key:f,onClick:()=>setFiltroPedido(f),style:{
+              padding:"8px 16px",borderRadius:100,border:"1px solid",
+              borderColor:filtroPedido===f?"#ff5c1a":"#1e1e35",
+              background:filtroPedido===f?"#ff5c1a18":"#12121f",
+              color:filtroPedido===f?"#ff5c1a":MUTED,
+              fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer",
+              display:"flex",alignItems:"center",gap:6
+            }},label," ",h("span",{style:{background:"#ffffff15",borderRadius:100,padding:"1px 8px",fontSize:10}},count))
+          )
+        ),
+
+        // Lista de pedidos
+        (() => {
+          const filtrados = filtroPedido==="todos" ? pedidos : pedidos.filter(p=>p.estado===filtroPedido);
+          const hoy = new Date().toISOString().split("T")[0];
+
+          if (filtrados.length===0) return h("div",{style:{textAlign:"center",padding:"60px 0",color:"#2a2a3a"}},
+            h("div",{style:{fontSize:40,marginBottom:12}},"📦"),
+            h("p",{style:{fontSize:13}},"No hay pedidos en esta categoría")
+          );
+
+          // Ordenar por fecha de entrega
+          const ordenados = [...filtrados].sort((a,b)=>{
+            if (!a.fechaEntrega) return 1;
+            if (!b.fechaEntrega) return -1;
+            return a.fechaEntrega.localeCompare(b.fechaEntrega);
+          });
+
+          return h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}},
+            ordenados.map(p=>{
+              const vencido = p.fechaEntrega && p.fechaEntrega < hoy && p.estado !== "terminado";
+              const hoyMismo = p.fechaEntrega === hoy && p.estado !== "terminado";
+              const estadoColor = p.estado==="terminado"?"#22d07a":p.estado==="proceso"?"#38bdf8":"#fbbf24";
+              const estadoLabel = p.estado==="terminado"?"✅ Terminado":p.estado==="proceso"?"⚙️ En proceso":"🕐 Pendiente";
+
+              return h("div",{key:p.id,style:{
+                background:"#12121f",
+                border:"1px solid "+(vencido?"#f8717140":hoyMismo?"#fbbf2440":"#1e1e35"),
+                borderRadius:14,padding:20,position:"relative"
+              }},
+                // Badge vencido/hoy
+                vencido && h("div",{style:{position:"absolute",top:-1,left:16,background:"#f87171",color:"#fff",fontSize:9,fontWeight:800,padding:"3px 10px",borderRadius:"0 0 8px 8px",letterSpacing:"0.08em"}},"⚠️ VENCIDO"),
+                hoyMismo && h("div",{style:{position:"absolute",top:-1,left:16,background:"#fbbf24",color:"#0a0a14",fontSize:9,fontWeight:800,padding:"3px 10px",borderRadius:"0 0 8px 8px",letterSpacing:"0.08em"}},"📅 HOY"),
+
+                h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}},
+                  h("div",{style:{flex:1}},
+                    h("div",{style:{fontWeight:700,fontSize:15,marginBottom:4}},p.cliente||"Sin nombre"),
+                    h("div",{style:{fontSize:12,color:MUTED,lineHeight:1.5}},p.descripcion)
+                  ),
+                  h("div",{style:{background:estadoColor+"20",border:"1px solid "+estadoColor+"40",borderRadius:100,padding:"3px 10px",fontSize:10,fontWeight:700,color:estadoColor,whiteSpace:"nowrap",marginLeft:8}},estadoLabel)
+                ),
+
+                h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}},
+                  p.fechaEntrega && h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"8px 10px"}},
+                    h("div",{style:{fontSize:9,color:MUTED,marginBottom:2}},"📅 ENTREGA"),
+                    h("div",{style:{fontSize:13,fontWeight:700,color:vencido?"#f87171":hoyMismo?"#fbbf24":"#f0eeff"}},
+                      new Date(p.fechaEntrega+"T12:00:00").toLocaleDateString("es-AR",{day:"2-digit",month:"short",year:"numeric"})
+                    )
+                  ),
+                  p.precio>0 && h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"8px 10px"}},
+                    h("div",{style:{fontSize:9,color:MUTED,marginBottom:2}},"💰 PRECIO"),
+                    h("div",{style:{fontSize:13,fontWeight:700,fontFamily:"monospace",color:"#ff5c1a"}},fmt(p.precio))
+                  ),
+                  p.tipo && h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"8px 10px"}},
+                    h("div",{style:{fontSize:9,color:MUTED,marginBottom:2}},"🏷️ TIPO"),
+                    h("div",{style:{fontSize:12,fontWeight:700}},p.tipo)
+                  )
+                ),
+
+                p.notas && h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:MUTED,lineHeight:1.5}},p.notas),
+
+                // Cambiar estado rápido
+                h("div",{style:{display:"flex",gap:6,marginBottom:8}},
+                  [["pendiente","🕐"],["proceso","⚙️"],["terminado","✅"]].map(([est,icon])=>
+                    h("button",{key:est,
+                      onClick:()=>setPedidos(prev=>prev.map(x=>x.id===p.id?{...x,estado:est}:x)),
+                      style:{flex:1,padding:"6px",border:"1px solid",borderColor:p.estado===est?estadoColor:"#1e1e35",background:p.estado===est?estadoColor+"18":"transparent",color:p.estado===est?estadoColor:MUTED,fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:8}
+                    },icon)
+                  )
+                ),
+
+                h("div",{style:{display:"flex",gap:6}},
+                  h("button",{onClick:()=>{setEditPedido(p);setNuevoPedido({...p});setShowNuevoPedido(true);},style:{...BTN,flex:1,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"7px",fontSize:11,borderRadius:8}},"✏️ Editar"),
+                  h("button",{onClick:()=>setPedidos(prev=>prev.filter(x=>x.id!==p.id)),style:{...BTN,flex:1,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"7px",fontSize:11,borderRadius:8}},"🗑 Borrar")
+                )
+              );
+            })
+          );
+        })()
+      )
+    ),
+
     // ── MODALS ──
 
     // Onboarding
@@ -2074,6 +2193,45 @@ function App() {
           },"💾 Guardar precio actualizado")
         )
       )
+    ),
+
+    // Modal nuevo/editar pedido
+    showNuevoPedido && h(Modal,{title:editPedido?"✏️ Editar pedido":"📦 Nuevo pedido",onClose:()=>{setShowNuevoPedido(false);setEditPedido(null);}},
+      h(Field,{label:"Cliente",value:nuevoPedido.cliente,onChange:v=>setNuevoPedido(p=>({...p,cliente:v})),placeholder:"Nombre del cliente"}),
+      h(Field,{label:"Descripción del trabajo",value:nuevoPedido.descripcion,onChange:v=>setNuevoPedido(p=>({...p,descripcion:v})),placeholder:"Ej: 10 tazas sublimadas con foto"}),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+        h("div",null,
+          h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Tipo de trabajo"),
+          h("select",{value:nuevoPedido.tipo,onChange:e=>setNuevoPedido(p=>({...p,tipo:e.target.value})),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}},
+            ["🖨️ 3D","🎨 Sublimación","🧵 Bordado","✂️ Vinilo","⚡ Láser","🔧 Otro"].map(t=>h("option",{key:t,value:t},t))
+          )
+        ),
+        h("div",null,
+          h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Estado"),
+          h("select",{value:nuevoPedido.estado,onChange:e=>setNuevoPedido(p=>({...p,estado:e.target.value})),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}},
+            h("option",{value:"pendiente"},"🕐 Pendiente"),
+            h("option",{value:"proceso"},"⚙️ En proceso"),
+            h("option",{value:"terminado"},"✅ Terminado")
+          )
+        )
+      ),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:4}},
+        h(Field,{label:"Fecha de entrega",value:nuevoPedido.fechaEntrega,onChange:v=>setNuevoPedido(p=>({...p,fechaEntrega:v})),type:"date"}),
+        h(Field,{label:"Precio acordado ($)",value:nuevoPedido.precio,onChange:v=>setNuevoPedido(p=>({...p,precio:parseFloat(v)||0})),type:"number",step:"100",min:"0",placeholder:"0"})
+      ),
+      h(Field,{label:"Notas adicionales",value:nuevoPedido.notas,onChange:v=>setNuevoPedido(p=>({...p,notas:v})),placeholder:"Colores, medidas, detalles especiales..."}),
+      h("button",{
+        onClick:()=>{
+          if (!nuevoPedido.cliente.trim()&&!nuevoPedido.descripcion.trim()) return;
+          if (editPedido) {
+            setPedidos(p=>p.map(x=>x.id===editPedido.id?{...x,...nuevoPedido}:x));
+          } else {
+            setPedidos(p=>[{id:Date.now(),...nuevoPedido,creadoEn:new Date().toISOString()},...p]);
+          }
+          setShowNuevoPedido(false); setEditPedido(null);
+        },
+        style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,marginTop:8,borderRadius:10,fontSize:14}
+      },editPedido?"💾 Guardar cambios":"📦 Crear pedido")
     ),
 
     showCodigo && h(Modal,{title:"⭐ Activar Plan Pro",onClose:()=>{setShowCodigo(false);setCodigoError("");setCodigoInput("");}},
