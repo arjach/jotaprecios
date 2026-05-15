@@ -422,6 +422,14 @@ function DropSelect({ label, value, onChange, options }) {
 
 function NumInput({ label, val, onChange, step=1, unit="", disabled=false, tooltip=null }) {
   const [tip, setTip] = useState(false);
+  const [localVal, setLocalVal] = useState(String(val));
+
+  // Sync from outside only when not focused
+  const [focused, setFocused] = useState(false);
+  if (!focused && String(val) !== localVal && localVal !== "") {
+    setLocalVal(String(val));
+  }
+
   return h("div", { style:{ marginBottom:12, opacity:disabled?0.4:1 } },
     h("div", { style:{ display:"flex",alignItems:"center",gap:6,marginBottom:4 } },
       h("label", { style:{ fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.07em",textTransform:"uppercase" } },
@@ -432,10 +440,26 @@ function NumInput({ label, val, onChange, step=1, unit="", disabled=false, toolt
       }, "?")
     ),
     tooltip && tip && h("div", { style:{ background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",marginBottom:8,fontSize:12,color:"#9d9db8",lineHeight:1.6 } }, tooltip),
-    h("input", { type:"number", step, min:0, value:val, disabled, onChange: e => onChange(parseFloat(e.target.value)||0),
-      style:{ width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:15,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box" },
-      onFocus: e => { if(!disabled) e.target.style.borderColor="#ff5c1a"; },
-      onBlur: e => e.target.style.borderColor="#2a2a4a"
+    h("input", {
+      type:"text",
+      inputMode:"decimal",
+      step, value:localVal, disabled,
+      onChange: e => {
+        const raw = e.target.value;
+        setLocalVal(raw);
+        const num = parseFloat(raw.replace(",","."));
+        if (!isNaN(num)) onChange(num);
+      },
+      onFocus: e => { setFocused(true); if(!disabled) e.target.style.borderColor="#ff5c1a"; },
+      onBlur: e => {
+        setFocused(false);
+        e.target.style.borderColor="#2a2a4a";
+        // Al salir, si está vacío o inválido, restaurar 0
+        const num = parseFloat(localVal.replace(",","."));
+        if (isNaN(num) || localVal.trim()==="") { setLocalVal("0"); onChange(0); }
+        else { setLocalVal(String(num)); }
+      },
+      style:{ width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:15,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box" }
     })
   );
 }
@@ -488,6 +512,8 @@ function App() {
   const [trabajosMes, setTrabajosMes] = useState(()=>loadLS("jp_trabajos_mes", 20));
   const [horasMes, setHorasMes] = useState(()=>loadLS("jp_horas_mes", 40));
   const [modoFijos, setModoFijos] = useState(()=>loadLS("jp_modo_fijos", "trabajos"));
+  const [modoManoObra, setModoManoObra] = useState(()=>loadLS("jp_modo_mano", "horas")); // "horas" | "sueldo"
+  const [sueldoMensual, setSueldoMensual] = useState(()=>loadLS("jp_sueldo", 300000));
   const setGastosFijos = fn => setGastosFijosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_gastos_fijos",n); return n; });
 
   // Calcular costo fijo según el modo elegido
@@ -976,13 +1002,59 @@ function App() {
           h("div",{style:{background:"#7c5cfc12",border:"1px solid #7c5cfc30",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#9d8eff",lineHeight:1.6}},
             "⚠️ ",h("strong",{style:{color:"#c4b5fd"}},"El costo más olvidado.")," Incluí el tiempo que dedicás vos: diseño, preparación, post-procesado, comunicación con el cliente."
           ),
-          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
-            h(NumInput,{label:"Valor hora",val:vals.manoObraHora||0,onChange:mkV("manoObraHora"),step:100,unit:"$/hr",tooltip:"Cuánto querés ganar por hora de tu tiempo."}),
-            h(NumInput,{label:"Horas trabajadas",val:vals.horasManoObra||0,onChange:mkV("horasManoObra"),step:0.5,unit:"hs",tooltip:"Horas que vos pusiste: diseño, preparación, post-procesado, empaque, comunicación."})
+
+          // Toggle modo
+          h("div",{style:{display:"flex",gap:0,background:"#0a0a14",borderRadius:10,padding:4,marginBottom:14}},
+            h("button",{onClick:()=>{setModoManoObra("horas");saveLS("jp_modo_mano","horas");},
+              style:{flex:1,padding:"8px",border:"none",borderRadius:8,background:modoManoObra==="horas"?"#a78bfa":"transparent",color:modoManoObra==="horas"?"#0a0a14":"#555",fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all 0.2s"}
+            },"⏱️ Por horas"),
+            h("button",{onClick:()=>{setModoManoObra("sueldo");saveLS("jp_modo_mano","sueldo");},
+              style:{flex:1,padding:"8px",border:"none",borderRadius:8,background:modoManoObra==="sueldo"?"#a78bfa":"transparent",color:modoManoObra==="sueldo"?"#0a0a14":"#555",fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer",transition:"all 0.2s"}
+            },"💰 Sueldo fijo")
           ),
-          (vals.manoObraHora>0&&vals.horasManoObra>0) && h("div",{style:{background:"#a78bfa12",border:"1px solid #a78bfa30",borderRadius:8,padding:"10px 14px",marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}},
-            h("span",{style:{fontSize:12,color:"#a78bfa"}},vals.horasManoObra+"hs × "+fmt(vals.manoObraHora)+"/hr ="),
-            h("span",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:"#a78bfa"}},fmt(vals.manoObraHora*vals.horasManoObra))
+
+          modoManoObra==="horas" && h("div",null,
+            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+              h(NumInput,{label:"Valor hora",val:vals.manoObraHora||0,onChange:mkV("manoObraHora"),step:100,unit:"$/hr",tooltip:"Cuánto querés ganar por hora de tu tiempo."}),
+              h(NumInput,{label:"Horas trabajadas",val:vals.horasManoObra||0,onChange:mkV("horasManoObra"),step:0.5,unit:"hs",tooltip:"Horas que vos pusiste: diseño, preparación, post-procesado, empaque, comunicación."})
+            ),
+            (vals.manoObraHora>0&&vals.horasManoObra>0) && h("div",{style:{background:"#a78bfa12",border:"1px solid #a78bfa30",borderRadius:8,padding:"10px 14px",marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              h("span",{style:{fontSize:12,color:"#a78bfa"}},vals.horasManoObra+"hs × "+fmt(vals.manoObraHora)+"/hr ="),
+              h("span",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:"#a78bfa"}},fmt(vals.manoObraHora*vals.horasManoObra))
+            )
+          ),
+
+          modoManoObra==="sueldo" && h("div",null,
+            h("div",{style:{fontSize:12,color:MUTED,marginBottom:12,lineHeight:1.6}},
+              "Definís cuánto querés ganar por mes y se distribuye automáticamente entre todos tus trabajos, igual que los costos fijos."
+            ),
+            h(NumInput,{label:"Sueldo mensual deseado",val:sueldoMensual,onChange:v=>{setSueldoMensual(v);saveLS("jp_sueldo",v);},step:10000,unit:"$/mes",tooltip:"Cuánto querés llevarte a fin de mes por tu trabajo. Se divide entre la cantidad de trabajos que hacés."}),
+            h(NumInput,{label:"Horas trabajadas en este trabajo",val:vals.horasManoObra||0,onChange:mkV("horasManoObra"),step:0.5,unit:"hs",tooltip:"Horas que pusiste en este trabajo específico."}),
+
+            // Cálculo automático
+            (() => {
+              const divisor = modoFijos==="trabajos" ? trabajosMes : horasMes;
+              const unidad = modoFijos==="trabajos" ? "trabajo" : "hora";
+              const sueldoPorUnidad = Math.round(sueldoMensual / Math.max(divisor,1));
+              const sueldoPorHora = modoFijos==="horas" ? sueldoPorUnidad : Math.round(sueldoMensual / Math.max(horasMes,1));
+              const manoObraEsteTraba = Math.round(sueldoPorHora * (vals.horasManoObra||0));
+
+              // Aplicar automáticamente
+              if (vals.manoObraHora !== sueldoPorHora) {
+                setTimeout(()=>mkV("manoObraHora")(sueldoPorHora),0);
+              }
+
+              return h("div",{style:{display:"flex",flexDirection:"column",gap:8,marginTop:8}},
+                h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                  h("span",{style:{fontSize:12,color:MUTED}},fmt(sueldoMensual)+" ÷ "+divisor+" "+unidad+"s ="),
+                  h("span",{style:{fontSize:14,fontWeight:700,fontFamily:"monospace",color:"#a78bfa"}},fmt(sueldoPorHora)+"/hr")
+                ),
+                vals.horasManoObra>0 && h("div",{style:{background:"#a78bfa12",border:"1px solid #a78bfa30",borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                  h("span",{style:{fontSize:12,color:"#a78bfa"}},vals.horasManoObra+"hs × "+fmt(sueldoPorHora)+"/hr ="),
+                  h("span",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:"#a78bfa"}},fmt(manoObraEsteTraba))
+                )
+              );
+            })()
           )
         ),
 
