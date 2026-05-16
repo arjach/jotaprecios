@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Clientes — JotaPrecios</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; min-height:100vh; }
+input:focus,textarea:focus { outline:none; border-color:#ff5c1a !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { useState, useEffect, createElement: h } = React;
+const { createRoot } = ReactDOM;
+
+const SUPA_URL = "https://lrshvldiiwenazyqswyr.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxyc2h2bGRpaXdlbmF6eXFzd3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MTYwNzgsImV4cCI6MjA5NDI5MjA3OH0.xn2HM5ZJgy6jfIegl7gywEgBGw-kR-a-nmT8JuWXykE";
+
+function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
+function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+const fmt = v => "$"+Math.round(v).toLocaleString("es-AR");
+const MUTED = "#6b6b8a";
+const CARD = { background:"#12121f", border:"1px solid #1e1e35", borderRadius:14, padding:20, marginBottom:16 };
+const BTN = { border:"none", borderRadius:8, fontFamily:"inherit", fontWeight:700, cursor:"pointer" };
+
+// Nav compartida
+function Nav({ active }) {
+  const links = [
+    { href:"/calculadora-pricing.html", label:"🧮 Calcular" },
+    { href:"/clientes.html", label:"👥 Clientes" },
+    { href:"/agenda.html", label:"📅 Agenda" },
+  ];
+  return h("div",{style:{background:"#0d0d1e",borderBottom:"1px solid #1e1e35",padding:"0 24px",position:"sticky",top:0,zIndex:50}},
+    h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",maxWidth:1100,margin:"0 auto",height:60}},
+      h("a",{href:"/",style:{display:"flex",alignItems:"center",gap:12,textDecoration:"none"}},
+        h("div",{style:{width:32,height:32,borderRadius:8,background:"#ff5c1a",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:16}},"J"),
+        h("div",{style:{fontSize:16,fontWeight:800,color:"#fff"}},"JotaPrecios")
+      ),
+      h("div",{style:{display:"flex",gap:4}},
+        links.map(l=>h("a",{key:l.href,href:l.href,style:{padding:"8px 14px",borderRadius:8,textDecoration:"none",background:active===l.href?"#ff5c1a18":"none",color:active===l.href?"#ff5c1a":MUTED,fontWeight:700,fontSize:12,borderBottom:active===l.href?"2px solid #ff5c1a":"2px solid transparent"}},l.label))
+      )
+    )
+  );
+}
+
+// Modal
+function Modal({title,onClose,children}){
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}},
+    h("div",{style:{background:"#12121f",border:"1px solid #2a2a4a",borderRadius:16,padding:28,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}},
+        h("span",{style:{fontWeight:700,fontSize:16}},title),
+        h("button",{onClick:onClose,style:{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer"}},"×")
+      ),
+      children
+    )
+  );
+}
+
+function Field({label,value,onChange,type="text",placeholder="",multiline=false}){
+  const style={width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12,resize:"vertical"};
+  return h("div",null,
+    h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},label),
+    multiline
+      ? h("textarea",{value,onChange:e=>onChange(e.target.value),placeholder,rows:3,style:{...style}})
+      : h("input",{type,value,onChange:e=>onChange(e.target.value),placeholder,style})
+  );
+}
+
+function Avatar({nombre,size=40}){
+  const initials = nombre.split(" ").map(w=>w[0]).join("").substring(0,2).toUpperCase()||"?";
+  const colors = ["#ff5c1a","#a78bfa","#38bdf8","#22d07a","#fbbf24","#f472b6"];
+  const color = colors[nombre.charCodeAt(0)%colors.length];
+  return h("div",{style:{width:size,height:size,borderRadius:"50%",background:color+"22",border:`1px solid ${color}40`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:size*0.35,color,flexShrink:0}},initials);
+}
+
+function App(){
+  const [clientes, setClientesR] = useState(()=>loadLS("jp_clientes",[]));
+  const [pedidos] = useState(()=>loadLS("jp_pedidos",[]));
+  const [historial] = useState(()=>loadLS("jp_historial",[]));
+  const [busqueda, setBusqueda] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [editCliente, setEditCliente] = useState(null);
+  const [clienteActivo, setClienteActivo] = useState(null);
+  const [nuevoCliente, setNuevoCliente] = useState({nombre:"",telefono:"",email:"",instagram:"",notas:""});
+
+  const setClientes = fn => setClientesR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_clientes",n); return n; });
+
+  const clientesFiltrados = clientes.filter(c=>
+    c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+    (c.telefono||"").includes(busqueda)
+  );
+
+  // Calcular stats de cada cliente
+  function statsCliente(c) {
+    const pedidosC = pedidos.filter(p=>p.cliente===c.nombre);
+    const historialC = historial.filter(e=>e.cliente===c.nombre||pedidosC.some(p=>p.descripcion===e.descripcion));
+    const totalFacturado = pedidosC.reduce((s,p)=>s+(p.precio||0),0);
+    const ultimoPedido = pedidosC.sort((a,b)=>new Date(b.creadoEn)-new Date(a.creadoEn))[0];
+    return { pedidos:pedidosC.length, totalFacturado, ultimoPedido };
+  }
+
+  function guardarCliente(){
+    if (!nuevoCliente.nombre.trim()) return;
+    if (editCliente) {
+      setClientes(p=>p.map(c=>c.id===editCliente.id?{...c,...nuevoCliente}:c));
+    } else {
+      setClientes(p=>[...p,{id:Date.now(),...nuevoCliente,creadoEn:new Date().toISOString()}]);
+    }
+    setShowModal(false); setEditCliente(null);
+  }
+
+  const clienteDetalle = clienteActivo ? clientes.find(c=>c.id===clienteActivo) : null;
+  const statsDetalle = clienteDetalle ? statsCliente(clienteDetalle) : null;
+  const pedidosDetalle = clienteDetalle ? pedidos.filter(p=>p.cliente===clienteDetalle.nombre) : [];
+
+  return h("div",{style:{minHeight:"100vh",background:"#0a0a14"}},
+    h(Nav,{active:"/clientes.html"}),
+
+    h("div",{style:{maxWidth:1100,margin:"0 auto",padding:24,display:"grid",gridTemplateColumns:clienteActivo?"1fr 380px":"1fr",gap:20}},
+
+      // Panel izquierdo — lista
+      h("div",null,
+        // Header
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}},
+          h("div",null,
+            h("h1",{style:{fontSize:22,fontWeight:800,marginBottom:4}},"👥 Clientes"),
+            h("p",{style:{fontSize:13,color:MUTED}},clientes.length+" clientes registrados")
+          ),
+          h("button",{onClick:()=>{setEditCliente(null);setNuevoCliente({nombre:"",telefono:"",email:"",instagram:"",notas:""});setShowModal(true);},style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"10px 20px",fontSize:13,borderRadius:10}},"+ Nuevo cliente")
+        ),
+
+        // Buscador
+        h("div",{style:{position:"relative",marginBottom:16}},
+          h("span",{style:{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",color:MUTED,fontSize:16}},"🔍"),
+          h("input",{type:"text",placeholder:"Buscar por nombre o teléfono...",value:busqueda,onChange:e=>setBusqueda(e.target.value),style:{width:"100%",background:"#12121f",border:"1px solid #1e1e35",borderRadius:10,padding:"11px 14px 11px 40px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}})
+        ),
+
+        // Stats globales
+        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}},
+          [
+            ["👥 Clientes",clientes.length,"#ff5c1a"],
+            ["📦 Pedidos totales",pedidos.length,"#a78bfa"],
+            ["💰 Facturación",fmt(pedidos.reduce((s,p)=>s+(p.precio||0),0)),"#22d07a"],
+          ].map(([l,v,c])=>h("div",{key:l,style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:12,padding:16}},
+            h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},l),
+            h("div",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:c}},v)
+          ))
+        ),
+
+        // Lista de clientes
+        clientesFiltrados.length === 0 && h("div",{style:{textAlign:"center",padding:"60px 0",color:"#2a2a3a"}},
+          h("div",{style:{fontSize:40,marginBottom:12}},"👥"),
+          h("p",{style:{fontSize:14,marginBottom:6}},busqueda?"No encontramos ese cliente":"Todavía no tenés clientes"),
+          !busqueda && h("p",{style:{fontSize:12,color:"#333"}},`Hacé clic en "+ Nuevo cliente" para agregar el primero`)
+        ),
+
+        h("div",{style:{display:"flex",flexDirection:"column",gap:10}},
+          clientesFiltrados.map(c=>{
+            const stats = statsCliente(c);
+            const isActive = clienteActivo===c.id;
+            return h("div",{key:c.id,
+              onClick:()=>setClienteActivo(isActive?null:c.id),
+              style:{background:"#12121f",border:`1px solid ${isActive?"#ff5c1a":"#1e1e35"}`,borderRadius:14,padding:18,cursor:"pointer",transition:"border-color 0.2s",display:"flex",alignItems:"center",gap:14}
+            },
+              h(Avatar,{nombre:c.nombre}),
+              h("div",{style:{flex:1}},
+                h("div",{style:{fontWeight:700,fontSize:15,marginBottom:4}},c.nombre),
+                h("div",{style:{display:"flex",gap:12,fontSize:12,color:MUTED}},
+                  c.telefono && h("span",null,"📞 "+c.telefono),
+                  h("span",null,stats.pedidos+" pedido"+(stats.pedidos!==1?"s":"")),
+                  stats.totalFacturado>0 && h("span",{style:{color:"#22d07a"}},fmt(stats.totalFacturado)+" total")
+                )
+              ),
+              h("div",{style:{display:"flex",gap:6}},
+                c.telefono && h("a",{
+                  href:`https://wa.me/549${c.telefono.replace(/\D/g,"")}`,
+                  target:"_blank",
+                  onClick:e=>e.stopPropagation(),
+                  style:{...BTN,background:"#22d07a12",border:"1px solid #22d07a30",color:"#22d07a",padding:"6px 10px",fontSize:12,textDecoration:"none",display:"flex",alignItems:"center"}
+                },"WhatsApp"),
+                h("button",{onClick:e=>{e.stopPropagation();setEditCliente(c);setNuevoCliente({nombre:c.nombre,telefono:c.telefono||"",email:c.email||"",instagram:c.instagram||"",notas:c.notas||""});setShowModal(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"6px 10px",fontSize:12}},"✏️"),
+                h("button",{onClick:e=>{e.stopPropagation();if(clienteActivo===c.id)setClienteActivo(null);setClientes(p=>p.filter(x=>x.id!==c.id));},style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"6px 10px",fontSize:12}},"🗑")
+              )
+            );
+          })
+        )
+      ),
+
+      // Panel derecho — ficha detalle
+      clienteDetalle && h("div",null,
+        h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:16,padding:24,position:"sticky",top:80}},
+
+          h("div",{style:{display:"flex",alignItems:"center",gap:14,marginBottom:20}},
+            h(Avatar,{nombre:clienteDetalle.nombre,size:52}),
+            h("div",null,
+              h("div",{style:{fontWeight:800,fontSize:18,marginBottom:4}},clienteDetalle.nombre),
+              h("div",{style:{fontSize:12,color:MUTED}},"Cliente desde "+new Date(clienteDetalle.creadoEn).toLocaleDateString("es-AR",{month:"long",year:"numeric"}))
+            )
+          ),
+
+          // Stats
+          h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}},
+            [
+              ["💰 Total facturado", fmt(statsDetalle.totalFacturado), "#22d07a"],
+              ["📦 Pedidos", statsDetalle.pedidos+" pedidos", "#a78bfa"],
+            ].map(([l,v,c])=>h("div",{key:l,style:{background:"#0a0a14",borderRadius:10,padding:12}},
+              h("div",{style:{fontSize:11,color:MUTED,marginBottom:4}},l),
+              h("div",{style:{fontSize:16,fontWeight:800,fontFamily:"monospace",color:c}},v)
+            ))
+          ),
+
+          // Contacto
+          h("div",{style:{fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}},"Contacto"),
+          h("div",{style:{display:"flex",flexDirection:"column",gap:8,marginBottom:18}},
+            clienteDetalle.telefono && h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              h("span",{style:{fontSize:13,color:MUTED}},"📞 "+clienteDetalle.telefono),
+              h("a",{href:`https://wa.me/549${clienteDetalle.telefono.replace(/\D/g,"")}`,target:"_blank",style:{...BTN,background:"#22d07a12",border:"1px solid #22d07a30",color:"#22d07a",padding:"5px 12px",fontSize:11,textDecoration:"none"}},"WhatsApp →")
+            ),
+            clienteDetalle.email && h("div",{style:{fontSize:13,color:MUTED}},"✉️ "+clienteDetalle.email),
+            clienteDetalle.instagram && h("div",{style:{fontSize:13,color:MUTED}},"📸 @"+clienteDetalle.instagram.replace("@",""))
+          ),
+
+          // Notas
+          clienteDetalle.notas && h("div",{style:{marginBottom:18}},
+            h("div",{style:{fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}},"Notas"),
+            h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#9d9db8",lineHeight:1.6}},clienteDetalle.notas)
+          ),
+
+          // Pedidos del cliente
+          pedidosDetalle.length > 0 && h("div",null,
+            h("div",{style:{fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}},"Pedidos recientes"),
+            h("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+              pedidosDetalle.slice(0,5).map(p=>{
+                const estadoColor=p.estado==="terminado"?"#22d07a":p.estado==="proceso"?"#38bdf8":"#fbbf24";
+                return h("div",{key:p.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #1a1a2e"}},
+                  h("div",null,
+                    h("div",{style:{fontSize:13,fontWeight:600,marginBottom:2}},p.descripcion||"Pedido sin nombre"),
+                    p.fechaEntrega && h("div",{style:{fontSize:11,color:MUTED}},new Date(p.fechaEntrega+"T12:00:00").toLocaleDateString("es-AR",{day:"2-digit",month:"short"}))
+                  ),
+                  h("div",{style:{textAlign:"right"}},
+                    p.precio>0 && h("div",{style:{fontSize:14,fontWeight:700,fontFamily:"monospace",color:"#ff5c1a",marginBottom:2}},fmt(p.precio)),
+                    h("div",{style:{fontSize:10,color:estadoColor}},p.estado==="terminado"?"✅ Terminado":p.estado==="proceso"?"⚙️ En proceso":"🕐 Pendiente")
+                  )
+                );
+              })
+            )
+          ),
+
+          pedidosDetalle.length===0 && h("div",{style:{textAlign:"center",padding:"20px 0",color:"#2a2a3a",fontSize:13}},"Sin pedidos aún"),
+
+          // Acciones
+          h("div",{style:{display:"flex",gap:8,marginTop:16}},
+            h("button",{onClick:()=>{setEditCliente(clienteDetalle);setNuevoCliente({nombre:clienteDetalle.nombre,telefono:clienteDetalle.telefono||"",email:clienteDetalle.email||"",instagram:clienteDetalle.instagram||"",notas:clienteDetalle.notas||""});setShowModal(true);},style:{...BTN,flex:1,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:10,fontSize:12,borderRadius:8}},"✏️ Editar"),
+            h("button",{onClick:()=>setClienteActivo(null),style:{...BTN,flex:1,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:10,fontSize:12,borderRadius:8}},"Cerrar")
+          )
+        )
+      )
+    ),
+
+    // Modal
+    showModal && h(Modal,{title:editCliente?"Editar cliente":"Nuevo cliente",onClose:()=>{setShowModal(false);setEditCliente(null);}},
+      h(Field,{label:"Nombre completo *",value:nuevoCliente.nombre,onChange:v=>setNuevoCliente(p=>({...p,nombre:v})),placeholder:"Ej: María García"}),
+      h(Field,{label:"Teléfono / WhatsApp",value:nuevoCliente.telefono,onChange:v=>setNuevoCliente(p=>({...p,telefono:v})),placeholder:"Ej: 291 555-1234",type:"tel"}),
+      h(Field,{label:"Email",value:nuevoCliente.email,onChange:v=>setNuevoCliente(p=>({...p,email:v})),placeholder:"cliente@email.com",type:"email"}),
+      h(Field,{label:"Instagram",value:nuevoCliente.instagram,onChange:v=>setNuevoCliente(p=>({...p,instagram:v})),placeholder:"@usuario"}),
+      h(Field,{label:"Notas (preferencias, historial, etc.)",value:nuevoCliente.notas,onChange:v=>setNuevoCliente(p=>({...p,notas:v})),placeholder:"Ej: Le gustan las tazas con fotos de mascotas. Siempre paga en efectivo.",multiline:true}),
+      h("button",{onClick:guardarCliente,style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,borderRadius:10,fontSize:14}},editCliente?"💾 Guardar cambios":"👥 Crear cliente")
+    )
+  );
+}
+
+createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>

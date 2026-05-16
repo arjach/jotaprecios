@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Agenda — JotaPrecios</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; min-height:100vh; }
+input:focus,select:focus,textarea:focus { outline:none; border-color:#ff5c1a !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { useState, useEffect, createElement: h } = React;
+const { createRoot } = ReactDOM;
+
+function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
+function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+const fmt = v => "$"+Math.round(v).toLocaleString("es-AR");
+const MUTED = "#6b6b8a";
+const BTN = { border:"none", borderRadius:8, fontFamily:"inherit", fontWeight:700, cursor:"pointer" };
+
+const DIAS = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function Nav({active}){
+  const links=[{href:"/calculadora-pricing.html",label:"🧮 Calcular"},{href:"/clientes.html",label:"👥 Clientes"},{href:"/agenda.html",label:"📅 Agenda"}];
+  return h("div",{style:{background:"#0d0d1e",borderBottom:"1px solid #1e1e35",padding:"0 24px",position:"sticky",top:0,zIndex:50}},
+    h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",maxWidth:1100,margin:"0 auto",height:60}},
+      h("a",{href:"/",style:{display:"flex",alignItems:"center",gap:12,textDecoration:"none"}},
+        h("div",{style:{width:32,height:32,borderRadius:8,background:"#ff5c1a",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:16}},"J"),
+        h("div",{style:{fontSize:16,fontWeight:800,color:"#fff"}},"JotaPrecios")
+      ),
+      h("div",{style:{display:"flex",gap:4}},
+        links.map(l=>h("a",{key:l.href,href:l.href,style:{padding:"8px 14px",borderRadius:8,textDecoration:"none",background:active===l.href?"#ff5c1a18":"none",color:active===l.href?"#ff5c1a":MUTED,fontWeight:700,fontSize:12,borderBottom:active===l.href?"2px solid #ff5c1a":"2px solid transparent"}},l.label))
+      )
+    )
+  );
+}
+
+function Modal({title,onClose,children}){
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}},
+    h("div",{style:{background:"#12121f",border:"1px solid #2a2a4a",borderRadius:16,padding:28,width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}},
+        h("span",{style:{fontWeight:700,fontSize:16}},title),
+        h("button",{onClick:onClose,style:{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer"}},"×")
+      ),
+      children
+    )
+  );
+}
+
+function Field({label,value,onChange,type="text",placeholder=""}){
+  return h("div",null,
+    label && h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},label),
+    h("input",{type,value,onChange:e=>onChange(e.target.value),placeholder,style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12}})
+  );
+}
+
+function estadoColor(estado){
+  return estado==="terminado"?"#22d07a":estado==="proceso"?"#38bdf8":"#fbbf24";
+}
+function estadoLabel(estado){
+  return estado==="terminado"?"✅ Terminado":estado==="proceso"?"⚙️ En proceso":"🕐 Pendiente";
+}
+
+function App(){
+  const [pedidos, setPedidosR] = useState(()=>loadLS("jp_pedidos",[]));
+  const [vista, setVista] = useState("lista"); // lista | calendario
+  const [mesActual, setMesActual] = useState(new Date());
+  const [showModal, setShowModal] = useState(false);
+  const [editPedido, setEditPedido] = useState(null);
+  const [filtroPedido, setFiltroPedido] = useState("todos");
+  const [nuevoPedido, setNuevoPedido] = useState({cliente:"",descripcion:"",estado:"pendiente",fechaEntrega:"",precio:0,notas:"",tipo:"🖨️ 3D"});
+
+  const clientes = loadLS("jp_clientes",[]);
+  const setPedidos = fn => setPedidosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_pedidos",n); return n; });
+
+  const hoy = new Date().toISOString().split("T")[0];
+
+  const pedidosFiltrados = filtroPedido==="todos" ? pedidos : pedidos.filter(p=>p.estado===filtroPedido);
+  const pedidosOrdenados = [...pedidosFiltrados].sort((a,b)=>{
+    if(!a.fechaEntrega) return 1;
+    if(!b.fechaEntrega) return -1;
+    return a.fechaEntrega.localeCompare(b.fechaEntrega);
+  });
+
+  function guardarPedido(){
+    if (!nuevoPedido.cliente&&!nuevoPedido.descripcion) return;
+    if (editPedido) {
+      setPedidos(p=>p.map(x=>x.id===editPedido.id?{...x,...nuevoPedido}:x));
+    } else {
+      setPedidos(p=>[{id:Date.now(),...nuevoPedido,creadoEn:new Date().toISOString()},...p]);
+    }
+    setShowModal(false); setEditPedido(null);
+  }
+
+  // Calendario
+  function diasDelMes(fecha){
+    const year=fecha.getFullYear(), month=fecha.getMonth();
+    const primero=new Date(year,month,1);
+    const ultimo=new Date(year,month+1,0);
+    const dias=[];
+    // Días del mes anterior para completar la primera semana
+    for(let i=0;i<primero.getDay();i++){
+      const d=new Date(year,month,-(primero.getDay()-i-1));
+      dias.push({fecha:d,esOtroMes:true});
+    }
+    for(let d=1;d<=ultimo.getDate();d++){
+      dias.push({fecha:new Date(year,month,d),esOtroMes:false});
+    }
+    // Completar última semana
+    while(dias.length%7!==0) dias.push({fecha:new Date(year,month+1,dias.length-ultimo.getDate()-primero.getDay()+1),esOtroMes:true});
+    return dias;
+  }
+
+  function pedidosEnDia(fecha){
+    const dateStr = fecha.toISOString().split("T")[0];
+    return pedidos.filter(p=>p.fechaEntrega===dateStr);
+  }
+
+  const dias = diasDelMes(mesActual);
+
+  // Estadísticas de la semana
+  const lunes = new Date(); lunes.setDate(lunes.getDate()-lunes.getDay()+1);
+  const domingo = new Date(lunes); domingo.setDate(domingo.getDate()+6);
+  const pedidosSemana = pedidos.filter(p=>{
+    if(!p.fechaEntrega) return false;
+    const f=new Date(p.fechaEntrega+"T12:00:00");
+    return f>=lunes&&f<=domingo;
+  });
+
+  return h("div",{style:{minHeight:"100vh",background:"#0a0a14"}},
+    h(Nav,{active:"/agenda.html"}),
+
+    h("div",{style:{maxWidth:1100,margin:"0 auto",padding:24}},
+
+      // Header
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:12}},
+        h("div",null,
+          h("h1",{style:{fontSize:22,fontWeight:800,marginBottom:4}},"📅 Agenda"),
+          h("p",{style:{fontSize:13,color:MUTED}},pedidos.length+" pedidos en total")
+        ),
+        h("div",{style:{display:"flex",gap:8}},
+          h("div",{style:{display:"flex",gap:0,background:"#12121f",borderRadius:10,padding:4}},
+            h("button",{onClick:()=>setVista("lista"),style:{padding:"7px 14px",border:"none",borderRadius:8,background:vista==="lista"?"#ff5c1a":"transparent",color:vista==="lista"?"#fff":MUTED,fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer"}},"☰ Lista"),
+            h("button",{onClick:()=>setVista("calendario"),style:{padding:"7px 14px",border:"none",borderRadius:8,background:vista==="calendario"?"#ff5c1a":"transparent",color:vista==="calendario"?"#fff":MUTED,fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer"}},"📅 Calendario")
+          ),
+          h("button",{onClick:()=>{setEditPedido(null);setNuevoPedido({cliente:"",descripcion:"",estado:"pendiente",fechaEntrega:"",precio:0,notas:"",tipo:"🖨️ 3D"});setShowModal(true);},style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"10px 20px",fontSize:13,borderRadius:10}},"+ Nuevo pedido")
+        )
+      ),
+
+      // Resumen semanal
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}},
+        [
+          ["📦 Esta semana",pedidosSemana.length+" pedidos","#ff5c1a"],
+          ["🕐 Pendientes",pedidos.filter(p=>p.estado==="pendiente").length,"#fbbf24"],
+          ["⚙️ En proceso",pedidos.filter(p=>p.estado==="proceso").length,"#38bdf8"],
+          ["✅ Terminados",pedidos.filter(p=>p.estado==="terminado").length,"#22d07a"],
+        ].map(([l,v,c])=>h("div",{key:l,style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:12,padding:14}},
+          h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},l),
+          h("div",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:c}},v)
+        ))
+      ),
+
+      // VISTA LISTA
+      vista==="lista" && h("div",null,
+        // Filtros
+        h("div",{style:{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}},
+          [["todos","📋 Todos"],["pendiente","🕐 Pendientes"],["proceso","⚙️ En proceso"],["terminado","✅ Terminados"]].map(([f,label])=>
+            h("button",{key:f,onClick:()=>setFiltroPedido(f),style:{padding:"7px 14px",borderRadius:100,border:"1px solid",borderColor:filtroPedido===f?"#ff5c1a":"#1e1e35",background:filtroPedido===f?"#ff5c1a18":"#12121f",color:filtroPedido===f?"#ff5c1a":MUTED,fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer"}},label)
+          )
+        ),
+
+        pedidosOrdenados.length===0 && h("div",{style:{textAlign:"center",padding:"60px 0",color:"#2a2a3a"}},
+          h("div",{style:{fontSize:40,marginBottom:12}},"📅"),
+          h("p",{style:{fontSize:14}},filtroPedido==="todos"?"No hay pedidos todavía":"No hay pedidos en esta categoría")
+        ),
+
+        // Agrupar por fecha
+        (() => {
+          const grupos = {};
+          pedidosOrdenados.forEach(p=>{
+            const key = p.fechaEntrega || "sin-fecha";
+            if(!grupos[key]) grupos[key]=[];
+            grupos[key].push(p);
+          });
+
+          return Object.entries(grupos).map(([fecha,ps])=>{
+            const esHoy = fecha===hoy;
+            const esPasado = fecha<hoy&&fecha!=="sin-fecha";
+            let labelFecha = "Sin fecha de entrega";
+            if(fecha!=="sin-fecha"){
+              const d=new Date(fecha+"T12:00:00");
+              labelFecha=DIAS[d.getDay()]+" "+d.getDate()+" "+MESES[d.getMonth()];
+            }
+
+            return h("div",{key:fecha,style:{marginBottom:16}},
+              h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:8}},
+                h("div",{style:{fontSize:12,fontWeight:700,color:esHoy?"#fbbf24":esPasado?"#f87171":MUTED}},labelFecha),
+                esHoy && h("span",{style:{background:"#fbbf2420",color:"#fbbf24",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100}},"HOY"),
+                esPasado && h("span",{style:{background:"#f8717120",color:"#f87171",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100}},"VENCIDO"),
+                h("div",{style:{flex:1,borderTop:"1px solid #1e1e35"}})
+              ),
+              h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}},
+                ps.map(p=>h("div",{key:p.id,style:{background:"#12121f",border:`1px solid ${esPasado&&p.estado!=="terminado"?"#f8717130":esHoy&&p.estado!=="terminado"?"#fbbf2430":"#1e1e35"}`,borderRadius:12,padding:16}},
+                  h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}},
+                    h("div",{style:{flex:1}},
+                      p.cliente && h("div",{style:{fontSize:11,color:MUTED,marginBottom:2}},"👤 "+p.cliente),
+                      h("div",{style:{fontWeight:700,fontSize:14}},p.descripcion||"Pedido sin descripción")
+                    ),
+                    h("span",{style:{fontSize:10,fontWeight:700,color:estadoColor(p.estado),background:estadoColor(p.estado)+"20",padding:"3px 8px",borderRadius:100,whiteSpace:"nowrap",marginLeft:8}},estadoLabel(p.estado))
+                  ),
+                  h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+                    h("span",{style:{fontSize:12,color:MUTED}},p.tipo),
+                    p.precio>0 && h("span",{style:{fontSize:15,fontWeight:800,fontFamily:"monospace",color:"#ff5c1a"}},fmt(p.precio))
+                  ),
+                  p.notas && h("div",{style:{fontSize:12,color:MUTED,background:"#0a0a14",borderRadius:6,padding:"6px 10px",marginBottom:10,lineHeight:1.5}},p.notas),
+                  h("div",{style:{display:"flex",gap:6}},
+                    [["pendiente","🕐"],["proceso","⚙️"],["terminado","✅"]].map(([est,icon])=>
+                      h("button",{key:est,onClick:()=>setPedidos(prev=>prev.map(x=>x.id===p.id?{...x,estado:est}:x)),style:{flex:1,padding:"5px",border:"1px solid",borderColor:p.estado===est?estadoColor(est):"#1e1e35",background:p.estado===est?estadoColor(est)+"18":"transparent",color:p.estado===est?estadoColor(est):MUTED,fontFamily:"inherit",fontSize:11,cursor:"pointer",borderRadius:6,fontWeight:700}},icon)
+                    ),
+                    h("button",{onClick:()=>{setEditPedido(p);setNuevoPedido({...p});setShowModal(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"5px 8px",fontSize:11}},"✏️"),
+                    h("button",{onClick:()=>setPedidos(prev=>prev.filter(x=>x.id!==p.id)),style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"5px 8px",fontSize:11}},"🗑")
+                  )
+                ))
+              )
+            );
+          });
+        })()
+      ),
+
+      // VISTA CALENDARIO
+      vista==="calendario" && h("div",null,
+        // Navegación mes
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
+          h("button",{onClick:()=>setMesActual(m=>new Date(m.getFullYear(),m.getMonth()-1,1)),style:{...BTN,background:"#12121f",border:"1px solid #1e1e35",color:"#fff",padding:"8px 14px",fontSize:13}},"← Anterior"),
+          h("span",{style:{fontWeight:700,fontSize:16}},MESES[mesActual.getMonth()]+" "+mesActual.getFullYear()),
+          h("button",{onClick:()=>setMesActual(m=>new Date(m.getFullYear(),m.getMonth()+1,1)),style:{...BTN,background:"#12121f",border:"1px solid #1e1e35",color:"#fff",padding:"8px 14px",fontSize:13}},"Siguiente →")
+        ),
+
+        // Días de la semana
+        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:4}},
+          ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"].map(d=>h("div",{key:d,style:{textAlign:"center",fontSize:11,fontWeight:700,color:MUTED,padding:"4px 0"}},d))
+        ),
+
+        // Grid del calendario
+        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}},
+          dias.map((dia,i)=>{
+            const dateStr=dia.fecha.toISOString().split("T")[0];
+            const pedidosDia=pedidosEnDia(dia.fecha);
+            const esHoy2=dateStr===hoy;
+            return h("div",{key:i,style:{
+              background:esHoy2?"#ff5c1a18":pedidosDia.length>0?"#12121f":"transparent",
+              border:`1px solid ${esHoy2?"#ff5c1a":pedidosDia.length>0?"#1e1e35":"#1e1e3540"}`,
+              borderRadius:8,padding:"6px",minHeight:70,opacity:dia.esOtroMes?0.3:1,
+              cursor:pedidosDia.length>0?"pointer":"default"
+            }},
+              h("div",{style:{fontSize:12,fontWeight:esHoy2?700:400,color:esHoy2?"#ff5c1a":"#f0eeff",marginBottom:3}},dia.fecha.getDate()),
+              pedidosDia.slice(0,2).map(p=>h("div",{key:p.id,style:{
+                background:estadoColor(p.estado)+"25",
+                color:estadoColor(p.estado),
+                borderRadius:4,padding:"2px 5px",fontSize:10,fontWeight:700,
+                marginBottom:2,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"
+              }},p.descripcion||p.cliente||"Pedido")),
+              pedidosDia.length>2 && h("div",{style:{fontSize:9,color:MUTED}},"+"+( pedidosDia.length-2)+" más")
+            );
+          })
+        )
+      )
+    ),
+
+    // Modal pedido
+    showModal && h(Modal,{title:editPedido?"Editar pedido":"Nuevo pedido",onClose:()=>{setShowModal(false);setEditPedido(null);}},
+      h("div",null,
+        h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Cliente"),
+        h("select",{value:nuevoPedido.cliente,onChange:e=>setNuevoPedido(p=>({...p,cliente:e.target.value})),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12,cursor:"pointer"}},
+          h("option",{value:""},"— Sin cliente —"),
+          clientes.map(c=>h("option",{key:c.id,value:c.nombre},c.nombre))
+        )
+      ),
+      h(Field,{label:"Descripción del trabajo",value:nuevoPedido.descripcion,onChange:v=>setNuevoPedido(p=>({...p,descripcion:v})),placeholder:"Ej: 10 tazas sublimadas con foto"}),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+        h("div",null,
+          h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Tipo"),
+          h("select",{value:nuevoPedido.tipo,onChange:e=>setNuevoPedido(p=>({...p,tipo:e.target.value})),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer",marginBottom:12}},
+            ["🖨️ 3D","🎨 Sublimación","🧵 Bordado","✂️ Vinilo","⚡ Láser","🔧 Otro"].map(t=>h("option",{key:t,value:t},t))
+          )
+        ),
+        h("div",null,
+          h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Estado"),
+          h("select",{value:nuevoPedido.estado,onChange:e=>setNuevoPedido(p=>({...p,estado:e.target.value})),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer",marginBottom:12}},
+            h("option",{value:"pendiente"},"🕐 Pendiente"),
+            h("option",{value:"proceso"},"⚙️ En proceso"),
+            h("option",{value:"terminado"},"✅ Terminado")
+          )
+        )
+      ),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+        h(Field,{label:"Fecha de entrega",value:nuevoPedido.fechaEntrega,onChange:v=>setNuevoPedido(p=>({...p,fechaEntrega:v})),type:"date"}),
+        h(Field,{label:"Precio acordado ($)",value:nuevoPedido.precio||"",onChange:v=>setNuevoPedido(p=>({...p,precio:parseFloat(v)||0})),type:"number"})
+      ),
+      h(Field,{label:"Notas",value:nuevoPedido.notas,onChange:v=>setNuevoPedido(p=>({...p,notas:v})),placeholder:"Colores, medidas, detalles..."}),
+      h("button",{onClick:guardarPedido,style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,borderRadius:10,fontSize:14}},editPedido?"💾 Guardar cambios":"📅 Crear pedido")
+    )
+  );
+}
+
+createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>
