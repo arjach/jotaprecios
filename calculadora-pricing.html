@@ -1688,7 +1688,7 @@ function App() {
                 ["Costos fijos del taller",fmt(Math.round(totalFijosImputables))+"/mes","#fbbf24"],
                 ["Sueldo deseado",fmt(sueldoMensual)+"/mes","#a78bfa"],
                 ["Total a cubrir",fmt(Math.round(totalFijosImputables)+sueldoMensual)+"/mes","#ff5c1a"],
-                ["Ganancia promedio/trabajo",historial.length>0?fmt(Math.round(historial.reduce((s,e)=>s+e.ganancia,0)/historial.length)):"-","#22d07a"],
+                ["Ganancia promedio/trabajo",historial.length>0||pedidos.filter(p=>p.estado==="terminado"&&p.precio>0).length>0?fmt(Math.round((()=>{const pt=pedidos.filter(p=>p.estado==="terminado"&&p.precio>0);const mp=historial.length>0?historial.reduce((s,e)=>s+e.margen,0)/historial.length:40;return pt.length>0?pt.reduce((s,p)=>s+(p.precio*(mp/100)),0)/pt.length:historial.reduce((s,e)=>s+e.ganancia,0)/historial.length;})())):"-","#22d07a"],
               ].map(([l,v,c])=>
                 h("div",{key:l,style:{padding:"10px 12px",background:"#12121f",borderRadius:8}},
                   h("div",{style:{fontSize:10,color:MUTED,marginBottom:4}},l),
@@ -1702,10 +1702,20 @@ function App() {
             )
           ),
 
-          historial.length>0 && h(React.Fragment,null,
+          (historial.length>0||pedidos.filter(p=>p.estado==="terminado"&&p.precio>0).length>0) && h(React.Fragment,null,
             (() => {
-              const gananciaPromedio = historial.reduce((s,e)=>s+e.ganancia,0)/historial.length;
-              const precioPromedio = historial.reduce((s,e)=>s+e.precioSugerido,0)/historial.length;
+              // Usar pedidos terminados si hay, sino usar historial como fallback
+              const pedidosTerminados = pedidos.filter(p=>p.estado==="terminado"&&p.precio>0);
+              const usandoPedidos = pedidosTerminados.length>0;
+              // Ganancia promedio: de pedidos terminados (precio - costo estimado con margen del historial)
+              // O directo del historial si no hay pedidos
+              const margenPromedio = historial.length>0 ? historial.reduce((s,e)=>s+e.margen,0)/historial.length : 40;
+              const gananciaPromedio = usandoPedidos
+                ? pedidosTerminados.reduce((s,p)=>s+(p.precio*(margenPromedio/100)),0)/pedidosTerminados.length
+                : historial.reduce((s,e)=>s+e.ganancia,0)/historial.length;
+              const precioPromedio = usandoPedidos
+                ? pedidosTerminados.reduce((s,p)=>s+p.precio,0)/pedidosTerminados.length
+                : historial.reduce((s,e)=>s+e.precioSugerido,0)/historial.length;
 
               // Nivel 1: solo costos del taller
               const trabajosNegocio = gananciaPromedio>0 ? Math.ceil(totalFijosImputables/gananciaPromedio) : null;
@@ -1756,12 +1766,22 @@ function App() {
                 trabajosNegocio&&trabajosPersonal && h("div",{style:{background:"#0a0a14",borderRadius:10,padding:14,display:"flex",justifyContent:"space-between",alignItems:"center"}},
                   h("span",{style:{fontSize:12,color:MUTED}},"Trabajos extra para pagarte el sueldo:"),
                   h("span",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:"#fbbf24"}},"+"+(trabajosPersonal-trabajosNegocio)+" trabajos/mes")
+                ),
+
+                // Fuente de datos
+                h("div",{style:{background:usandoPedidos?"#22d07a12":"#fbbf2412",border:"1px solid "+(usandoPedidos?"#22d07a30":"#fbbf2430"),borderRadius:8,padding:"10px 14px",marginTop:8,fontSize:11,color:usandoPedidos?"#22d07a":"#fbbf24",lineHeight:1.6}},
+                  usandoPedidos
+                    ? "✓ Calculado con "+pedidosTerminados.length+" pedidos terminados reales de la Agenda. Margen histórico promedio: "+Math.round(margenPromedio)+"%."
+                    : "💡 No hay pedidos terminados en la Agenda todavía. Usando historial de presupuestos como estimación. Marcá pedidos como ✅ Terminado para mayor precisión."
                 )
               );
             })()
           ),
 
-          historial.length===0 && h("div",{style:{textAlign:"center",padding:"20px 0",color:"#2a2a3a",fontSize:13}},"Guardá presupuestos para calcular el punto de equilibrio")
+          historial.length===0&&pedidos.filter(p=>p.estado==="terminado"&&p.precio>0).length===0 && h("div",{style:{textAlign:"center",padding:"20px 0",color:"#2a2a3a",fontSize:13}},
+            h("div",{style:{marginBottom:6}},"Guardá presupuestos o marcá pedidos como terminados en la Agenda"),
+            h("a",{href:"/agenda.html",style:{fontSize:12,color:"#ff5c1a",textDecoration:"none"}},"Ir a la Agenda →")
+          )
         ),
 
         // Resumen semanal
