@@ -37,7 +37,7 @@ const CARD = { background:"#12121f", border:"1px solid #1e1e35", borderRadius:14
 const BTN = { border:"none", borderRadius:8, fontFamily:"inherit", fontWeight:700, cursor:"pointer" };
 
 // Nav compartida
-function Nav({ active }) {
+function Nav({ active, pro, onActivarPro }) {
   const links = [
     { href:"/calculadora-pricing.html", label:"🧮 Calcular" },
     { href:"/clientes.html", label:"👥 Clientes" },
@@ -50,9 +50,12 @@ function Nav({ active }) {
         h("div",{style:{fontSize:16,fontWeight:800,color:"#fff"}},"JotaPrecios")
       ),
       h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+        h("div",{style:{display:"flex",gap:4}},
+          links.map(l=>h("a",{key:l.href,href:l.href,style:{padding:"8px 14px",borderRadius:8,textDecoration:"none",background:active===l.href?"#ff5c1a18":"none",color:active===l.href?"#ff5c1a":MUTED,fontWeight:700,fontSize:12,borderBottom:active===l.href?"2px solid #ff5c1a":"2px solid transparent"}},l.label))
+        ),
         pro
           ? h("div",{style:{background:"#fbbf2418",border:"1px solid #fbbf2440",color:"#fbbf24",fontSize:10,fontWeight:800,padding:"5px 10px",borderRadius:100}},"⭐ PRO")
-          : h("button",{onClick:()=>setShowProModal(true),style:{background:"#fbbf2412",border:"1px solid #fbbf2430",color:"#fbbf24",fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:100,cursor:"pointer",fontFamily:"inherit"}},"⭐ Activar Pro"),
+          : h("button",{onClick:onActivarPro,style:{background:"#fbbf2412",border:"1px solid #fbbf2430",color:"#fbbf24",fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:100,cursor:"pointer",fontFamily:"inherit"}},"⭐ Activar Pro"),
         h("a",{href:"/calculadora-pricing.html",style:{fontSize:12,color:MUTED,textDecoration:"none",padding:"6px 12px",border:"1px solid #1e1e35",borderRadius:8}},"← Calculadora")
       )
     )
@@ -143,7 +146,7 @@ function App(){
   const pedidosDetalle = clienteDetalle ? pedidos.filter(p=>p.cliente===clienteDetalle.nombre) : [];
 
   return h("div",{style:{minHeight:"100vh",background:"#0a0a14"}},
-    h(Nav,{active:"/clientes.html"}),
+    h(Nav,{active:"/clientes.html",pro,onActivarPro:()=>setShowProModal(true)}),
 
     h("div",{style:{maxWidth:1100,margin:"0 auto",padding:24,display:"grid",gridTemplateColumns:clienteActivo?"1fr 380px":"1fr",gap:20}},
 
