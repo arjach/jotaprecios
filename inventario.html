@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Inventario — JotaPrecios</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0a14;color:#f0eeff;font-family:'Sora',sans-serif;min-height:100vh;}
+input:focus,select:focus{outline:none;border-color:#ff5c1a!important;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,createElement:h}=React;
+const {createRoot}=ReactDOM;
+
+function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
+function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+const fmt=v=>"$"+Math.round(v).toLocaleString("es-AR");
+const MUTED="#6b6b8a";
+const BTN={border:"none",borderRadius:8,fontFamily:"inherit",fontWeight:700,cursor:"pointer"};
+const CODIGOS_PRO=["JP-2026-001","JP-2026-002","JP-2026-003","JP-BETA-001","JP-BETA-002","JP-BETA-003","JP-BETA-004","JP-BETA-005"];
+const esPro=()=>CODIGOS_PRO.includes(loadLS("jp_codigo",""));
+
+function Nav({pro,onActivarPro}){
+  const links=[{href:"/calculadora-pricing.html",label:"🧮 Calcular"},{href:"/clientes.html",label:"👥 Clientes"},{href:"/agenda.html",label:"📅 Agenda"},{href:"/catalogo.html",label:"🛍️ Catálogo"},{href:"/inventario.html",label:"📦 Inventario"}];
+  return h("div",{style:{background:"#0d0d1e",borderBottom:"1px solid #1e1e35",padding:"0 24px",position:"sticky",top:0,zIndex:50}},
+    h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",maxWidth:1200,margin:"0 auto",height:60}},
+      h("a",{href:"/",style:{display:"flex",alignItems:"center",gap:10,textDecoration:"none"}},
+        h("div",{style:{width:32,height:32,borderRadius:8,background:"#ff5c1a",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:16}},"J"),
+        h("div",{style:{fontSize:15,fontWeight:800,color:"#fff"}},"JotaPrecios")
+      ),
+      h("div",{style:{display:"flex",alignItems:"center",gap:4}},
+        links.map(l=>h("a",{key:l.href,href:l.href,style:{padding:"7px 11px",borderRadius:8,textDecoration:"none",background:l.href==="/inventario.html"?"#ff5c1a18":"none",color:l.href==="/inventario.html"?"#ff5c1a":MUTED,fontWeight:700,fontSize:11,borderBottom:l.href==="/inventario.html"?"2px solid #ff5c1a":"2px solid transparent"}},l.label)),
+        pro?h("div",{style:{marginLeft:6,background:"#fbbf2418",border:"1px solid #fbbf2440",color:"#fbbf24",fontSize:10,fontWeight:800,padding:"4px 10px",borderRadius:100}},"⭐ PRO"):h("button",{onClick:onActivarPro,style:{marginLeft:6,background:"#fbbf2412",border:"1px solid #fbbf2430",color:"#fbbf24",fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:100,cursor:"pointer",fontFamily:"inherit"}},"⭐ Pro")
+      )
+    )
+  );
+}
+
+function Modal({title,onClose,children}){
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}},
+    h("div",{style:{background:"#12121f",border:"1px solid #2a2a4a",borderRadius:16,padding:28,width:"100%",maxWidth:460}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}},
+        h("span",{style:{fontWeight:700,fontSize:16}},title),
+        h("button",{onClick:onClose,style:{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer"}},"×")
+      ),
+      children
+    )
+  );
+}
+
+function stockColor(item){
+  if(item.stock<=0)return"#f87171";
+  if(item.stockMinimo>0&&item.stock<=item.stockMinimo)return"#fbbf24";
+  return"#22d07a";
+}
+function stockLabel(item){
+  if(item.stock<=0)return"Sin stock";
+  if(item.stockMinimo>0&&item.stock<=item.stockMinimo)return"Stock bajo";
+  return"En stock";
+}
+
+function NumInput({label,value,onChange,unit="",step=1}){
+  const [local,setLocal]=useState(String(value));
+  const [focused,setFocused]=useState(false);
+  if(!focused&&parseFloat(local)!==value&&local!=="")setLocal(String(value));
+  return h("div",{style:{marginBottom:12}},
+    label&&h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},label,(unit&&h("span",{style:{color:"#ff5c1a",marginLeft:4}},unit))),
+    h("input",{type:"text",inputMode:"decimal",value:local,
+      onChange:e=>{setLocal(e.target.value);const n=parseFloat(e.target.value.replace(",","."));if(!isNaN(n))onChange(n);},
+      onFocus:e=>{setFocused(true);e.target.style.borderColor="#ff5c1a";},
+      onBlur:e=>{setFocused(false);e.target.style.borderColor="#2a2a4a";const n=parseFloat(local.replace(",","."));if(isNaN(n)||local.trim()===""){setLocal("0");onChange(0);}else{setLocal(String(n));}},
+      style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:15,fontFamily:"'JetBrains Mono',monospace",boxSizing:"border-box"}
+    })
+  );
+}
+
+function App(){
+  // Insumos de Mi Taller como base
+  const [insumos,setInsumosR]=useState(()=>loadLS("jp_insumos",[]));
+  // Stock separado por id de insumo
+  const [stocks,setStocksR]=useState(()=>loadLS("jp_stocks",{}));
+  // Insumos extra solo en inventario
+  const [extras,setExtrasR]=useState(()=>loadLS("jp_inv_extras",[]));
+  const [pro,setPro]=useState(esPro());
+  const [showProModal,setShowProModal]=useState(false);
+  const [codigoInput,setCodigoInput]=useState("");
+  const [codigoError,setCodigoError]=useState("");
+  const [filtro,setFiltro]=useState("Todos");
+  const [showAgregar,setShowAgregar]=useState(false);
+  const [nuevoExtra,setNuevoExtra]=useState({nombre:"",tipo:"General",unidad:"u",costo:0,stock:0,stockMinimo:0});
+
+  const setStocks=fn=>setStocksR(p=>{const n=typeof fn==="function"?fn(p):fn;saveLS("jp_stocks",n);return n;});
+  const setExtras=fn=>setExtrasR(p=>{const n=typeof fn==="function"?fn(p):fn;saveLS("jp_inv_extras",n);return n;});
+
+  function activarPro(){
+    const c=codigoInput.trim().toUpperCase();
+    if(CODIGOS_PRO.includes(c)){saveLS("jp_codigo",c);setPro(true);setShowProModal(false);setCodigoInput("");setCodigoError("");}
+    else setCodigoError("Código inválido");
+  }
+
+  // Combinar insumos + extras con su stock
+  const todosItems=[
+    ...insumos.map(i=>({...i,origen:"taller",stock:stocks[i.id]?.stock??0,stockMinimo:stocks[i.id]?.stockMinimo??0,ultimaCompra:stocks[i.id]?.ultimaCompra||null})),
+    ...extras.map(e=>({...e,origen:"extra"}))
+  ];
+
+  const tipos=["Todos",...new Set(todosItems.map(i=>i.tipo))];
+  const itemsFiltrados=filtro==="Todos"?todosItems:todosItems.filter(i=>i.tipo===filtro);
+
+  const sinStock=todosItems.filter(i=>i.stock<=0);
+  const stockBajo=todosItems.filter(i=>i.stock>0&&i.stockMinimo>0&&i.stock<=i.stockMinimo);
+  const valorInventario=todosItems.reduce((s,i)=>s+(i.costo*i.stock),0);
+
+  function updateStock(item,campo,val){
+    if(item.origen==="taller"){
+      setStocks(p=>({...p,[item.id]:{...p[item.id],[campo]:val}}));
+    } else {
+      setExtras(p=>p.map(e=>e.id===item.id?{...e,[campo]:val}:e));
+    }
+  }
+
+  return h("div",{style:{minHeight:"100vh",background:"#0a0a14"}},
+    h(Nav,{pro,onActivarPro:()=>setShowProModal(true)}),
+
+    h("div",{style:{maxWidth:1200,margin:"0 auto",padding:24}},
+
+      // Header
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}},
+        h("div",null,
+          h("h1",{style:{fontSize:22,fontWeight:800,marginBottom:4}},"📦 Inventario"),
+          h("p",{style:{fontSize:13,color:MUTED}},todosItems.length+" insumos · "+todosItems.filter(i=>i.stock>0).length+" con stock")
+        ),
+        h("button",{onClick:()=>setShowAgregar(true),style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"9px 18px",fontSize:13,borderRadius:10}},"+ Insumo extra")
+      ),
+
+      // Stats
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:20}},
+        [
+          ["📦 Total insumos",todosItems.length,"#ff5c1a"],
+          ["⚠️ Sin stock",sinStock.length,sinStock.length>0?"#f87171":"#22d07a"],
+          ["🟡 Stock bajo",stockBajo.length,stockBajo.length>0?"#fbbf24":"#22d07a"],
+          ["💰 Valor inventario",fmt(valorInventario),"#22d07a"],
+        ].map(([l,v,c])=>h("div",{key:l,style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:12,padding:16}},
+          h("div",{style:{fontSize:11,color:MUTED,marginBottom:6}},l),
+          h("div",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:c}},v)
+        ))
+      ),
+
+      // Alertas
+      (sinStock.length>0||stockBajo.length>0)&&h("div",{style:{marginBottom:16}},
+        sinStock.length>0&&h("div",{style:{background:"#f8717112",border:"1px solid #f8717130",borderRadius:10,padding:"11px 16px",marginBottom:8,fontSize:13,color:"#f87171"}},
+          "🔴 Sin stock: "+sinStock.map(i=>i.nombre).join(", ")
+        ),
+        stockBajo.length>0&&h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:10,padding:"11px 16px",fontSize:13,color:"#fbbf24"}},
+          "⚠️ Stock bajo: "+stockBajo.map(i=>i.nombre+" ("+i.stock+" "+i.unidad+")").join(", ")
+        )
+      ),
+
+      // Filtros por tipo
+      h("div",{style:{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}},
+        tipos.map(t=>h("button",{key:t,onClick:()=>setFiltro(t),style:{padding:"6px 14px",borderRadius:100,border:"1px solid",borderColor:filtro===t?"#ff5c1a":"#1e1e35",background:filtro===t?"#ff5c1a18":"#12121f",color:filtro===t?"#ff5c1a":MUTED,fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer"}},t))
+      ),
+
+      // Tabla de inventario
+      h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,overflow:"hidden"}},
+        // Header tabla
+        h("div",{style:{display:"grid",gridTemplateColumns:"2fr 80px 100px 100px 100px 80px",gap:0,background:"#0a0a14",padding:"10px 20px",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase"}},
+          "Insumo","Tipo","Costo/u","Stock actual","Stock mín.","Estado"
+        ),
+
+        itemsFiltrados.length===0&&h("div",{style:{textAlign:"center",padding:"40px 0",color:"#2a2a3a",fontSize:13}},
+          "No hay insumos en esta categoría. Agregá insumos desde ",
+          h("a",{href:"/calculadora-pricing.html",style:{color:"#ff5c1a",textDecoration:"none"}},"Mi Taller"),"."
+        ),
+
+        itemsFiltrados.map((item,i)=>{
+          const color=stockColor(item);
+          const label=stockLabel(item);
+          return h("div",{key:item.id,style:{display:"grid",gridTemplateColumns:"2fr 80px 100px 100px 100px 80px",gap:0,padding:"12px 20px",borderTop:"1px solid #1a1a2e",alignItems:"center",background:i%2===0?"transparent":"#0a0a1420"}},
+            // Nombre
+            h("div",null,
+              h("div",{style:{fontWeight:600,fontSize:14,marginBottom:2}},item.nombre),
+              h("div",{style:{fontSize:11,color:MUTED}},item.origen==="taller"?"📋 Mi Taller":"➕ Extra")
+            ),
+            // Tipo
+            h("div",{style:{fontSize:11,color:MUTED}},item.tipo),
+            // Costo
+            h("div",{style:{fontSize:13,fontFamily:"monospace",color:"#ff5c1a",fontWeight:700}},fmt(item.costo),h("span",{style:{fontSize:10,color:MUTED,fontFamily:"inherit"}},"/"+item.unidad)),
+            // Stock actual — editable inline
+            h("div",null,
+              h("input",{type:"text",inputMode:"decimal",defaultValue:item.stock,
+                onBlur:e=>{const v=parseFloat(e.target.value.replace(",","."))||0;updateStock(item,"stock",Math.max(0,v));},
+                style:{width:72,background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:6,padding:"6px 8px",color:"#fff",fontSize:13,fontFamily:"monospace",boxSizing:"border-box"},
+                onFocus:e=>e.target.style.borderColor="#ff5c1a",
+              }),
+              h("span",{style:{fontSize:10,color:MUTED,marginLeft:4}},item.unidad)
+            ),
+            // Stock mínimo — editable inline
+            h("div",null,
+              h("input",{type:"text",inputMode:"decimal",defaultValue:item.stockMinimo,
+                onBlur:e=>{const v=parseFloat(e.target.value.replace(",","."))||0;updateStock(item,"stockMinimo",Math.max(0,v));},
+                style:{width:72,background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:6,padding:"6px 8px",color:"#fff",fontSize:13,fontFamily:"monospace",boxSizing:"border-box"},
+                onFocus:e=>e.target.style.borderColor="#ff5c1a",
+              }),
+              h("span",{style:{fontSize:10,color:MUTED,marginLeft:4}},item.unidad)
+            ),
+            // Estado
+            h("div",{style:{display:"flex",alignItems:"center",gap:6}},
+              h("div",{style:{width:8,height:8,borderRadius:"50%",background:color,flexShrink:0}}),
+              h("span",{style:{fontSize:11,color,fontWeight:700}},label)
+            )
+          );
+        })
+      ),
+
+      // Tip
+      h("div",{style:{marginTop:12,fontSize:12,color:"#333",lineHeight:1.6}},
+        "💡 Los insumos vienen de ",h("a",{href:"/calculadora-pricing.html",style:{color:"#ff5c1a",textDecoration:"none"}},"Mi Taller → Insumos"),". Para agregar insumos nuevos hacelo desde allí o usá el botón \"+Insumo extra\" para agregar solo al inventario."
+      )
+    ),
+
+    // Modal agregar extra
+    showAgregar&&h(Modal,{title:"➕ Agregar insumo al inventario",onClose:()=>setShowAgregar(false)},
+      h("div",{style:{marginBottom:12}},
+        h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Nombre"),
+        h("input",{type:"text",value:nuevoExtra.nombre,onChange:e=>setNuevoExtra(p=>({...p,nombre:e.target.value})),placeholder:"Ej: Cinta térmica",style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}})
+      ),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+        h("div",null,
+          h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Tipo"),
+          h("select",{value:nuevoExtra.tipo,onChange:e=>setNuevoExtra(p=>({...p,tipo:e.target.value})),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}},
+            ["3D","SUB","BOR","VIN","LAS","General"].map(t=>h("option",{key:t,value:t},t))
+          )
+        ),
+        h("div",null,
+          h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Unidad"),
+          h("input",{type:"text",value:nuevoExtra.unidad,onChange:e=>setNuevoExtra(p=>({...p,unidad:e.target.value})),placeholder:"u, gr, m, hoja...",style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}})
+        )
+      ),
+      h(NumInput,{label:"Costo por unidad",value:nuevoExtra.costo,onChange:v=>setNuevoExtra(p=>({...p,costo:v})),unit:"$"}),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+        h(NumInput,{label:"Stock inicial",value:nuevoExtra.stock,onChange:v=>setNuevoExtra(p=>({...p,stock:v}))}),
+        h(NumInput,{label:"Stock mínimo (alerta)",value:nuevoExtra.stockMinimo,onChange:v=>setNuevoExtra(p=>({...p,stockMinimo:v}))})
+      ),
+      h("button",{onClick:()=>{
+        if(!nuevoExtra.nombre.trim())return;
+        setExtras(p=>[...p,{id:Date.now(),...nuevoExtra}]);
+        setShowAgregar(false);setNuevoExtra({nombre:"",tipo:"General",unidad:"u",costo:0,stock:0,stockMinimo:0});
+      },style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,borderRadius:10,fontSize:14}},"➕ Agregar al inventario"),
+      h("div",{style:{textAlign:"center",marginTop:12,fontSize:12,color:MUTED}},"O agregá desde ",h("a",{href:"/calculadora-pricing.html",style:{color:"#ff5c1a",textDecoration:"none"}},"Mi Taller → Insumos")," para que también afecte los cálculos de precio.")
+    ),
+
+    // Modal Pro
+    showProModal&&h(Modal,{title:"⭐ Activar Plan Pro",onClose:()=>{setShowProModal(false);setCodigoError("");setCodigoInput("");}},
+      h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:10,padding:"14px 16px",marginBottom:16,fontSize:13,color:"#d4a82a",lineHeight:1.6}},
+        h("div",{style:{fontWeight:700,marginBottom:8}},"🔓 Con Pro desbloqueás todas las funciones:"),
+        ["✅ Catálogo ilimitado","✅ Clientes y pedidos ilimitados","✅ Historial y Dashboard completo","✅ Importador de precios con IA","✅ Vista calendario en la Agenda"].map(f=>h("div",{key:f,style:{fontSize:12,marginBottom:3}},f))
+      ),
+      h("input",{type:"text",placeholder:"Ej: JP-2026-001",value:codigoInput,onChange:e=>{setCodigoInput(e.target.value.toUpperCase());setCodigoError("");},style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"11px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}}),
+      codigoError&&h("div",{style:{color:"#f87171",fontSize:13,marginBottom:10,background:"#f8717115",border:"1px solid #f8717130",borderRadius:8,padding:"8px 12px"}},"❌ "+codigoError),
+      h("button",{onClick:activarPro,style:{...BTN,background:"#fbbf24",color:"#0a0a14",width:"100%",padding:13,borderRadius:10,fontSize:14,marginBottom:10}},"🔑 Activar con código"),
+      h("a",{href:"/precios.html",style:{display:"block",textAlign:"center",fontSize:13,color:MUTED,textDecoration:"none",padding:10}},"¿No tenés código? Suscribite acá →")
+    )
+  );
+}
+
+createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>

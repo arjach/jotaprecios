@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Catálogo — JotaPrecios</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0a14;color:#f0eeff;font-family:'Sora',sans-serif;min-height:100vh;}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#ff5c1a!important;}
+@media print{.no-print{display:none!important;}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,useRef,createElement:h}=React;
+const {createRoot}=ReactDOM;
+
+function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
+function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+const fmt=v=>"$"+Math.round(v).toLocaleString("es-AR");
+const MUTED="#6b6b8a";
+const BTN={border:"none",borderRadius:8,fontFamily:"inherit",fontWeight:700,cursor:"pointer"};
+const CODIGOS_PRO=["JP-2026-001","JP-2026-002","JP-2026-003","JP-BETA-001","JP-BETA-002","JP-BETA-003","JP-BETA-004","JP-BETA-005"];
+const esPro=()=>CODIGOS_PRO.includes(loadLS("jp_codigo",""));
+const LIMITE_PRODUCTOS=6;
+
+function Nav({pro,onActivarPro}){
+  const links=[{href:"/calculadora-pricing.html",label:"🧮 Calcular"},{href:"/clientes.html",label:"👥 Clientes"},{href:"/agenda.html",label:"📅 Agenda"},{href:"/catalogo.html",label:"🛍️ Catálogo"},{href:"/inventario.html",label:"📦 Inventario"}];
+  return h("div",{style:{background:"#0d0d1e",borderBottom:"1px solid #1e1e35",padding:"0 24px",position:"sticky",top:0,zIndex:50}},
+    h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",maxWidth:1200,margin:"0 auto",height:60}},
+      h("a",{href:"/",style:{display:"flex",alignItems:"center",gap:10,textDecoration:"none"}},
+        h("div",{style:{width:32,height:32,borderRadius:8,background:"#ff5c1a",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:16}},"J"),
+        h("div",{style:{fontSize:15,fontWeight:800,color:"#fff"}},"JotaPrecios")
+      ),
+      h("div",{style:{display:"flex",alignItems:"center",gap:4}},
+        links.map(l=>h("a",{key:l.href,href:l.href,style:{padding:"7px 11px",borderRadius:8,textDecoration:"none",background:l.href==="/catalogo.html"?"#ff5c1a18":"none",color:l.href==="/catalogo.html"?"#ff5c1a":MUTED,fontWeight:700,fontSize:11,borderBottom:l.href==="/catalogo.html"?"2px solid #ff5c1a":"2px solid transparent"}},l.label)),
+        pro?h("div",{style:{marginLeft:6,background:"#fbbf2418",border:"1px solid #fbbf2440",color:"#fbbf24",fontSize:10,fontWeight:800,padding:"4px 10px",borderRadius:100}},"⭐ PRO"):h("button",{onClick:onActivarPro,style:{marginLeft:6,background:"#fbbf2412",border:"1px solid #fbbf2430",color:"#fbbf24",fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:100,cursor:"pointer",fontFamily:"inherit"}},"⭐ Pro")
+      )
+    )
+  );
+}
+
+function Modal({title,onClose,children}){
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}},
+    h("div",{style:{background:"#12121f",border:"1px solid #2a2a4a",borderRadius:16,padding:28,width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}},
+        h("span",{style:{fontWeight:700,fontSize:16}},title),
+        h("button",{onClick:onClose,style:{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer"}},"×")
+      ),
+      children
+    )
+  );
+}
+
+function Field({label,value,onChange,type="text",placeholder="",step}){
+  return h("div",{style:{marginBottom:12}},
+    label&&h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},label),
+    h("input",{type,value,step,onChange:e=>onChange(e.target.value),placeholder,style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}})
+  );
+}
+
+// Imagen en base64 desde archivo
+function useImageUpload(onImage){
+  const ref=useRef();
+  function trigger(){ref.current?.click();}
+  const input=h("input",{ref,type:"file",accept:"image/*",style:{display:"none"},onChange:e=>{
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=ev=>onImage(ev.target.result);
+    r.readAsDataURL(f);
+  }});
+  return {trigger,input};
+}
+
+// Generar PDF del catálogo
+function generarPDF(productos,config){
+  const fecha=new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"});
+  const cards=productos.filter(p=>p.activo).map(p=>`
+    <div style="break-inside:avoid;background:#fff;border:1px solid #eee;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;">
+      ${p.imagen?`<div style="height:180px;overflow:hidden;"><img src="${p.imagen}" style="width:100%;height:100%;object-fit:cover;"/></div>`:`<div style="height:180px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:40px;">${p.emoji||"🛍️"}</div>`}
+      <div style="padding:14px;flex:1;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-weight:700;font-size:15px;color:#1a1a1a;">${p.nombre}</div>
+        ${p.descripcion?`<div style="font-size:12px;color:#888;line-height:1.5;">${p.descripcion}</div>`:""}
+        ${p.tipo?`<div style="font-size:11px;background:#fff0eb;color:#ff5c1a;padding:2px 8px;border-radius:100px;display:inline-block;font-weight:700;">${p.tipo}</div>`:""}
+        <div style="margin-top:auto;padding-top:8px;border-top:1px solid #f0f0f0;">
+          <div style="font-size:22px;font-weight:800;color:#ff5c1a;font-family:monospace;">${fmt(p.precio)}</div>
+          ${p.precioDesde?`<div style="font-size:11px;color:#aaa;">Precio desde</div>`:""}
+        </div>
+      </div>
+    </div>
+  `).join("");
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Catálogo — ${config.nombreTaller||"Mi Taller"}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:sans-serif;background:#fafafa;padding:32px;}
+.header{text-align:center;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #ff5c1a;}
+.logo{font-size:28px;font-weight:800;color:#ff5c1a;margin-bottom:4px;}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.footer{text-align:center;margin-top:32px;font-size:11px;color:#aaa;padding-top:16px;border-top:1px solid #eee;}
+@media print{body{padding:16px;}}</style></head>
+<body>
+<div class="header">
+  <div class="logo">${config.nombreTaller||"Mi Taller"}</div>
+  ${config.descripcion?`<div style="font-size:14px;color:#666;margin-top:4px;">${config.descripcion}</div>`:""}
+  ${config.contacto?`<div style="font-size:13px;color:#888;margin-top:8px;">📞 ${config.contacto}</div>`:""}
+  ${config.instagram?`<div style="font-size:13px;color:#888;">📸 @${config.instagram.replace("@","")}</div>`:""}
+</div>
+<div class="grid">${cards}</div>
+<div class="footer">Catálogo generado con JotaPrecios · jotaprecios.vercel.app · ${fecha}</div>
+<`+`script>window.onload=()=>window.print();<`+`/script></body></html>`;
+  const w=window.open("","_blank");w.document.write(html);w.document.close();
+}
+
+function App(){
+  const [productos,setProductosR]=useState(()=>loadLS("jp_catalogo",[]));
+  const [config,setConfigR]=useState(()=>loadLS("jp_catalogo_config",{nombreTaller:"",descripcion:"",contacto:"",instagram:""}));
+  const [pro,setPro]=useState(esPro());
+  const [showProModal,setShowProModal]=useState(false);
+  const [codigoInput,setCodigoInput]=useState("");
+  const [codigoError,setCodigoError]=useState("");
+  const [showModal,setShowModal]=useState(false);
+  const [showConfig,setShowConfig]=useState(false);
+  const [editProducto,setEditProducto]=useState(null);
+  const [nuevo,setNuevo]=useState({nombre:"",precio:0,descripcion:"",tipo:"🖨️ 3D",emoji:"🛍️",imagen:"",precioDesde:false,activo:true});
+  const [vistaPrevia,setVistaPrevia]=useState(false);
+
+  const setProductos=fn=>setProductosR(p=>{const n=typeof fn==="function"?fn(p):fn;saveLS("jp_catalogo",n);return n;});
+  const setConfig=v=>setConfigR(c=>{const n={...c,...v};saveLS("jp_catalogo_config",n);return n;});
+
+  const {trigger:triggerImagen,input:inputImagen}=useImageUpload(img=>setNuevo(p=>({...p,imagen:img})));
+  const {trigger:triggerEdit,input:inputEdit}=useImageUpload(img=>setNuevo(p=>({...p,imagen:img})));
+
+  function activarPro(){
+    const c=codigoInput.trim().toUpperCase();
+    if(CODIGOS_PRO.includes(c)){saveLS("jp_codigo",c);setPro(true);setShowProModal(false);setCodigoInput("");setCodigoError("");}
+    else setCodigoError("Código inválido");
+  }
+
+  function guardarProducto(){
+    if(!nuevo.nombre.trim())return;
+    if(!editProducto&&!pro&&productos.length>=LIMITE_PRODUCTOS){setShowProModal(true);return;}
+    if(editProducto){
+      setProductos(p=>p.map(x=>x.id===editProducto.id?{...x,...nuevo}:x));
+    } else {
+      setProductos(p=>[...p,{id:Date.now(),...nuevo}]);
+    }
+    setShowModal(false);setEditProducto(null);
+  }
+
+  const productosActivos=productos.filter(p=>p.activo);
+
+  return h("div",{style:{minHeight:"100vh",background:"#0a0a14"}},
+    h(Nav,{pro,onActivarPro:()=>setShowProModal(true)}),
+
+    h("div",{style:{maxWidth:1200,margin:"0 auto",padding:24}},
+
+      // Header
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}},
+        h("div",null,
+          h("h1",{style:{fontSize:22,fontWeight:800,marginBottom:4}},"🛍️ Catálogo de productos"),
+          h("p",{style:{fontSize:13,color:MUTED}},productos.length+" productos · "+productosActivos.length+" visibles en el catálogo")
+        ),
+        h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+          h("button",{onClick:()=>setShowConfig(true),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"9px 16px",fontSize:12,borderRadius:10}},"⚙️ Configurar taller"),
+          h("button",{onClick:()=>setVistaPrevia(!vistaPrevia),style:{...BTN,background:vistaPrevia?"#a78bfa22":"transparent",border:"1px solid",borderColor:vistaPrevia?"#a78bfa":"#1e1e35",color:vistaPrevia?"#a78bfa":MUTED,padding:"9px 16px",fontSize:12,borderRadius:10}},vistaPrevia?"✏️ Editar":"👁️ Vista previa"),
+          h("button",{onClick:()=>generarPDF(productos,config),style:{...BTN,background:"transparent",border:"1px solid #38bdf830",color:"#38bdf8",padding:"9px 16px",fontSize:12,borderRadius:10}},"📄 Descargar PDF"),
+          h("button",{
+            onClick:()=>{
+              if(!editProducto&&!pro&&productos.length>=LIMITE_PRODUCTOS){setShowProModal(true);return;}
+              setEditProducto(null);setNuevo({nombre:"",precio:0,descripcion:"",tipo:"🖨️ 3D",emoji:"🛍️",imagen:"",precioDesde:false,activo:true});setShowModal(true);
+            },
+            style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"9px 18px",fontSize:13,borderRadius:10}
+          },"+ Producto")
+        )
+      ),
+
+      // Límite free
+      !pro&&h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:10,padding:"11px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}},
+        h("span",{style:{color:"#d4a82a"}},productos.length+"/"+LIMITE_PRODUCTOS+" productos gratis · Con Pro tenés productos ilimitados + link compartible"),
+        h("button",{onClick:()=>setShowProModal(true),style:{...BTN,background:"#fbbf24",color:"#0a0a14",padding:"6px 14px",fontSize:12,borderRadius:8}},"⭐ Activar Pro")
+      ),
+
+      // Config incompleta
+      !config.nombreTaller&&h("div",{style:{background:"#ff5c1a12",border:"1px solid #ff5c1a30",borderRadius:10,padding:"11px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}},
+        h("span",{style:{color:"#ff8c5a"}},"⚠️ Configurá el nombre de tu taller para que aparezca en el catálogo"),
+        h("button",{onClick:()=>setShowConfig(true),style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"6px 14px",fontSize:12,borderRadius:8}},"Configurar")
+      ),
+
+      // VISTA PREVIA
+      vistaPrevia&&h("div",{style:{background:"#fff",borderRadius:16,padding:32,marginBottom:24}},
+        h("div",{style:{textAlign:"center",marginBottom:28,paddingBottom:20,borderBottom:"2px solid #ff5c1a"}},
+          h("div",{style:{fontSize:24,fontWeight:800,color:"#ff5c1a",marginBottom:4}},config.nombreTaller||"Mi Taller"),
+          config.descripcion&&h("div",{style:{fontSize:14,color:"#666",marginBottom:6}},config.descripcion),
+          config.contacto&&h("div",{style:{fontSize:13,color:"#888"}},"📞 "+config.contacto),
+          config.instagram&&h("div",{style:{fontSize:13,color:"#888"}},"📸 @"+config.instagram.replace("@",""))
+        ),
+        productosActivos.length===0&&h("div",{style:{textAlign:"center",padding:"40px 0",color:"#ccc",fontSize:14}},"No hay productos activos"),
+        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:16}},
+          productosActivos.map(p=>h("div",{key:p.id,style:{background:"#fff",border:"1px solid #eee",borderRadius:12,overflow:"hidden",display:"flex",flexDirection:"column"}},
+            p.imagen
+              ?h("div",{style:{height:160,overflow:"hidden"}},h("img",{src:p.imagen,style:{width:"100%",height:"100%",objectFit:"cover"}}))
+              :h("div",{style:{height:160,background:"#f5f5f5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:48}},p.emoji||"🛍️"),
+            h("div",{style:{padding:14,display:"flex",flexDirection:"column",gap:4}},
+              h("div",{style:{fontWeight:700,fontSize:14,color:"#1a1a1a"}},p.nombre),
+              p.descripcion&&h("div",{style:{fontSize:12,color:"#888",lineHeight:1.4}},p.descripcion),
+              p.tipo&&h("div",{style:{fontSize:10,background:"#fff0eb",color:"#ff5c1a",padding:"2px 8px",borderRadius:100,display:"inline-block",fontWeight:700,marginTop:2}},p.tipo),
+              h("div",{style:{marginTop:8,paddingTop:8,borderTop:"1px solid #f0f0f0"}},
+                h("div",{style:{fontSize:20,fontWeight:800,color:"#ff5c1a",fontFamily:"monospace"}},fmt(p.precio)),
+                p.precioDesde&&h("div",{style:{fontSize:11,color:"#aaa"}},"Precio desde")
+              )
+            )
+          ))
+        )
+      ),
+
+      // GRILLA DE PRODUCTOS (edición)
+      !vistaPrevia&&h("div",null,
+        productos.length===0&&h("div",{style:{textAlign:"center",padding:"80px 0",color:"#2a2a3a"}},
+          h("div",{style:{fontSize:48,marginBottom:16}},"🛍️"),
+          h("div",{style:{fontSize:16,fontWeight:700,marginBottom:8}},"Tu catálogo está vacío"),
+          h("div",{style:{fontSize:13,color:MUTED,marginBottom:24}},"Agregá tus productos y generá un PDF listo para compartir con tus clientes"),
+          h("button",{onClick:()=>{setEditProducto(null);setNuevo({nombre:"",precio:0,descripcion:"",tipo:"🖨️ 3D",emoji:"🛍️",imagen:"",precioDesde:false,activo:true});setShowModal(true);},style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"12px 24px",fontSize:14,borderRadius:10}},"+ Agregar primer producto")
+        ),
+        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:16}},
+          productos.map(p=>h("div",{key:p.id,style:{background:"#12121f",border:"1px solid "+(p.activo?"#1e1e35":"#1e1e3560"),borderRadius:14,overflow:"hidden",opacity:p.activo?1:0.5,display:"flex",flexDirection:"column"}},
+            // Imagen
+            p.imagen
+              ?h("div",{style:{height:160,overflow:"hidden",position:"relative"}},
+                  h("img",{src:p.imagen,style:{width:"100%",height:"100%",objectFit:"cover"}}),
+                  !p.activo&&h("div",{style:{position:"absolute",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#aaa"}},"Oculto")
+                )
+              :h("div",{style:{height:160,background:"#1a1a2e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:52}},p.emoji||"🛍️"),
+            h("div",{style:{padding:16,flex:1,display:"flex",flexDirection:"column",gap:6}},
+              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}},
+                h("div",{style:{fontWeight:700,fontSize:14,flex:1}},p.nombre),
+                h("span",{style:{fontSize:10,background:"#ff5c1a22",color:"#ff5c1a",padding:"2px 8px",borderRadius:100,whiteSpace:"nowrap",fontWeight:700}},p.tipo)
+              ),
+              p.descripcion&&h("div",{style:{fontSize:12,color:MUTED,lineHeight:1.5}},p.descripcion),
+              h("div",{style:{marginTop:"auto",paddingTop:10,borderTop:"1px solid #1a1a2e",display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                h("div",null,
+                  h("div",{style:{fontSize:20,fontWeight:800,fontFamily:"monospace",color:"#ff5c1a"}},fmt(p.precio)),
+                  p.precioDesde&&h("div",{style:{fontSize:10,color:MUTED}},"desde")
+                ),
+                h("div",{style:{display:"flex",gap:6}},
+                  h("button",{onClick:()=>setProductos(prev=>prev.map(x=>x.id===p.id?{...x,activo:!x.activo}:x)),title:p.activo?"Ocultar del catálogo":"Mostrar en catálogo",style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:p.activo?"#22d07a":MUTED,padding:"5px 8px",fontSize:13}},p.activo?"●":"○"),
+                  h("button",{onClick:()=>{setEditProducto(p);setNuevo({nombre:p.nombre,precio:p.precio,descripcion:p.descripcion||"",tipo:p.tipo,emoji:p.emoji||"🛍️",imagen:p.imagen||"",precioDesde:p.precioDesde||false,activo:p.activo});setShowModal(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"5px 8px"}},"✏️"),
+                  h("button",{onClick:()=>setProductos(prev=>prev.filter(x=>x.id!==p.id)),style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"5px 8px"}},"🗑")
+                )
+              )
+            )
+          ))
+        )
+      )
+    ),
+
+    // Modal producto
+    showModal&&h(Modal,{title:editProducto?"Editar producto":"Nuevo producto",onClose:()=>{setShowModal(false);setEditProducto(null);}},
+      inputImagen,inputEdit,
+      // Imagen
+      h("div",{style:{marginBottom:14}},
+        h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}},"Foto del producto"),
+        h("div",{style:{display:"flex",gap:10,alignItems:"center"}},
+          nuevo.imagen
+            ?h("img",{src:nuevo.imagen,style:{width:80,height:80,objectFit:"cover",borderRadius:8,border:"1px solid #2a2a4a"}})
+            :h("div",{style:{width:80,height:80,background:"#0a0a14",border:"2px dashed #2a2a4a",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}},nuevo.emoji||"🛍️"),
+          h("div",{style:{display:"flex",flexDirection:"column",gap:6}},
+            h("button",{onClick:editProducto?triggerEdit:triggerImagen,style:{...BTN,background:"#ff5c1a12",border:"1px solid #ff5c1a30",color:"#ff5c1a",padding:"7px 14px",fontSize:12,borderRadius:8}},"📷 Subir foto"),
+            nuevo.imagen&&h("button",{onClick:()=>setNuevo(p=>({...p,imagen:""})),style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"5px 12px",fontSize:11,borderRadius:8}},"Quitar foto")
+          )
+        )
+      ),
+      // Emoji (si no tiene foto)
+      !nuevo.imagen&&h(Field,{label:"Emoji (si no subís foto)",value:nuevo.emoji,onChange:v=>setNuevo(p=>({...p,emoji:v})),placeholder:"🛍️"}),
+      h(Field,{label:"Nombre del producto *",value:nuevo.nombre,onChange:v=>setNuevo(p=>({...p,nombre:v})),placeholder:"Ej: Taza cerámica sublimada"}),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+        h(Field,{label:"Precio ($)",value:nuevo.precio||"",onChange:v=>setNuevo(p=>({...p,precio:parseFloat(v)||0})),type:"number",step:"100"}),
+        h("div",null,
+          h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Tipo"),
+          h("select",{value:nuevo.tipo,onChange:e=>setNuevo(p=>({...p,tipo:e.target.value})),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 12px",color:"#fff",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",cursor:"pointer"}},
+            ["🖨️ 3D","🎨 Sublimación","🧵 Bordado","✂️ Vinilo","⚡ Láser","🔧 Otro"].map(t=>h("option",{key:t,value:t},t))
+          )
+        )
+      ),
+      h(Field,{label:"Descripción corta (opcional)",value:nuevo.descripcion,onChange:v=>setNuevo(p=>({...p,descripcion:v})),placeholder:"Ej: Personalizable con tu foto o diseño"}),
+      h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:16}},
+        h("input",{type:"checkbox",id:"precioDesde",checked:nuevo.precioDesde,onChange:e=>setNuevo(p=>({...p,precioDesde:e.target.checked})),style:{width:16,height:16,cursor:"pointer"}}),
+        h("label",{htmlFor:"precioDesde",style:{fontSize:13,color:MUTED,cursor:"pointer"}},"Mostrar como \"precio desde\" (precio mínimo)")
+      ),
+      h("button",{onClick:guardarProducto,style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,borderRadius:10,fontSize:14}},editProducto?"💾 Guardar cambios":"➕ Agregar al catálogo")
+    ),
+
+    // Modal configuración
+    showConfig&&h(Modal,{title:"⚙️ Configuración del taller",onClose:()=>setShowConfig(false)},
+      h("div",{style:{fontSize:12,color:MUTED,marginBottom:16,lineHeight:1.6}},"Estos datos aparecen en el encabezado del catálogo PDF."),
+      h(Field,{label:"Nombre del taller *",value:config.nombreTaller,onChange:v=>setConfig({nombreTaller:v}),placeholder:"Ej: Taller de María"}),
+      h(Field,{label:"Descripción",value:config.descripcion,onChange:v=>setConfig({descripcion:v}),placeholder:"Ej: Sublimación y bordado personalizado"}),
+      h(Field,{label:"Teléfono / WhatsApp",value:config.contacto,onChange:v=>setConfig({contacto:v}),placeholder:"Ej: 291 555-1234",type:"tel"}),
+      h(Field,{label:"Instagram",value:config.instagram,onChange:v=>setConfig({instagram:v}),placeholder:"@mitaller"}),
+      h("button",{onClick:()=>setShowConfig(false),style:{...BTN,background:"#22d07a",color:"#0a0a14",width:"100%",padding:14,borderRadius:10,fontSize:14}},"✓ Guardar")
+    ),
+
+    // Modal Pro
+    showProModal&&h(Modal,{title:"⭐ Activar Plan Pro",onClose:()=>{setShowProModal(false);setCodigoError("");setCodigoInput("");}},
+      h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:10,padding:"14px 16px",marginBottom:16,fontSize:13,color:"#d4a82a",lineHeight:1.6}},
+        h("div",{style:{fontWeight:700,marginBottom:8}},"🔓 Con Pro desbloqueás:"),
+        ["✅ Productos ilimitados (gratis: hasta 6)","✅ Link compartible del catálogo","✅ Pedidos y clientes ilimitados","✅ Importador de precios con IA","✅ Historial y Dashboard completo"].map(f=>h("div",{key:f,style:{fontSize:12,marginBottom:3}},f))
+      ),
+      h("input",{type:"text",placeholder:"Ej: JP-2026-001",value:codigoInput,onChange:e=>{setCodigoInput(e.target.value.toUpperCase());setCodigoError("");},style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"11px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}}),
+      codigoError&&h("div",{style:{color:"#f87171",fontSize:13,marginBottom:10,background:"#f8717115",border:"1px solid #f8717130",borderRadius:8,padding:"8px 12px"}},"❌ "+codigoError),
+      h("button",{onClick:activarPro,style:{...BTN,background:"#fbbf24",color:"#0a0a14",width:"100%",padding:13,borderRadius:10,fontSize:14,marginBottom:10}},"🔑 Activar con código"),
+      h("a",{href:"/precios.html",style:{display:"block",textAlign:"center",fontSize:13,color:MUTED,textDecoration:"none",padding:10}},"¿No tenés código? Suscribite acá →")
+    )
+  );
+}
+
+createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>
