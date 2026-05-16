@@ -698,6 +698,7 @@ function App() {
   const [proLoading, setProLoading] = useState(false);
   const [proError, setProError] = useState(null);
   const [proResultado, setProResultado] = useState(null);
+  const [proSeleccion, setProSeleccion] = useState({}); // id -> bool
   const [proUrl, setProUrl] = useState("");
   const [proModo, setProModo] = useState("pdf");
   const fileRef = useRef(null);
@@ -887,6 +888,8 @@ function App() {
       let texto=""; for(let i=1;i<=Math.min(pdf.numPages,10);i++){ const pg=await pdf.getPage(i); const ct=await pg.getTextContent(); texto+=ct.items.map(x=>x.str).join(" ")+"\n"; }
       if (!texto.trim()) throw new Error("No se pudo extraer texto del PDF");
       const resultado = await llamarGemini(texto);
+      const sel = {};(resultado.insumos||[]).forEach((_,i)=>sel[i]=true);
+      setProSeleccion(sel);
       setProResultado({ok:true,...resultado});
     } catch(e) { setProError(e.message); }
     finally { setProLoading(false); }
@@ -896,7 +899,6 @@ function App() {
     if (!proUrl.trim()) return;
     setProLoading(true); setProError(null); setProResultado(null);
     try {
-      // El servidor fetchea la URL sin problemas de CORS
       const res = await fetch(GEMINI_PROXY, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -904,6 +906,8 @@ function App() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Error al procesar la URL");
+      const sel = {};(data.insumos||[]).forEach((_,i)=>sel[i]=true);
+      setProSeleccion(sel);
       setProResultado({ ok:true, ...data });
     } catch(e) { setProError(e.message); }
     finally { setProLoading(false); }
@@ -1923,23 +1927,56 @@ function App() {
         proLoading && h("div",{style:{textAlign:"center",padding:"40px 0"}},h("div",{style:{fontSize:36,marginBottom:12,display:"inline-block",animation:"spin 1s linear infinite"}},"⚙️"),h("div",{style:{fontSize:14,color:MUTED}},"Analizando con IA...")),
         proError && h("div",{style:{background:"#1a0808",border:"1px solid #f8717130",borderRadius:12,padding:16,marginTop:14}},h("div",{style:{fontSize:13,color:"#f87171",fontWeight:700}},"❌ "+proError)),
         proResultado && h("div",{style:{marginTop:14}},
+          // Header resultado
           h("div",{style:{background:"#0a1a0a",border:"1px solid #22d07a30",borderRadius:12,padding:16,marginBottom:14}},
-            h("div",{style:{fontWeight:700,fontSize:14,color:"#22d07a"}},"✓ "+proResultado.insumos?.length+" precios encontrados"),
-            proResultado.proveedor && h("div",{style:{fontSize:11,color:MUTED,marginTop:4}},proResultado.proveedor)
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:proResultado.proveedor?6:0}},
+              h("div",{style:{fontWeight:700,fontSize:14,color:"#22d07a"}},"✓ "+proResultado.insumos?.length+" precios encontrados"),
+              h("div",{style:{display:"flex",gap:8}},
+                h("button",{onClick:()=>{const s={};(proResultado.insumos||[]).forEach((_,i)=>s[i]=true);setProSeleccion(s);},style:{...BTN,background:"transparent",border:"1px solid #22d07a30",color:"#22d07a",padding:"4px 10px",fontSize:11,borderRadius:6}},"Seleccionar todos"),
+                h("button",{onClick:()=>setProSeleccion({}),style:{...BTN,background:"transparent",border:"1px solid #2a2a4a",color:MUTED,padding:"4px 10px",fontSize:11,borderRadius:6}},"Ninguno")
+              )
+            ),
+            proResultado.proveedor && h("div",{style:{fontSize:11,color:MUTED}},proResultado.proveedor)
           ),
-          proResultado.insumos?.map((ins,i)=>
-            h("div",{key:i,style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}},
-              h("div",null,
-                h("div",{style:{fontWeight:700,fontSize:13,marginBottom:4}},ins.nombre),
-                h("span",{style:{background:"#ff5c1a22",color:"#ff5c1a",fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:100}},ins.tipo)
-              ),
-              h("div",{style:{textAlign:"right"}},
-                h("div",{style:{fontSize:16,fontWeight:800,fontFamily:"monospace",color:"#fbbf24"}},fmt(ins.precio)),
-                h("div",{style:{fontSize:10,color:MUTED}},"/"+ins.unidad)
+
+          // Lista seleccionable
+          h("div",{style:{display:"flex",flexDirection:"column",gap:6,marginBottom:12}},
+            proResultado.insumos?.map((ins,i)=>
+              h("div",{key:i,
+                onClick:()=>setProSeleccion(p=>({...p,[i]:!p[i]})),
+                style:{background:"#12121f",border:"1px solid "+(proSeleccion[i]?"#fbbf24":"#1e1e35"),borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"border-color 0.15s"}
+              },
+                // Checkbox visual
+                h("div",{style:{width:20,height:20,borderRadius:5,border:"2px solid "+(proSeleccion[i]?"#fbbf24":"#2a2a4a"),background:proSeleccion[i]?"#fbbf24":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}},
+                  proSeleccion[i]&&h("span",{style:{color:"#0a0a14",fontSize:13,fontWeight:900,lineHeight:1}},"✓")
+                ),
+                h("div",{style:{flex:1}},
+                  h("div",{style:{fontWeight:700,fontSize:13,marginBottom:3,color:proSeleccion[i]?"#f0eeff":"#888"}},ins.nombre),
+                  h("span",{style:{background:"#ff5c1a22",color:"#ff5c1a",fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:100}},ins.tipo),
+                  ins.notas&&h("span",{style:{fontSize:10,color:MUTED,marginLeft:8}},ins.notas)
+                ),
+                h("div",{style:{textAlign:"right",flexShrink:0}},
+                  h("div",{style:{fontSize:16,fontWeight:800,fontFamily:"monospace",color:proSeleccion[i]?"#fbbf24":"#555"}},fmt(ins.precio)),
+                  h("div",{style:{fontSize:10,color:MUTED}},"/"+ins.unidad)
+                )
               )
             )
           ),
-          h("button",{onClick:()=>importarInsumos(proResultado.insumos||[]),style:{...BTN,width:"100%",marginTop:8,background:"linear-gradient(135deg,#fbbf24,#f59e0b)",padding:14,color:"#0a0a14",fontSize:14,fontWeight:800,borderRadius:10}},"⬇️ Importar todos a Mi Taller")
+
+          // Botón importar seleccionados
+          (() => {
+            const seleccionados = (proResultado.insumos||[]).filter((_,i)=>proSeleccion[i]);
+            return h("div",null,
+              h("div",{style:{fontSize:12,color:MUTED,marginBottom:8,textAlign:"center"}},
+                seleccionados.length===0?"Seleccioná al menos un insumo para importar":`${seleccionados.length} de ${proResultado.insumos?.length} seleccionados`
+              ),
+              h("button",{
+                onClick:()=>seleccionados.length>0&&importarInsumos(seleccionados),
+                disabled:seleccionados.length===0,
+                style:{...BTN,width:"100%",background:seleccionados.length>0?"linear-gradient(135deg,#fbbf24,#f59e0b)":"#1a1a1a",padding:14,color:seleccionados.length>0?"#0a0a14":"#444",fontSize:14,fontWeight:800,borderRadius:10,opacity:seleccionados.length>0?1:0.5}
+              },"⬇️ Importar "+(seleccionados.length>0?seleccionados.length+" seleccionados":"seleccionados")+" a Mi Taller")
+            );
+          })()
         )
       )
     ),
