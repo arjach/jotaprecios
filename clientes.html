@@ -26,6 +26,12 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
 function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 const fmt = v => "$"+Math.round(v).toLocaleString("es-AR");
+
+// Pro system
+const CODIGOS_PRO = ["JP-2026-001","JP-2026-002","JP-2026-003","JP-BETA-001","JP-BETA-002","JP-BETA-003","JP-BETA-004","JP-BETA-005"];
+const esPro = () => CODIGOS_PRO.includes(loadLS("jp_codigo",""));
+const LIMITE_CLIENTES = 5;
+const LIMITE_PEDIDOS = 10;
 const MUTED = "#6b6b8a";
 const CARD = { background:"#12121f", border:"1px solid #1e1e35", borderRadius:14, padding:20, marginBottom:16 };
 const BTN = { border:"none", borderRadius:8, fontFamily:"inherit", fontWeight:700, cursor:"pointer" };
@@ -43,8 +49,11 @@ function Nav({ active }) {
         h("div",{style:{width:32,height:32,borderRadius:8,background:"#ff5c1a",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:16}},"J"),
         h("div",{style:{fontSize:16,fontWeight:800,color:"#fff"}},"JotaPrecios")
       ),
-      h("div",{style:{display:"flex",gap:4}},
-        links.map(l=>h("a",{key:l.href,href:l.href,style:{padding:"8px 14px",borderRadius:8,textDecoration:"none",background:active===l.href?"#ff5c1a18":"none",color:active===l.href?"#ff5c1a":MUTED,fontWeight:700,fontSize:12,borderBottom:active===l.href?"2px solid #ff5c1a":"2px solid transparent"}},l.label))
+      h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+        pro
+          ? h("div",{style:{background:"#fbbf2418",border:"1px solid #fbbf2440",color:"#fbbf24",fontSize:10,fontWeight:800,padding:"5px 10px",borderRadius:100}},"⭐ PRO")
+          : h("button",{onClick:()=>setShowProModal(true),style:{background:"#fbbf2412",border:"1px solid #fbbf2430",color:"#fbbf24",fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:100,cursor:"pointer",fontFamily:"inherit"}},"⭐ Activar Pro"),
+        h("a",{href:"/calculadora-pricing.html",style:{fontSize:12,color:MUTED,textDecoration:"none",padding:"6px 12px",border:"1px solid #1e1e35",borderRadius:8}},"← Calculadora")
       )
     )
   );
@@ -86,11 +95,21 @@ function App(){
   const [historial] = useState(()=>loadLS("jp_historial",[]));
   const [busqueda, setBusqueda] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
+  const [codigoInput, setCodigoInput] = useState("");
+  const [codigoError, setCodigoError] = useState("");
+  const [pro, setPro] = useState(esPro());
   const [editCliente, setEditCliente] = useState(null);
   const [clienteActivo, setClienteActivo] = useState(null);
   const [nuevoCliente, setNuevoCliente] = useState({nombre:"",telefono:"",email:"",instagram:"",notas:""});
 
   const setClientes = fn => setClientesR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_clientes",n); return n; });
+
+  function activarPro(){
+    const c=codigoInput.trim().toUpperCase();
+    if(CODIGOS_PRO.includes(c)){saveLS("jp_codigo",c);setPro(true);setShowProModal(false);setCodigoInput("");setCodigoError("");}
+    else setCodigoError("Código inválido. Verificá que esté bien escrito.");
+  }
 
   const clientesFiltrados = clientes.filter(c=>
     c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -108,6 +127,9 @@ function App(){
 
   function guardarCliente(){
     if (!nuevoCliente.nombre.trim()) return;
+    if (!editCliente && !pro && clientes.length >= LIMITE_CLIENTES) {
+      setShowProModal(true); return;
+    }
     if (editCliente) {
       setClientes(p=>p.map(c=>c.id===editCliente.id?{...c,...nuevoCliente}:c));
     } else {
@@ -133,7 +155,19 @@ function App(){
             h("h1",{style:{fontSize:22,fontWeight:800,marginBottom:4}},"👥 Clientes"),
             h("p",{style:{fontSize:13,color:MUTED}},clientes.length+" clientes registrados")
           ),
-          h("button",{onClick:()=>{setEditCliente(null);setNuevoCliente({nombre:"",telefono:"",email:"",instagram:"",notas:""});setShowModal(true);},style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"10px 20px",fontSize:13,borderRadius:10}},"+ Nuevo cliente")
+        h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+          !pro && clientes.length>=LIMITE_CLIENTES && h("div",{style:{fontSize:12,color:"#fbbf24",background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:8,padding:"6px 12px"}},
+            LIMITE_CLIENTES+"/"+LIMITE_CLIENTES+" clientes — ",h("span",{style:{cursor:"pointer",textDecoration:"underline"},onClick:()=>setShowProModal(true)},"Activar Pro")
+          ),
+          !pro && clientes.length<LIMITE_CLIENTES && h("span",{style:{fontSize:12,color:MUTED}},clientes.length+"/"+LIMITE_CLIENTES+" clientes gratis"),
+          h("button",{
+            onClick:()=>{
+              if(!pro&&clientes.length>=LIMITE_CLIENTES){setShowProModal(true);return;}
+              setEditCliente(null);setNuevoCliente({nombre:"",telefono:"",email:"",instagram:"",notas:""});setShowModal(true);
+            },
+            style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"10px 20px",fontSize:13,borderRadius:10}
+          },"+ Nuevo cliente")
+        )
         ),
 
         // Buscador
@@ -179,12 +213,13 @@ function App(){
                 )
               ),
               h("div",{style:{display:"flex",gap:6}},
-                c.telefono && h("a",{
+                c.telefono && pro && h("a",{
                   href:`https://wa.me/549${c.telefono.replace(/\D/g,"")}`,
                   target:"_blank",
                   onClick:e=>e.stopPropagation(),
                   style:{...BTN,background:"#22d07a12",border:"1px solid #22d07a30",color:"#22d07a",padding:"6px 10px",fontSize:12,textDecoration:"none",display:"flex",alignItems:"center"}
                 },"WhatsApp"),
+                c.telefono && !pro && h("button",{onClick:e=>{e.stopPropagation();setShowProModal(true);},style:{...BTN,background:"#1a1a2e",border:"1px solid #2a2a4a",color:MUTED,padding:"6px 10px",fontSize:12}},"🔒 WA"),
                 h("button",{onClick:e=>{e.stopPropagation();setEditCliente(c);setNuevoCliente({nombre:c.nombre,telefono:c.telefono||"",email:c.email||"",instagram:c.instagram||"",notas:c.notas||""});setShowModal(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"6px 10px",fontSize:12}},"✏️"),
                 h("button",{onClick:e=>{e.stopPropagation();if(clienteActivo===c.id)setClienteActivo(null);setClientes(p=>p.filter(x=>x.id!==c.id));},style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"6px 10px",fontSize:12}},"🗑")
               )
@@ -264,7 +299,19 @@ function App(){
       )
     ),
 
-    // Modal
+    // Modal Pro
+    showProModal && h(Modal,{title:"⭐ Activar Plan Pro",onClose:()=>{setShowProModal(false);setCodigoError("");setCodigoInput("");}},
+      h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:10,padding:"14px 16px",marginBottom:16,fontSize:13,color:"#d4a82a",lineHeight:1.6}},
+        h("div",{style:{fontWeight:700,marginBottom:8}},"🔓 Con Pro desbloqueás:"),
+        ["✅ Clientes ilimitados (gratis: hasta 5)","✅ Pedidos ilimitados (gratis: hasta 10)","✅ WhatsApp directo desde la ficha","✅ Historial completo por cliente","✅ Vista calendario en la Agenda","✅ Importador de precios con IA"].map(f=>h("div",{key:f,style:{fontSize:12,marginBottom:3}},f))
+      ),
+      h("input",{type:"text",placeholder:"Ej: JP-2026-001",value:codigoInput,onChange:e=>{setCodigoInput(e.target.value.toUpperCase());setCodigoError("");},style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"11px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}}),
+      codigoError && h("div",{style:{color:"#f87171",fontSize:13,marginBottom:10,background:"#f8717115",border:"1px solid #f8717130",borderRadius:8,padding:"8px 12px"}},"❌ "+codigoError),
+      h("button",{onClick:activarPro,style:{...BTN,background:"#fbbf24",color:"#0a0a14",width:"100%",padding:13,borderRadius:10,fontSize:14,marginBottom:10}},"🔑 Activar con código"),
+      h("a",{href:"/precios.html",style:{display:"block",textAlign:"center",fontSize:13,color:MUTED,textDecoration:"none",padding:10}},"¿No tenés código? Suscribite acá →")
+    ),
+
+    // Modal nuevo/editar cliente
     showModal && h(Modal,{title:editCliente?"Editar cliente":"Nuevo cliente",onClose:()=>{setShowModal(false);setEditCliente(null);}},
       h(Field,{label:"Nombre completo *",value:nuevoCliente.nombre,onChange:v=>setNuevoCliente(p=>({...p,nombre:v})),placeholder:"Ej: María García"}),
       h(Field,{label:"Teléfono / WhatsApp",value:nuevoCliente.telefono,onChange:v=>setNuevoCliente(p=>({...p,telefono:v})),placeholder:"Ej: 291 555-1234",type:"tel"}),
