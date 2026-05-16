@@ -172,10 +172,10 @@ const DEF_PERFILES = [
 ];
 const DEF_V = (extra) => ({ costoElectricidadHora:120, costosFijos:800, manoObraHora:0, horasManoObra:0, otrosGastos:0, precioMaquina:0, vidaUtilAnios:3, horasUsoDiario:8, pctReparaciones:5, margenDeseado:40, cantidad:1, ...extra });
 const DEF_3D = DEF_V({ pesoGramos:50, costoPorGramo:35, tiempoHoras:3 });
-const DEF_SUB = DEF_V({ costoSustrato:1500, costoTinta:380, tiempoMinutos:20, margenDeseado:50 });
-const DEF_BOR = DEF_V({ costoHilo:350, costoEntretela:200, tiempoMinutos:30, manoObraHora:800, margenDeseado:50 });
-const DEF_VIN = DEF_V({ costoVinilo:300, costoTransfer:150, tiempoMinutos:15, manoObraHora:600, margenDeseado:45 });
-const DEF_LAS = DEF_V({ costoMaterial:500, tiempoMinutos:20, costoElectricidadHora:150, manoObraHora:700, margenDeseado:50 });
+const DEF_SUB = DEF_V({ costoSustrato:1500, costoTinta:380, costoPapel:45, pctDesperdicioPapel:20, cantHojas:1, costoCinta:30, tiempoImpresion:5, tiempoPrensado:60, tiempoPreparacion:5, wattsPrensado:1500, margenDeseado:50 });
+const DEF_BOR = DEF_V({ costoPrenda:2000, costoHilo:350, costoEntretela:200, cantPuntadas:8000, velocidadPuntadas:800, cabezales:1, costoDigitalizacion:0, cantPrendasDigit:1, manoObraHora:800, margenDeseado:50 });
+const DEF_VIN = DEF_V({ costoVinilo:300, costoTransfer:150, precioViniloRollo:0, anchoRollo:61, largoRollo:1000, anchoDiseno:0, altoDiseno:0, pctDesperdicio:20, tiempoCorte:5, tiempoDesmalezado:10, tiempoAplicacion:10, costoOtrosVin:0, manoObraHora:600, margenDeseado:45 });
+const DEF_LAS = DEF_V({ costoMaterial:500, precioMaterialTotal:0, anchoMaterial:0, altoMaterial:0, pctDesperdicio:10, tiempoCorteMin:0, tiempoGrabadoMin:0, costoConsumiblesHora:200, costoGas:0, costoElectricidadHora:150, manoObraHora:700, margenDeseado:50 });
 
 const TABS = [
   { id:"3D", label:"🖨️ 3D", color:"#ff5c1a" },
@@ -205,11 +205,96 @@ function calc3D(v, fil, perf) {
 function calcSub(v, sus, tin, perf) {
   const cSus = sus ? sus.costo : v.costoSustrato;
   const cTin = tin ? tin.costo : v.costoTinta;
-  return calcBase(cSus+cTin, v.tiempoMinutos/60, v, perf, "fijosSub");
+  const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+  const fijos = perf ? (perf.fijosSub||500) : v.costosFijos;
+  const costoPapelReal = (v.costoPapel||0) * (v.cantHojas||1) * (1+(v.pctDesperdicioPapel||20)/100);
+  const costoCinta = v.costoCinta||0;
+  const tiempoTotalHrs = ((v.tiempoImpresion||0) + (v.tiempoPreparacion||0)) / 60;
+  const tiempoPrensadoHrs = (v.tiempoPrensado||60) / 3600;
+  const electricidadImpresora = tiempoTotalHrs * elec;
+  const electricidadPrensado = tiempoPrensadoHrs * ((v.wattsPrensado||1500) / 1000) * elec;
+  const electricidad = electricidadImpresora + electricidadPrensado;
+  const manoObra = (v.manoObraHora||0)*(v.horasManoObra||0);
+  const otrosGastos = v.otrosGastos||0;
+  const amortH = v.precioMaquina>0?(v.precioMaquina*(1+(v.pctReparaciones||5)/100))/((v.vidaUtilAnios||3)*365*(v.horasUsoDiario||8)):0;
+  const amortizacion = amortH*(tiempoTotalHrs+tiempoPrensadoHrs);
+  const costoMat = cSus+cTin+costoPapelReal+costoCinta;
+  const costoTotal = (costoMat+electricidad+fijos+manoObra+otrosGastos+amortizacion)*v.cantidad;
+  const precioSugerido = costoTotal/(1-v.margenDeseado/100);
+  return { costoMat, cSus, cTin, costoPapelReal, costoCinta, electricidad, electricidadPrensado, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia:precioSugerido-costoTotal };
 }
-function calcBor(v, perf) { return calcBase(v.costoHilo+v.costoEntretela, v.tiempoMinutos/60, v, perf, "fiosBor"); }
-function calcVin(v, perf) { return calcBase(v.costoVinilo+v.costoTransfer, v.tiempoMinutos/60, v, perf, "fijosVin"); }
-function calcLas(v, perf) { return calcBase(v.costoMaterial, v.tiempoMinutos/60, v, perf, "fijosLas"); }
+function calcBor(v, perf) {
+  const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+  const fijos = perf ? (perf.fiosBor||600) : v.costosFijos;
+  // Puntadas → tiempo real. Velocidad típica: 800 puntadas/min por cabezal
+  const velocidad = v.velocidadPuntadas || 800;
+  const cabezales = v.cabezales || 1;
+  const tiempoMaquinaMin = v.cantPuntadas > 0 ? (v.cantPuntadas / 1000) / (velocidad / 1000) / cabezales : (v.tiempoMinutos || 0);
+  const tiempoTotal = tiempoMaquinaMin / 60;
+  // Digitalizacion amortizada entre cantidad de prendas
+  const digitalizacion = (v.costoDigitalizacion || 0) / Math.max(v.cantPrendasDigit || 1, 1);
+  const material = (v.costoPrenda || 0) + (v.costoHilo || 0) + (v.costoEntretela || 0) + digitalizacion;
+  const electricidad = tiempoTotal * elec;
+  const manoObra = (v.manoObraHora||0) * (v.horasManoObra||0);
+  const otrosGastos = v.otrosGastos||0;
+  const amortH = v.precioMaquina>0?(v.precioMaquina*(1+(v.pctReparaciones||5)/100))/((v.vidaUtilAnios||3)*365*(v.horasUsoDiario||8)):0;
+  const amortizacion = amortH * tiempoTotal;
+  const costoTotal = (material+electricidad+fijos+manoObra+otrosGastos+amortizacion)*v.cantidad;
+  const precioSugerido = costoTotal/(1-v.margenDeseado/100);
+  return { costoMat:material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia:precioSugerido-costoTotal, tiempoMaquinaMin, digitalizacion };
+}
+
+function calcVin(v, perf) {
+  const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+  const fijos = perf ? (perf.fijosVin||400) : v.costosFijos;
+  // Calcular vinilo usado por área
+  const ancho = v.anchoDiseno || 0; // cm
+  const alto = v.altoDiseno || 0;   // cm
+  const precioViniloCm2 = v.precioViniloRollo > 0 && v.anchoRollo > 0 && v.largoRollo > 0
+    ? v.precioViniloRollo / (v.anchoRollo * v.largoRollo)
+    : 0;
+  const costoViniloArea = ancho > 0 && alto > 0 && precioViniloCm2 > 0
+    ? ancho * alto * precioViniloCm2 * (1 + (v.pctDesperdicio||20)/100)
+    : (v.costoVinilo || 0);
+  const tiempoTotal = ((v.tiempoCorte||0) + (v.tiempoDesmalezado||0) + (v.tiempoAplicacion||0)) / 60;
+  const material = costoViniloArea + (v.costoTransfer||0) + (v.costoOtrosVin||0);
+  const electricidad = tiempoTotal * elec;
+  const manoObra = (v.manoObraHora||0)*(v.horasManoObra||0);
+  const otrosGastos = v.otrosGastos||0;
+  const amortH = v.precioMaquina>0?(v.precioMaquina*(1+(v.pctReparaciones||5)/100))/((v.vidaUtilAnios||3)*365*(v.horasUsoDiario||8)):0;
+  const amortizacion = amortH*tiempoTotal;
+  const costoTotal = (material+electricidad+fijos+manoObra+otrosGastos+amortizacion)*v.cantidad;
+  const precioSugerido = costoTotal/(1-v.margenDeseado/100);
+  return { costoMat:material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia:precioSugerido-costoTotal, costoViniloArea, tiempoTotal };
+}
+
+function calcLas(v, perf) {
+  const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+  const fijos = perf ? (perf.fijosLas||700) : v.costosFijos;
+  // Calcular área trabajada
+  const area = (v.anchoMaterial||0) * (v.altoMaterial||0); // cm²
+  const precioMaterialCm2 = area > 0 && v.precioMaterialTotal > 0
+    ? v.precioMaterialTotal / area
+    : 0;
+  const costoMaterialArea = area > 0 && precioMaterialCm2 > 0
+    ? area * precioMaterialCm2 * (1+(v.pctDesperdicio||10)/100)
+    : (v.costoMaterial||0);
+  // Tiempo según tipo: corte más rápido, grabado más lento
+  const tiempoCorte = (v.tiempoCorteMin||0);
+  const tiempoGrabado = (v.tiempoGrabadoMin||0);
+  const tiempoTotal = (tiempoCorte + tiempoGrabado) / 60;
+  // Consumibles: lentes, boquillas (costo por hora de uso)
+  const consumibles = (v.costoConsumiblesHora||0) * tiempoTotal;
+  const material = costoMaterialArea + consumibles + (v.costoGas||0);
+  const electricidad = tiempoTotal * elec;
+  const manoObra = (v.manoObraHora||0)*(v.horasManoObra||0);
+  const otrosGastos = v.otrosGastos||0;
+  const amortH = v.precioMaquina>0?(v.precioMaquina*(1+(v.pctReparaciones||5)/100))/((v.vidaUtilAnios||3)*365*(v.horasUsoDiario||8)):0;
+  const amortizacion = amortH*tiempoTotal;
+  const costoTotal = (material+electricidad+fijos+manoObra+otrosGastos+amortizacion)*v.cantidad;
+  const precioSugerido = costoTotal/(1-v.margenDeseado/100);
+  return { costoMat:material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia:precioSugerido-costoTotal, costoMaterialArea, tiempoTotal, consumibles };
+}
 
 // ── Format ───────────────────────────────────────────────────────────
 const fmt = (v) => "$" + Math.round(v).toLocaleString("es-AR");
@@ -949,23 +1034,135 @@ function App() {
             h(NumInput,{label:"Tiempo de impresión",val:v3D.tiempoHoras,onChange:mk3D("tiempoHoras"),step:0.5,unit:"hs",tooltip:"Horas que tarda la impresora. Lo ves en el slicer."})
           ),
           isSub && h(React.Fragment,null,
-            h(NumInput,{label:"Costo del sustrato",val:vSub.costoSustrato,onChange:mkSub("costoSustrato"),step:100,unit:"$",disabled:!!sustrato,tooltip:"Precio del objeto a sublimar — taza, remera, etc."}),
-            h(NumInput,{label:"Costo de tinta",val:vSub.costoTinta,onChange:mkSub("costoTinta"),step:50,unit:"$",disabled:!!tinta,tooltip:"Estimación de tinta por trabajo."}),
-            h(NumInput,{label:"Tiempo de producción",val:vSub.tiempoMinutos,onChange:mkSub("tiempoMinutos"),step:5,unit:"min",tooltip:"Tiempo total incluyendo preparación y prensado."})
+            // Sustrato
+            h(NumInput,{label:"Costo del sustrato",val:vSub.costoSustrato,onChange:mkSub("costoSustrato"),step:100,unit:"$",disabled:!!sustrato,tooltip:"Precio del objeto a sublimar — taza, remera, almohada, etc."}),
+
+            // Papel de sublimación
+            h("div",{style:{background:"#a78bfa12",border:"1px solid #a78bfa30",borderRadius:10,padding:14,marginBottom:12}},
+              h("div",{style:{fontSize:10,fontWeight:700,color:"#a78bfa",marginBottom:10}},"📄 PAPEL DE SUBLIMACIÓN"),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Costo por hoja",val:vSub.costoPapel||0,onChange:mkSub("costoPapel"),step:10,unit:"$",tooltip:"Precio de una hoja de papel de sublimación. Dividí el costo del paquete por la cantidad de hojas."}),
+                h(NumInput,{label:"Hojas usadas",val:vSub.cantHojas||1,onChange:mkSub("cantHojas"),step:1,unit:"hojas",tooltip:"Cuántas hojas usás por trabajo. Si el diseño ocupa menos de una hoja, igual se consume una."})
+              ),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"% desperdicio de papel",val:vSub.pctDesperdicioPapel||20,onChange:mkSub("pctDesperdicioPapel"),step:5,unit:"%",tooltip:"Porcentaje de hoja que no se usa. Si el diseño ocupa el 80% de la hoja, el desperdicio es 20%."}),
+                h(NumInput,{label:"Cinta térmica",val:vSub.costoCinta||0,onChange:mkSub("costoCinta"),step:10,unit:"$",tooltip:"Costo de la cinta de alta temperatura para fijar el papel al sustrato antes de prensar."})
+              ),
+              (vSub.costoPapel>0) && h("div",{style:{background:"#a78bfa18",borderRadius:8,padding:"8px 12px",marginTop:4,fontSize:12,color:"#a78bfa"}},
+                "Costo real de papel: ",h("strong",null,fmt(Math.round((vSub.costoPapel||0)*(vSub.cantHojas||1)*(1+(vSub.pctDesperdicioPapel||20)/100))))
+              )
+            ),
+
+            // Tinta
+            h(NumInput,{label:"Costo de tinta por impresión",val:vSub.costoTinta,onChange:mkSub("costoTinta"),step:50,unit:"$",disabled:!!tinta,tooltip:"Cuánto gastás de tinta por cada impresión. Calculalo dividiendo el costo total de las tintas por la cantidad de impresiones que sacás."}),
+
+            // Tiempos
+            h("div",{style:{fontSize:10,fontWeight:700,color:"#a78bfa",marginBottom:8,marginTop:4}},"⏱️ TIEMPOS DE TRABAJO"),
+            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}},
+              h(NumInput,{label:"Preparación",val:vSub.tiempoPreparacion||0,onChange:mkSub("tiempoPreparacion"),step:1,unit:"min",tooltip:"Tiempo de preparación: diseño, configuración de impresora, colocar papel."}),
+              h(NumInput,{label:"Impresión",val:vSub.tiempoImpresion||0,onChange:mkSub("tiempoImpresion"),step:1,unit:"min",tooltip:"Tiempo que tarda la impresora en imprimir el diseño."}),
+              h(NumInput,{label:"Prensado",val:vSub.tiempoPrensado||60,onChange:mkSub("tiempoPrensado"),step:5,unit:"seg",tooltip:"Tiempo de prensado en segundos. Varía según el sustrato: tazas 180-200s, remeras 45-60s, rígidos 40-60s."})
+            ),
+
+            // Consumo de prensa
+            h("div",{style:{background:"#0a0a14",borderRadius:10,padding:14,marginTop:4}},
+              h("div",{style:{fontSize:10,fontWeight:700,color:MUTED,marginBottom:10}},"⚡ CONSUMO DE LA PRENSA"),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Potencia de la prensa",val:vSub.wattsPrensado||1500,onChange:mkSub("wattsPrensado"),step:100,unit:"watts",tooltip:"Potencia nominal de tu prensa. Prensas planas: 1500-2000W. Prensas de tazas: 300-600W. Mirá la etiqueta en tu equipo."}),
+                h("div",{style:{background:"#12121f",borderRadius:8,padding:"10px 12px",display:"flex",flexDirection:"column",justifyContent:"center"}},
+                  h("div",{style:{fontSize:10,color:MUTED,marginBottom:4}},"Costo prensado estimado:"),
+                  h("div",{style:{fontSize:14,fontWeight:800,fontFamily:"monospace",color:"#a78bfa"}},
+                    fmt(Math.round((vSub.tiempoPrensado||60)/3600*((vSub.wattsPrensado||1500)/1000)*vSub.costoElectricidadHora))
+                  )
+                )
+              )
+            )
           ),
           isBor && h(React.Fragment,null,
-            h(NumInput,{label:"Costo de hilo",val:vBor.costoHilo,onChange:mkBor("costoHilo"),step:50,unit:"$",tooltip:"Costo del hilo usado."}),
-            h(NumInput,{label:"Costo de entretela",val:vBor.costoEntretela,onChange:mkBor("costoEntretela"),step:50,unit:"$",tooltip:"Costo del estabilizador o entretela."}),
-            h(NumInput,{label:"Tiempo de bordado",val:vBor.tiempoMinutos,onChange:mkBor("tiempoMinutos"),step:5,unit:"min",tooltip:"Tiempo total incluyendo enhebrado y acabados."})
+            h("div",{style:{fontSize:11,color:MUTED,marginBottom:12,lineHeight:1.6}},"El costo se calcula por puntadas — más preciso que el tiempo."),
+            h(NumInput,{label:"Costo de la prenda/sustrato",val:vBor.costoPrenda||0,onChange:mkBor("costoPrenda"),step:100,unit:"$",tooltip:"El precio de la remera, gorro, bolso o sustrato que vas a bordar."}),
+            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+              h(NumInput,{label:"Cantidad de puntadas",val:vBor.cantPuntadas||0,onChange:mkBor("cantPuntadas"),step:1000,unit:"punt.",tooltip:"Tu software de bordado te lo indica. Simples: 3.000-8.000. Complejos: 15.000-50.000+"}),
+              h(NumInput,{label:"Velocidad de la máquina",val:vBor.velocidadPuntadas||800,onChange:mkBor("velocidadPuntadas"),step:100,unit:"punt/min",tooltip:"Velocidad promedio. Comerciales: 600-1200 punt/min."})
+            ),
+            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+              h(NumInput,{label:"Cabezales activos",val:vBor.cabezales||1,onChange:mkBor("cabezales"),step:1,unit:"cab.",tooltip:"Si bordás varias prendas a la vez, el tiempo se divide."}),
+              h(NumInput,{label:"Costo de hilo",val:vBor.costoHilo||0,onChange:mkBor("costoHilo"),step:50,unit:"$",tooltip:"Aprox. 0.5-1 madeja por cada 5.000 puntadas."})
+            ),
+            h(NumInput,{label:"Costo de entretela",val:vBor.costoEntretela||0,onChange:mkBor("costoEntretela"),step:50,unit:"$",tooltip:"El estabilizador que va debajo de la tela."}),
+            h("div",{style:{background:"#f472b612",border:"1px solid #f472b630",borderRadius:10,padding:14,marginTop:4}},
+              h("div",{style:{fontSize:10,fontWeight:700,color:"#f472b6",marginBottom:10}},"✏️ DIGITALIZACIÓN"),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Costo digitalización",val:vBor.costoDigitalizacion||0,onChange:mkBor("costoDigitalizacion"),step:500,unit:"$",tooltip:"Se amortiza entre todas las prendas con ese diseño."}),
+                h(NumInput,{label:"Prendas con ese diseño",val:vBor.cantPrendasDigit||1,onChange:mkBor("cantPrendasDigit"),step:1,unit:"prendas",tooltip:"¿Cuántas prendas vas a hacer con este diseño en total?"})
+              ),
+              vBor.costoDigitalizacion>0 && h("div",{style:{fontSize:11,color:"#f472b6",marginTop:6}},"Por prenda: "+fmt(Math.round((vBor.costoDigitalizacion||0)/Math.max(vBor.cantPrendasDigit||1,1))))
+            ),
+            h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"8px 12px",marginTop:8,fontSize:12,color:"#666"}},
+              "⏱️ Tiempo estimado: ",h("strong",{style:{color:"#f472b6"}},(()=>{const min=Math.round((vBor.cantPuntadas||0)/(vBor.velocidadPuntadas||800)/(vBor.cabezales||1));return min<60?min+" min":Math.floor(min/60)+"h "+(min%60)+"min";})())
+            )
           ),
           isVin && h(React.Fragment,null,
-            h(NumInput,{label:"Costo del vinilo",val:vVin.costoVinilo,onChange:mkVin("costoVinilo"),step:50,unit:"$",tooltip:"Costo del vinilo usado."}),
-            h(NumInput,{label:"Costo transfer/papel",val:vVin.costoTransfer,onChange:mkVin("costoTransfer"),step:50,unit:"$",tooltip:"Costo del papel transfer."}),
-            h(NumInput,{label:"Tiempo de aplicación",val:vVin.tiempoMinutos,onChange:mkVin("tiempoMinutos"),step:5,unit:"min",tooltip:"Tiempo de corte y aplicación."})
+            h("div",{style:{background:"#38bdf812",border:"1px solid #38bdf830",borderRadius:10,padding:14,marginBottom:12}},
+              h("div",{style:{fontSize:10,fontWeight:700,color:"#38bdf8",marginBottom:10}},"📐 CALCULAR POR ÁREA"),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Ancho del diseño",val:vVin.anchoDiseno||0,onChange:mkVin("anchoDiseno"),step:1,unit:"cm",tooltip:"Ancho total del diseño."}),
+                h(NumInput,{label:"Alto del diseño",val:vVin.altoDiseno||0,onChange:mkVin("altoDiseno"),step:1,unit:"cm",tooltip:"Alto total del diseño."})
+              ),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Precio del rollo",val:vVin.precioViniloRollo||0,onChange:mkVin("precioViniloRollo"),step:1000,unit:"$",tooltip:"Precio total del rollo."}),
+                h(NumInput,{label:"Ancho del rollo",val:vVin.anchoRollo||61,onChange:mkVin("anchoRollo"),step:1,unit:"cm",tooltip:"Ancho estándar: 30, 61, 122 cm."})
+              ),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Largo del rollo",val:vVin.largoRollo||1000,onChange:mkVin("largoRollo"),step:100,unit:"cm",tooltip:"Largo en cm (10 metros = 1000 cm)."}),
+                h(NumInput,{label:"% desperdicio",val:vVin.pctDesperdicio||20,onChange:mkVin("pctDesperdicio"),step:5,unit:"%",tooltip:"Típico: 15-25% por desmalezado y bordes."})
+              ),
+              (vVin.anchoDiseno>0&&vVin.altoDiseno>0&&vVin.precioViniloRollo>0) && h("div",{style:{background:"#38bdf818",borderRadius:8,padding:"8px 12px",marginTop:4,fontSize:12,color:"#38bdf8"}},
+                "Costo de vinilo: ",h("strong",null,fmt(Math.round(vVin.anchoDiseno*vVin.altoDiseno*(vVin.precioViniloRollo/(vVin.anchoRollo*vVin.largoRollo))*(1+(vVin.pctDesperdicio||20)/100))))
+              )
+            ),
+            h(NumInput,{label:"Costo vinilo manual (si no usás área)",val:vVin.costoVinilo||0,onChange:mkVin("costoVinilo"),step:50,unit:"$",tooltip:"Solo se usa si no completaste el cálculo por área."}),
+            h(NumInput,{label:"Papel transfer / aplicador",val:vVin.costoTransfer||0,onChange:mkVin("costoTransfer"),step:50,unit:"$",tooltip:"Costo del papel transfer."}),
+            h(NumInput,{label:"Otros consumibles",val:vVin.costoOtrosVin||0,onChange:mkVin("costoOtrosVin"),step:50,unit:"$",tooltip:"Alcohol, guantes, cinta, espátulas, etc."}),
+            h("div",{style:{fontSize:10,fontWeight:700,color:"#38bdf8",marginBottom:8,marginTop:4}},"⏱️ TIEMPOS"),
+            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}},
+              h(NumInput,{label:"Corte en plotter",val:vVin.tiempoCorte||0,onChange:mkVin("tiempoCorte"),step:1,unit:"min",tooltip:"Tiempo del plotter."}),
+              h(NumInput,{label:"Desmalezado",val:vVin.tiempoDesmalezado||0,onChange:mkVin("tiempoDesmalezado"),step:1,unit:"min",tooltip:"Quitar el vinilo sobrante. Varía por complejidad."}),
+              h(NumInput,{label:"Aplicación",val:vVin.tiempoAplicacion||0,onChange:mkVin("tiempoAplicacion"),step:1,unit:"min",tooltip:"Colocar transfer y aplicar."})
+            ),
+            h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"8px 12px",marginTop:4,fontSize:12,color:"#666"}},
+              "⏱️ Tiempo total: ",h("strong",{style:{color:"#38bdf8"}},((vVin.tiempoCorte||0)+(vVin.tiempoDesmalezado||0)+(vVin.tiempoAplicacion||0))+" min")
+            )
           ),
           isLas && h(React.Fragment,null,
-            h(NumInput,{label:"Costo del material",val:vLas.costoMaterial,onChange:mkLas("costoMaterial"),step:100,unit:"$",tooltip:"Costo del material a cortar o grabar."}),
-            h(NumInput,{label:"Tiempo de corte/grabado",val:vLas.tiempoMinutos,onChange:mkLas("tiempoMinutos"),step:5,unit:"min",tooltip:"Tiempo total del trabajo."})
+            h("div",{style:{background:"#fb923c12",border:"1px solid #fb923c30",borderRadius:10,padding:14,marginBottom:12}},
+              h("div",{style:{fontSize:10,fontWeight:700,color:"#fb923c",marginBottom:10}},"📐 CALCULAR POR ÁREA"),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Ancho del material",val:vLas.anchoMaterial||0,onChange:mkLas("anchoMaterial"),step:1,unit:"cm",tooltip:"Ancho de la pieza."}),
+                h(NumInput,{label:"Alto del material",val:vLas.altoMaterial||0,onChange:mkLas("altoMaterial"),step:1,unit:"cm",tooltip:"Alto de la pieza."})
+              ),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Precio total del material",val:vLas.precioMaterialTotal||0,onChange:mkLas("precioMaterialTotal"),step:500,unit:"$",tooltip:"Precio de la plancha completa."}),
+                h(NumInput,{label:"% desperdicio",val:vLas.pctDesperdicio||10,onChange:mkLas("pctDesperdicio"),step:5,unit:"%",tooltip:"Típico: 10-20%."})
+              ),
+              (vLas.anchoMaterial>0&&vLas.altoMaterial>0&&vLas.precioMaterialTotal>0) && h("div",{style:{background:"#fb923c18",borderRadius:8,padding:"8px 12px",marginTop:4,fontSize:12,color:"#fb923c"}},
+                "Costo de material: ",h("strong",null,fmt(Math.round(vLas.precioMaterialTotal*(1+(vLas.pctDesperdicio||10)/100))))
+              )
+            ),
+            h(NumInput,{label:"Costo material manual",val:vLas.costoMaterial||0,onChange:mkLas("costoMaterial"),step:100,unit:"$",tooltip:"Solo si no usás el cálculo por área."}),
+            h("div",{style:{fontSize:10,fontWeight:700,color:"#fb923c",marginBottom:8,marginTop:4}},"⏱️ TIEMPOS"),
+            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+              h(NumInput,{label:"Tiempo de corte",val:vLas.tiempoCorteMin||0,onChange:mkLas("tiempoCorteMin"),step:1,unit:"min",tooltip:"Tiempo de corte con láser."}),
+              h(NumInput,{label:"Tiempo de grabado",val:vLas.tiempoGrabadoMin||0,onChange:mkLas("tiempoGrabadoMin"),step:1,unit:"min",tooltip:"Tiempo de grabado. Más lento que corte."})
+            ),
+            h("div",{style:{fontSize:10,fontWeight:700,color:"#fb923c",marginBottom:8,marginTop:4}},"🔧 CONSUMIBLES"),
+            h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+              h(NumInput,{label:"Consumibles (lentes, boquillas)",val:vLas.costoConsumiblesHora||0,onChange:mkLas("costoConsumiblesHora"),step:50,unit:"$/hr",tooltip:"Un lente dura aprox. 200hs. Dividí su costo por 200 para obtener el costo/hora."}),
+              h(NumInput,{label:"Gas de asistencia",val:vLas.costoGas||0,onChange:mkLas("costoGas"),step:100,unit:"$",tooltip:"Aire comprimido o nitrógeno por trabajo."})
+            ),
+            h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"8px 12px",marginTop:4,fontSize:12,color:"#666"}},
+              "⏱️ Tiempo total: ",h("strong",{style:{color:"#fb923c"}},((vLas.tiempoCorteMin||0)+(vLas.tiempoGrabadoMin||0))+" min")
+            )
           )
         ),
 
@@ -1135,7 +1332,7 @@ function App() {
           ),
 
           h("div",{style:{marginBottom:20}},
-            h(ResultRow,{label:"Materiales",value:fmt(res.costoMat)}),
+            h(ResultRow,{label:"Materiales",value:fmt(isSub ? res.costoMat : is3D ? res.costoMat : res.costoMat)}),
             h(ResultRow,{label:"Electricidad",value:fmt(res.electricidad)}),
             h(ResultRow,{label:"Costos fijos",value:fmt(res.fijos)}),
             res.otrosGastos>0 && h(ResultRow,{label:"🧩 Otros gastos",value:fmt(res.otrosGastos)}),
