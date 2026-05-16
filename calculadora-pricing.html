@@ -953,8 +953,10 @@ function App() {
         ),
         h("div", { style:{ display:"flex", alignItems:"center", gap:4, flexWrap:"wrap" } },
           h("div",{style:{display:"flex",gap:4,borderRight:"1px solid #1e1e35",paddingRight:8,marginRight:4}},
-            h("a",{href:"/clientes.html",style:{padding:"8px 12px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"👥 Clientes"),
-            h("a",{href:"/agenda.html",style:{padding:"8px 12px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"📅 Agenda")
+            h("a",{href:"/clientes.html",style:{padding:"7px 10px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"👥 Clientes"),
+            h("a",{href:"/agenda.html",style:{padding:"7px 10px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"📅 Agenda"),
+            h("a",{href:"/catalogo.html",style:{padding:"7px 10px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"🛍️ Catálogo"),
+            h("a",{href:"/inventario.html",style:{padding:"7px 10px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"📦 Inventario")
           ),
           ["🧮 Calcular","🏭 Mi Taller","📋 Historial","📊 Dashboard","⭐ Pro","🔍 Proveedores","🎯 Simulador","📦 Pedidos"].map((s,i) =>
             h("button", { key:s, onClick:()=>setScreen(i), style:{ padding:"8px 10px", border:"none", background:screen===i?"#ff5c1a18":"none", borderRadius:8, color:screen===i?(i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a"):MUTED, fontFamily:"inherit", fontWeight:700, fontSize:10, cursor:"pointer", borderBottom:screen===i?`2px solid ${i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a"}`:"2px solid transparent" } }, s)
