@@ -508,12 +508,13 @@ function DropSelect({ label, value, onChange, options }) {
 function NumInput({ label, val, onChange, step=1, unit="", disabled=false, tooltip=null }) {
   const [tip, setTip] = useState(false);
   const [localVal, setLocalVal] = useState(String(val));
-
-  // Sync from outside only when not focused
   const [focused, setFocused] = useState(false);
-  if (!focused && String(val) !== localVal && localVal !== "") {
-    setLocalVal(String(val));
-  }
+
+  // Sincronizar desde afuera solo cuando no está enfocado
+  // Usamos useEffect para evitar renders inconsistentes
+  useEffect(() => {
+    if (!focused) setLocalVal(String(val));
+  }, [val, focused]);
 
   return h("div", { style:{ marginBottom:12, opacity:disabled?0.4:1 } },
     h("div", { style:{ display:"flex",alignItems:"center",gap:6,marginBottom:4 } },
@@ -1082,7 +1083,14 @@ function App() {
                 h("div",{style:{background:"#12121f",borderRadius:8,padding:"10px 12px",display:"flex",flexDirection:"column",justifyContent:"center"}},
                   h("div",{style:{fontSize:10,color:MUTED,marginBottom:4}},"Costo prensado estimado:"),
                   h("div",{style:{fontSize:14,fontWeight:800,fontFamily:"monospace",color:"#a78bfa"}},
-                    fmt(Math.round((vSub.tiempoPrensado||60)/3600*((vSub.wattsPrensado||1500)/1000)*vSub.costoElectricidadHora))
+                    (() => {
+                      const tarifaElec = perfil ? perfil.electricidad : (vSub.costoElectricidadHora || vals.costoElectricidadHora || 120);
+                      const costo = Math.round((vSub.tiempoPrensado||60)/3600 * ((vSub.wattsPrensado||1500)/1000) * tarifaElec);
+                      return fmt(costo);
+                    })()
+                  ),
+                  h("div",{style:{fontSize:10,color:MUTED,marginTop:4}},
+                    "("+(vSub.tiempoPrensado||60)+"seg · "+(vSub.wattsPrensado||1500)+"W)"
                   )
                 )
               )
@@ -1829,25 +1837,61 @@ function App() {
         ),
 
         // Top 5 más rentables
-        historial.length>0 && h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:24,marginBottom:16}},
+        h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:24,marginBottom:16}},
           h("div",{style:{fontSize:10,fontWeight:700,color:"#ff5c1a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:16}},"🏆 Top 5 trabajos más rentables"),
-          h("div",null,
-            [...historial].sort((a,b)=>b.margen-a.margen).slice(0,5).map((e,i)=>{
-              const medals = ["🥇","🥈","🥉","4️⃣","5️⃣"];
-              const colors = ["#fbbf24","#9ca3af","#cd7c3a","#666","#555"];
-              return h("div",{key:e.id,style:{display:"flex",alignItems:"center",gap:14,padding:"12px 0",borderBottom:"1px solid #1a1a2e"}},
-                h("div",{style:{fontSize:24,flexShrink:0}},medals[i]),
-                h("div",{style:{flex:1}},
-                  h("div",{style:{fontWeight:700,fontSize:13,marginBottom:2}},e.tipo),
-                  h("div",{style:{fontSize:11,color:MUTED}},e.fecha+" · "+e.hora)
-                ),
-                h("div",{style:{textAlign:"right"}},
-                  h("div",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:colors[i]}},e.margen+"%"),
-                  h("div",{style:{fontSize:11,color:"#22d07a"}},"+"+fmt(e.ganancia))
-                )
-              );
-            })
-          )
+          (() => {
+            const medals=["🥇","🥈","🥉","4️⃣","5️⃣"];
+            const colors=["#fbbf24","#9ca3af","#cd7c3a","#666","#555"];
+
+            // Pedidos terminados con precio
+            const pedidosTerm=pedidos.filter(p=>p.estado==="terminado"&&p.precio>0).map(p=>({
+              id:"p"+p.id, nombre:p.descripcion||p.cliente||"Pedido", tipo:p.tipo||"Trabajo",
+              precio:p.precio, fecha:p.fechaEntrega||"", fuente:"pedido",
+              margen: historial.length>0 ? historial.reduce((s,e)=>s+e.margen,0)/historial.length : 40,
+              ganancia: p.precio*(historial.length>0?historial.reduce((s,e)=>s+e.margen,0)/historial.length:40)/100
+            }));
+
+            // Plantillas con margen
+            const plantillasConMargen=plantillas.map(p=>({
+              id:"pl"+p.id, nombre:p.nombre, tipo:p.tipo,
+              precio:0, fuente:"plantilla",
+              margen:p.vals?.margenDeseado||0,
+              ganancia:0
+            })).filter(p=>p.margen>0);
+
+            // Historial de presupuestos
+            const historialItems=historial.map(e=>({
+              id:"h"+e.id, nombre:e.tipo, tipo:e.tipo,
+              precio:e.precioSugerido, fuente:"historial",
+              margen:e.margen, ganancia:e.ganancia, fecha:e.fecha
+            }));
+
+            // Combinar y ordenar por margen
+            const todos=[...pedidosTerm,...plantillasConMargen,...historialItems];
+            const top5=[...todos].sort((a,b)=>b.margen-a.margen).slice(0,5);
+
+            const fuenteColor={pedido:"#22d07a",plantilla:"#a78bfa",historial:"#ff5c1a"};
+            const fuenteLabel={pedido:"✅ Pedido real",plantilla:"📋 Plantilla",historial:"📊 Presupuesto"};
+
+            return top5.length===0
+              ? h("div",{style:{textAlign:"center",padding:"20px 0",color:"#2a2a3a",fontSize:13}},"Completá pedidos en la Agenda o guardá plantillas para ver el ranking")
+              : h("div",null,
+                  top5.map((e,i)=>h("div",{key:e.id,style:{display:"flex",alignItems:"center",gap:14,padding:"12px 0",borderBottom:"1px solid #1a1a2e"}},
+                    h("div",{style:{fontSize:24,flexShrink:0}},medals[i]),
+                    h("div",{style:{flex:1}},
+                      h("div",{style:{fontWeight:700,fontSize:13,marginBottom:3}},e.nombre),
+                      h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+                        h("span",{style:{fontSize:10,fontWeight:700,color:fuenteColor[e.fuente],background:fuenteColor[e.fuente]+"18",padding:"2px 8px",borderRadius:100}},fuenteLabel[e.fuente]),
+                        e.fecha&&h("span",{style:{fontSize:10,color:MUTED}},e.fecha)
+                      )
+                    ),
+                    h("div",{style:{textAlign:"right"}},
+                      h("div",{style:{fontSize:18,fontWeight:800,fontFamily:"monospace",color:colors[i]}},e.margen+"%"),
+                      e.precio>0&&h("div",{style:{fontSize:11,color:"#22d07a"}},fmt(e.precio))
+                    )
+                  ))
+                );
+          })()
         ),
 
         // Gráfico evolución de precios
