@@ -665,6 +665,7 @@ function App() {
   const [showPerf, setShowPerf] = useState(false);
   const [showCliente, setShowCliente] = useState(false);
   const [showPlantilla, setShowPlantilla] = useState(false);
+  const [plantillaEditando, setPlantillaEditando] = useState(null); // id de plantilla siendo editada
   const [editIns, setEditIns] = useState(null);
   const [editPerf, setEditPerf] = useState(null);
   const [newIns, setNewIns] = useState({ nombre:"",tipo:"3D",unidad:"gr",costo:0 });
@@ -1440,7 +1441,11 @@ function App() {
             ),
             h("button",{onClick:()=>setShowCliente(true),style:{...BTN,flex:2,background:"#ff5c1a",border:"none",padding:13,color:"#fff",fontSize:14,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:6,borderRadius:10}},"📄 Exportar PDF")
           ),
-          h("button",{onClick:()=>setShowPlantilla(true),style:{...BTN,width:"100%",background:"#ff5c1a12",border:"1px solid #ff5c1a30",padding:10,color:"#ff5c1a",fontSize:12,borderRadius:10}},"📋 Guardar como plantilla")
+          h("button",{onClick:()=>setShowPlantilla(true),style:{...BTN,width:"100%",background:"#ff5c1a12",border:"1px solid #ff5c1a30",padding:10,color:"#ff5c1a",fontSize:12,borderRadius:10}},"📋 "+(plantillaEditando?"Actualizar plantilla":"Guardar como plantilla")),
+          plantillaEditando && h("button",{
+            onClick:()=>{ setPlantillaEditando(null); },
+            style:{...BTN,width:"100%",background:"transparent",border:"none",color:MUTED,padding:"6px",fontSize:11,marginTop:2}
+          },"✕ Cancelar edición")
         )
       )
     ),
@@ -1588,12 +1593,51 @@ tr:hover td{background:#fff8f5;}
 
           return h("div",{key:p.id,style:{...CARD,marginBottom:10}},
             h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}},
-              h("div",null,
-                h("div",{style:{fontWeight:700,fontSize:15,marginBottom:4}},p.nombre),
-                h("span",{style:{background:"#ff5c1a22",color:"#ff5c1a",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100}},p.tipo),
-                h("span",{style:{color:MUTED,fontSize:12,marginLeft:10}},"Margen configurado: "+v.margenDeseado+"%")
+              h("div",{style:{flex:1}},
+                h("input",{
+                  defaultValue:p.nombre,
+                  onBlur:e=>{
+                    const nombre=e.target.value.trim()||p.nombre;
+                    setPlantillas(pl=>pl.map(x=>x.id===p.id?{...x,nombre}:x));
+                    saveLS("jp_plantillas",plantillas.map(x=>x.id===p.id?{...x,nombre}:x));
+                  },
+                  style:{background:"none",border:"none",borderBottom:"1px solid transparent",color:"#fff",fontSize:15,fontWeight:700,fontFamily:"inherit",width:"100%",padding:"2px 0",marginBottom:4,outline:"none"},
+                  onFocus:e=>{e.target.style.borderBottomColor="#ff5c1a";},
+                  onBlur:e=>{e.target.style.borderBottomColor="transparent";},
+                  title:"Hacé clic para renombrar"
+                }),
+                h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+                  h("span",{style:{background:"#ff5c1a22",color:"#ff5c1a",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100}},p.tipo),
+                  h("span",{style:{color:MUTED,fontSize:12}},"Margen: "+v.margenDeseado+"%"),
+                  h("span",{style:{fontSize:10,color:"#444"}},"✏️ clic en el nombre para editar")
+                )
               ),
-              h("button",{onClick:async()=>{setPlantillas(pl=>pl.filter(x=>x.id!==p.id));if(user)await sb.from("plantillas").eq("id",p.id).delete();},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"6px 10px"}},"🗑")
+              h("div",{style:{display:"flex",gap:6,marginLeft:12,flexShrink:0}},
+                h("button",{
+                  onClick:()=>{
+                    // Cargar plantilla en la calculadora
+                    const tabMap={"3D":0,"SUB":1,"BOR":2,"VIN":3,"LAS":4};
+                    const idx=tabMap[p.tipo]??0;
+                    setTabIdx(idx);
+                    if(p.tipo==="3D"){setV3D({...p.vals});saveLS("jp_v3D",p.vals);}
+                    else if(p.tipo==="SUB"){setVSub({...p.vals});saveLS("jp_vSub",p.vals);}
+                    else if(p.tipo==="BOR"){setVBor({...p.vals});saveLS("jp_vBor",p.vals);}
+                    else if(p.tipo==="VIN"){setVVin({...p.vals});saveLS("jp_vVin",p.vals);}
+                    else{setVLas({...p.vals});saveLS("jp_vLas",p.vals);}
+                    setSelBambu("");
+                    setPlantillaEditando(p.id);
+                    setScreen(0);
+                  },
+                  style:{...BTN,background:"#ff5c1a12",border:"1px solid #ff5c1a30",color:"#ff5c1a",padding:"6px 12px",fontSize:11,borderRadius:8}
+                },"✏️ Editar en calculadora"),
+                h("button",{
+                  onClick:async()=>{
+                    setPlantillas(pl=>pl.filter(x=>x.id!==p.id));
+                    if(user)await sb.from("plantillas").eq("id",p.id).delete();
+                  },
+                  style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#f87171",padding:"6px 10px",fontSize:12}
+                },"🗑")
+              )
             ),
 
             // Desglose de costos
@@ -2752,10 +2796,30 @@ tr:hover td{background:#fff8f5;}
       h("button",{onClick:()=>{setShowCliente(false);exportarPDF(tab.label,vals,res,cliente);},style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,marginTop:4,borderRadius:10,fontSize:14}},"📄 Generar PDF →")
     ),
 
-    showPlantilla && h(Modal,{title:"📋 Guardar plantilla",onClose:()=>setShowPlantilla(false)},
-      h("div",{style:{fontSize:12,color:MUTED,marginBottom:16,lineHeight:1.6}},"Guardás la configuración actual de "+tab.label+" como plantilla reutilizable."),
-      h(Field,{label:"Nombre de la plantilla",value:plantillaNombre,onChange:setPlantillaNombre,placeholder:"Ej: Taza cerámica estándar"}),
-      h("button",{onClick:async()=>{if(!plantillaNombre.trim())return;const nueva={id:Date.now(),nombre:plantillaNombre,tipo:tab.id,vals:{...vals}};setPlantillas(p=>[nueva,...p]);await savePlantillaDB(nueva);setShowPlantilla(false);setPlantillaNombre("");},style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,marginTop:4,borderRadius:10,fontSize:14}},"💾 Guardar plantilla")
+    showPlantilla && h(Modal,{title:plantillaEditando?"✏️ Actualizar plantilla":"📋 Guardar plantilla",onClose:()=>setShowPlantilla(false)},
+      plantillaEditando
+        ? h("div",{style:{background:"#ff5c1a12",border:"1px solid #ff5c1a30",borderRadius:10,padding:"11px 14px",marginBottom:14,fontSize:13,color:"#ff8c5a",lineHeight:1.5}},
+            "Vas a sobreescribir ",h("strong",null,"\""+( plantillas.find(x=>x.id===plantillaEditando)?.nombre||"")+"\"")," con los valores actuales de la calculadora."
+          )
+        : h(React.Fragment,null,
+            h("div",{style:{fontSize:12,color:MUTED,marginBottom:12,lineHeight:1.6}},"Guardás la configuración actual de "+tab.label+" como plantilla reutilizable."),
+            h(Field,{label:"Nombre de la plantilla",value:plantillaNombre,onChange:setPlantillaNombre,placeholder:"Ej: Taza cerámica estándar"})
+          ),
+      h("button",{onClick:async()=>{
+        if(plantillaEditando){
+          const updated=plantillas.map(x=>x.id===plantillaEditando?{...x,vals:{...vals}}:x);
+          setPlantillas(updated); saveLS("jp_plantillas",updated);
+          if(user) await sb.from("plantillas").eq("id",plantillaEditando).update({vals:{...vals}});
+          setPlantillaEditando(null);
+        } else {
+          if(!plantillaNombre.trim())return;
+          const nueva={id:Date.now(),nombre:plantillaNombre,tipo:tab.id,vals:{...vals}};
+          setPlantillas(p=>[nueva,...p]); await savePlantillaDB(nueva); setPlantillaNombre("");
+        }
+        setShowPlantilla(false);
+      },style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,marginTop:4,borderRadius:10,fontSize:14}},
+        plantillaEditando?"💾 Actualizar plantilla":"💾 Guardar plantilla"
+      )
     )
   );
 }
