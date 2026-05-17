@@ -1645,7 +1645,7 @@ tr:hover td{background:#fff8f5;}
               [
                 ["Costo total",fmt(costoTotal),"#f0eeff"],
                 ["Precio sugerido",fmt(precioSugerido),"#666"],
-                ["Margen ("+v.margenDeseado+"%)","sobre costo",MUTED],
+                ["Margen ("+v.margenDeseado+"%)","sobre precio venta",MUTED],
               ].map(([l,v2,c])=>h("div",{key:l,style:{background:"#0a0a14",borderRadius:8,padding:"10px 12px"}},
                 h("div",{style:{fontSize:10,color:MUTED,marginBottom:4}},l),
                 h("div",{style:{fontSize:15,fontWeight:700,fontFamily:"monospace",color:c}},v2)
