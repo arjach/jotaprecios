@@ -23,6 +23,18 @@ const { createRoot } = ReactDOM;
 function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
 function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 const fmt = v => "$"+Math.round(v).toLocaleString("es-AR");
+
+// ── Supabase REST client ──────────────────────────────────────────────
+const SUPA_URL_A = "https://lrshvldiiwenazyqswyr.supabase.co";
+const SUPA_KEY_A = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxyc2h2bGRpaXdlbmF6eXFzd3lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MTYwNzgsImV4cCI6MjA5NDI5MjA3OH0.xn2HM5ZJgy6jfIegl7gywEgBGw-kR-a-nmT8JuWXykE";
+const sb = {
+  _uid:()=>localStorage.getItem("jp_uid"),
+  _headers:()=>({"apikey":SUPA_KEY_A,"Authorization":"Bearer "+(localStorage.getItem("jp_token")||SUPA_KEY_A),"Content-Type":"application/json","Prefer":"return=representation"}),
+  async getAll(table){const r=await fetch(SUPA_URL_A+"/rest/v1/"+table+"?user_id=eq."+sb._uid()+"&order=created_at.asc",{headers:sb._headers()});return r.ok?await r.json():[];},
+  async insert(table,data){const r=await fetch(SUPA_URL_A+"/rest/v1/"+table,{method:"POST",headers:sb._headers(),body:JSON.stringify({...data,user_id:sb._uid()})});return r.ok?await r.json():null;},
+  async update(table,id,data){const r=await fetch(SUPA_URL_A+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:sb._headers(),body:JSON.stringify(data)});return r.ok;},
+  async delete(table,id){const r=await fetch(SUPA_URL_A+"/rest/v1/"+table+"?id=eq."+id,{method:"DELETE",headers:sb._headers()});return r.ok;},
+};
 const CODIGOS_PRO = ["JP-2026-001","JP-2026-002","JP-2026-003","JP-BETA-001","JP-BETA-002","JP-BETA-003","JP-BETA-004","JP-BETA-005"];
 const esPro = () => CODIGOS_PRO.includes(loadLS("jp_codigo",""));
 const LIMITE_PEDIDOS = 10;
@@ -91,6 +103,17 @@ function App(){
   const clientes = loadLS("jp_clientes",[]);
   const setPedidos = fn => setPedidosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_pedidos",n); return n; });
 
+  // Sincronizar desde Supabase al cargar
+  useEffect(()=>{
+    if(!sb._uid()) return;
+    sb.getAll("pedidos").then(data=>{
+      if(data.length>0){
+        const mapped=data.map(p=>({id:p.id,cliente:p.cliente||"",descripcion:p.descripcion||"",estado:p.estado||"pendiente",fechaEntrega:p.fecha_entrega||"",precio:p.precio||0,tipo:p.tipo||"",notas:p.notas||"",creadoEn:p.created_at}));
+        setPedidosR(mapped); saveLS("jp_pedidos",mapped);
+      }
+    });
+  },[]);
+
   function activarPro(){
     const c=codigoInput.trim().toUpperCase();
     if(CODIGOS_PRO.includes(c)){saveLS("jp_codigo",c);setPro(true);setShowProModal(false);setCodigoInput("");setCodigoError("");}
@@ -106,15 +129,20 @@ function App(){
     return a.fechaEntrega.localeCompare(b.fechaEntrega);
   });
 
-  function guardarPedido(){
+  async function guardarPedido(){
     if (!nuevoPedido.cliente&&!nuevoPedido.descripcion) return;
-    if (!editPedido && !pro && pedidos.length >= LIMITE_PEDIDOS) {
-      setShowProModal(true); return;
-    }
+    if (!editPedido && !pro && pedidos.length >= LIMITE_PEDIDOS) { setShowProModal(true); return; }
+    const dbData = {cliente:nuevoPedido.cliente,descripcion:nuevoPedido.descripcion,estado:nuevoPedido.estado,fecha_entrega:nuevoPedido.fechaEntrega||null,precio:nuevoPedido.precio||0,tipo:nuevoPedido.tipo,notas:nuevoPedido.notas};
     if (editPedido) {
       setPedidos(p=>p.map(x=>x.id===editPedido.id?{...x,...nuevoPedido}:x));
+      if(sb._uid()) await sb.update("pedidos",editPedido.id,dbData);
     } else {
-      setPedidos(p=>[{id:Date.now(),...nuevoPedido,creadoEn:new Date().toISOString()},...p]);
+      const tempId=Date.now();
+      setPedidos(p=>[{id:tempId,...nuevoPedido,creadoEn:new Date().toISOString()},...p]);
+      if(sb._uid()){
+        const data=await sb.insert("pedidos",dbData);
+        if(data?.[0]?.id) setPedidos(p=>p.map(x=>x.id===tempId?{...x,id:data[0].id}:x));
+      }
     }
     setShowModal(false); setEditPedido(null);
   }
@@ -255,10 +283,10 @@ function App(){
                   p.notas && h("div",{style:{fontSize:12,color:MUTED,background:"#0a0a14",borderRadius:6,padding:"6px 10px",marginBottom:10,lineHeight:1.5}},p.notas),
                   h("div",{style:{display:"flex",gap:6}},
                     [["pendiente","🕐"],["proceso","⚙️"],["terminado","✅"]].map(([est,icon])=>
-                      h("button",{key:est,onClick:()=>setPedidos(prev=>prev.map(x=>x.id===p.id?{...x,estado:est}:x)),style:{flex:1,padding:"5px",border:"1px solid",borderColor:p.estado===est?estadoColor(est):"#1e1e35",background:p.estado===est?estadoColor(est)+"18":"transparent",color:p.estado===est?estadoColor(est):MUTED,fontFamily:"inherit",fontSize:11,cursor:"pointer",borderRadius:6,fontWeight:700}},icon)
+                      h("button",{key:est,onClick:async()=>{setPedidos(prev=>prev.map(x=>x.id===p.id?{...x,estado:est}:x));if(sb._uid())await sb.update("pedidos",p.id,{estado:est});},style:{flex:1,padding:"5px",border:"1px solid",borderColor:p.estado===est?estadoColor(est):"#1e1e35",background:p.estado===est?estadoColor(est)+"18":"transparent",color:p.estado===est?estadoColor(est):MUTED,fontFamily:"inherit",fontSize:11,cursor:"pointer",borderRadius:6,fontWeight:700}},icon)
                     ),
                     h("button",{onClick:()=>{setEditPedido(p);setNuevoPedido({...p});setShowModal(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"5px 8px",fontSize:11}},"✏️"),
-                    h("button",{onClick:()=>setPedidos(prev=>prev.filter(x=>x.id!==p.id)),style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"5px 8px",fontSize:11}},"🗑")
+                    h("button",{onClick:async()=>{setPedidos(prev=>prev.filter(x=>x.id!==p.id));if(sb._uid())await sb.delete("pedidos",p.id);},style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"5px 8px",fontSize:11}},"🗑")
                   )
                 ))
               )

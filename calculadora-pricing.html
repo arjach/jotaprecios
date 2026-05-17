@@ -46,6 +46,7 @@ const sb = {
       sb._uid = d.user.id;
       localStorage.setItem("jp_token", d.access_token);
       localStorage.setItem("jp_refresh", d.refresh_token);
+      localStorage.setItem("jp_uid", d.user.id);
       return {data:{user:d.user}, error:null};
     },
     async signUp({email, password}) {
@@ -61,7 +62,7 @@ const sb = {
     async signOut() {
       if (sb._token) await fetch(SUPA_URL+"/auth/v1/logout", { method:"POST", headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+sb._token} }).catch(()=>{});
       sb._token = null; sb._uid = null;
-      localStorage.removeItem("jp_token"); localStorage.removeItem("jp_refresh");
+      localStorage.removeItem("jp_token"); localStorage.removeItem("jp_refresh"); localStorage.removeItem("jp_uid");
     },
     async getSession() {
       const token = localStorage.getItem("jp_token");
@@ -78,11 +79,12 @@ const sb = {
           sb._token = d.access_token; sb._uid = d.user.id;
           localStorage.setItem("jp_token", d.access_token);
           localStorage.setItem("jp_refresh", d.refresh_token);
+          localStorage.setItem("jp_uid", d.user.id);
           return {data:{session:{user:d.user}}};
         }
       } catch(e) {}
       sb._token = null; sb._uid = null;
-      localStorage.removeItem("jp_token"); localStorage.removeItem("jp_refresh");
+      localStorage.removeItem("jp_token"); localStorage.removeItem("jp_refresh"); localStorage.removeItem("jp_uid");
       return {data:{session:null}};
     },
     async resetPasswordForEmail(email) {

@@ -27,6 +27,22 @@ function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):
 function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 const fmt = v => "$"+Math.round(v).toLocaleString("es-AR");
 
+// ── Supabase REST client ──────────────────────────────────────────────
+const sb = {
+  _token: ()=>localStorage.getItem("jp_token"),
+  _uid: ()=>localStorage.getItem("jp_uid"),
+  _headers: ()=>({
+    "apikey": SUPA_KEY,
+    "Authorization": "Bearer "+(localStorage.getItem("jp_token")||SUPA_KEY),
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
+  }),
+  async getAll(table){ const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?user_id=eq."+sb._uid()+"&order=created_at.asc",{headers:sb._headers()}); return r.ok?await r.json():[]; },
+  async insert(table,data){ const r=await fetch(SUPA_URL+"/rest/v1/"+table,{method:"POST",headers:sb._headers(),body:JSON.stringify({...data,user_id:sb._uid()})}); return r.ok?await r.json():null; },
+  async update(table,id,data){ const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:sb._headers(),body:JSON.stringify(data)}); return r.ok; },
+  async delete(table,id){ const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"DELETE",headers:sb._headers()}); return r.ok; },
+};
+
 // Pro system
 const CODIGOS_PRO = ["JP-2026-001","JP-2026-002","JP-2026-003","JP-BETA-001","JP-BETA-002","JP-BETA-003","JP-BETA-004","JP-BETA-005"];
 const esPro = () => CODIGOS_PRO.includes(loadLS("jp_codigo",""));
@@ -110,6 +126,17 @@ function App(){
 
   const setClientes = fn => setClientesR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_clientes",n); return n; });
 
+  // Sincronizar desde Supabase al cargar
+  useEffect(()=>{
+    if (!sb._uid()) return;
+    sb.getAll("clientes").then(data=>{
+      if(data.length>0){
+        const mapped=data.map(c=>({id:c.id,nombre:c.nombre,telefono:c.telefono||"",email:c.email||"",instagram:c.instagram||"",notas:c.notas||"",creadoEn:c.created_at}));
+        setClientesR(mapped); saveLS("jp_clientes",mapped);
+      }
+    });
+  },[]);
+
   function activarPro(){
     const c=codigoInput.trim().toUpperCase();
     if(CODIGOS_PRO.includes(c)){saveLS("jp_codigo",c);setPro(true);setShowProModal(false);setCodigoInput("");setCodigoError("");}
@@ -130,15 +157,19 @@ function App(){
     return { pedidos:pedidosC.length, totalFacturado, ultimoPedido };
   }
 
-  function guardarCliente(){
+  async function guardarCliente(){
     if (!nuevoCliente.nombre.trim()) return;
-    if (!editCliente && !pro && clientes.length >= LIMITE_CLIENTES) {
-      setShowProModal(true); return;
-    }
+    if (!editCliente && !pro && clientes.length >= LIMITE_CLIENTES) { setShowProModal(true); return; }
     if (editCliente) {
       setClientes(p=>p.map(c=>c.id===editCliente.id?{...c,...nuevoCliente}:c));
+      if(sb._uid()) await sb.update("clientes",editCliente.id,{nombre:nuevoCliente.nombre,telefono:nuevoCliente.telefono,email:nuevoCliente.email,instagram:nuevoCliente.instagram,notas:nuevoCliente.notas});
     } else {
-      setClientes(p=>[...p,{id:Date.now(),...nuevoCliente,creadoEn:new Date().toISOString()}]);
+      const tempId = Date.now();
+      setClientes(p=>[...p,{id:tempId,...nuevoCliente,creadoEn:new Date().toISOString()}]);
+      if(sb._uid()){
+        const data = await sb.insert("clientes",{nombre:nuevoCliente.nombre,telefono:nuevoCliente.telefono,email:nuevoCliente.email,instagram:nuevoCliente.instagram,notas:nuevoCliente.notas});
+        if(data?.[0]?.id) setClientes(p=>p.map(c=>c.id===tempId?{...c,id:data[0].id}:c));
+      }
     }
     setShowModal(false); setEditCliente(null);
   }
@@ -226,7 +257,7 @@ function App(){
                 },"WhatsApp"),
                 c.telefono && !pro && h("button",{onClick:e=>{e.stopPropagation();setShowProModal(true);},style:{...BTN,background:"#1a1a2e",border:"1px solid #2a2a4a",color:MUTED,padding:"6px 10px",fontSize:12}},"🔒 WA"),
                 h("button",{onClick:e=>{e.stopPropagation();setEditCliente(c);setNuevoCliente({nombre:c.nombre,telefono:c.telefono||"",email:c.email||"",instagram:c.instagram||"",notas:c.notas||""});setShowModal(true);},style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:MUTED,padding:"6px 10px",fontSize:12}},"✏️"),
-                h("button",{onClick:e=>{e.stopPropagation();if(clienteActivo===c.id)setClienteActivo(null);setClientes(p=>p.filter(x=>x.id!==c.id));},style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"6px 10px",fontSize:12}},"🗑")
+                h("button",{onClick:async e=>{e.stopPropagation();if(clienteActivo===c.id)setClienteActivo(null);setClientes(p=>p.filter(x=>x.id!==c.id));if(sb._uid())await sb.delete("clientes",c.id);},style:{...BTN,background:"transparent",border:"1px solid #2a1a1a",color:"#f87171",padding:"6px 10px",fontSize:12}},"🗑")
               )
             );
           })
