@@ -179,12 +179,35 @@ const DEF_BOR = DEF_V({ costoPrenda:2000, costoHilo:350, costoEntretela:200, can
 const DEF_VIN = DEF_V({ costoVinilo:300, costoTransfer:150, precioViniloRollo:0, anchoRollo:61, largoRollo:1000, anchoDiseno:0, altoDiseno:0, pctDesperdicio:20, tiempoCorte:5, tiempoDesmalezado:10, tiempoAplicacion:10, costoOtrosVin:0, manoObraHora:600, margenDeseado:45 });
 const DEF_LAS = DEF_V({ costoMaterial:500, precioMaterialTotal:0, anchoMaterial:0, altoMaterial:0, pctDesperdicio:10, tiempoCorteMin:0, tiempoGrabadoMin:0, costoConsumiblesHora:200, costoGas:0, costoElectricidadHora:150, manoObraHora:700, margenDeseado:50 });
 
+const DEF_PAP = DEF_V({
+  tipoPapeleria:"cuaderno",
+  // Impresión propia
+  costoTintaHoja:15, costoHojaPapel:8, cantHojas:48,
+  // Tapa
+  costoTapa:120, tipoTapa:"blanda",
+  // Encuadernación
+  tipoEncuad:"espiral", costoEncuad:150,
+  // Stickers específico
+  costoPapelAdh:200, costoLaminado:0, cantStickers:12, tiempoTroquel:5,
+  // Tarjetas/packaging
+  costCartulina:80, costPlastificado:0, costOtrosAcab:0,
+  // Fotoimanes
+  costPapelFoto:60, costBaseImán:80,
+  // Calendarios
+  cantMeses:12,
+  // Tiempo armado
+  tiempoArmadoMin:15,
+  // Generales
+  manoObraHora:700, margenDeseado:50, costosFijos:800, otrosGastos:0
+});
+
 const TABS = [
   { id:"3D", label:"🖨️ 3D", color:"#ff5c1a" },
   { id:"SUB", label:"🎨 Sub", color:"#a78bfa" },
   { id:"BOR", label:"🧵 Bord", color:"#f472b6" },
   { id:"VIN", label:"✂️ Vinilo", color:"#38bdf8" },
   { id:"LAS", label:"⚡ Láser", color:"#fb923c" },
+  { id:"PAP", label:"📓 Papel", color:"#34d399" },
 ];
 
 // ── Calculators ──────────────────────────────────────────────────────
@@ -298,7 +321,33 @@ function calcLas(v, perf) {
   return { costoMat:material, electricidad, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia:precioSugerido-costoTotal, costoMaterialArea, tiempoTotal, consumibles };
 }
 
-// ── Format ───────────────────────────────────────────────────────────
+function calcPap(v, perf) {
+  const elec = perf ? perf.electricidad : v.costoElectricidadHora;
+  const fijos = perf ? (perf.fijosPap||800) : v.costosFijos;
+  const tiempoTotal = (v.tiempoArmadoMin||15) / 60;
+  let costoMat = 0;
+
+  if (v.tipoPapeleria==="cuaderno"||v.tipoPapeleria==="planner"||v.tipoPapeleria==="calendario") {
+    const hojas = v.tipoPapeleria==="calendario" ? (v.cantMeses||12) : (v.cantHojas||48);
+    const impresion = hojas * ((v.costoTintaHoja||15) + (v.costoHojaPapel||8));
+    costoMat = impresion + (v.costoTapa||120) + (v.costoEncuad||150) + (v.otrosGastos||0);
+  } else if (v.tipoPapeleria==="stickers") {
+    costoMat = (v.costoPapelAdh||200) + (v.costoLaminado||0) + (v.otrosGastos||0);
+  } else if (v.tipoPapeleria==="tarjetas"||v.tipoPapeleria==="packaging") {
+    const impresion = (v.cantHojas||1) * ((v.costoTintaHoja||15) + (v.costCartulina||80));
+    costoMat = impresion + (v.costPlastificado||0) + (v.costOtrosAcab||0) + (v.otrosGastos||0);
+  } else if (v.tipoPapeleria==="fotoimanes") {
+    costoMat = (v.costPapelFoto||60) + (v.costBaseImán||80) + (v.otrosGastos||0);
+  }
+
+  const electricidad = tiempoTotal * elec;
+  const manoObra = (v.manoObraHora||0) * (v.horasManoObra||0);
+  const amortH = v.precioMaquina>0?(v.precioMaquina*(1+(v.pctReparaciones||5)/100))/((v.vidaUtilAnios||3)*365*(v.horasUsoDiario||8)):0;
+  const amortizacion = amortH * tiempoTotal;
+  const costoTotal = (costoMat + electricidad + fijos + manoObra + amortizacion) * v.cantidad;
+  const precioSugerido = costoTotal / (1 - v.margenDeseado/100);
+  return { costoMat, electricidad, fijos, manoObra, otrosGastos:0, amortizacion, costoTotal, precioSugerido, ganancia:precioSugerido-costoTotal };
+}
 const fmt = (v) => "$" + Math.round(v).toLocaleString("es-AR");
 
 // ── PDF Export ───────────────────────────────────────────────────────
@@ -647,12 +696,14 @@ function App() {
   const [vBor, setVBor] = useState(()=>loadLS("jp_vBor",DEF_BOR));
   const [vVin, setVVin] = useState(()=>loadLS("jp_vVin",DEF_VIN));
   const [vLas, setVLas] = useState(()=>loadLS("jp_vLas",DEF_LAS));
+  const [vPap, setVPap] = useState(()=>loadLS("jp_vPap",DEF_PAP));
   const mk = (setter, key) => (v) => setter(p=>{ const n={...p,[key]:v}; return n; });
   const mk3D=k=>v=>{setV3D(p=>{const n={...p,[k]:v};saveLS("jp_v3D",n);return n;});};
   const mkSub=k=>v=>{setVSub(p=>{const n={...p,[k]:v};saveLS("jp_vSub",n);return n;});};
   const mkBor=k=>v=>{setVBor(p=>{const n={...p,[k]:v};saveLS("jp_vBor",n);return n;});};
   const mkVin=k=>v=>{setVVin(p=>{const n={...p,[k]:v};saveLS("jp_vVin",n);return n;});};
   const mkLas=k=>v=>{setVLas(p=>{const n={...p,[k]:v};saveLS("jp_vLas",n);return n;});};
+  const mkPap=k=>v=>{setVPap(p=>{const n={...p,[k]:v};saveLS("jp_vPap",n);return n;});};
 
   // Selections
   const [selPerf, setSelPerf] = useState(()=>loadLS("jp_selPerf",""));
@@ -709,14 +760,14 @@ function App() {
 
   // Derived
   const tab = TABS[tabIdx];
-  const is3D = tab.id==="3D", isSub=tab.id==="SUB", isBor=tab.id==="BOR", isVin=tab.id==="VIN", isLas=tab.id==="LAS";
-  const vals = is3D?v3D:isSub?vSub:isBor?vBor:isVin?vVin:vLas;
-  const mkV = k => is3D?mk3D(k):isSub?mkSub(k):isBor?mkBor(k):isVin?mkVin(k):mkLas(k);
+  const is3D = tab.id==="3D", isSub=tab.id==="SUB", isBor=tab.id==="BOR", isVin=tab.id==="VIN", isLas=tab.id==="LAS", isPap=tab.id==="PAP";
+  const vals = is3D?v3D:isSub?vSub:isBor?vBor:isVin?vVin:isLas?vLas:vPap;
+  const mkV = k => is3D?mk3D(k):isSub?mkSub(k):isBor?mkBor(k):isVin?mkVin(k):isLas?mkLas(k):mkPap(k);
   const perfil = perfiles.find(p=>String(p.id)===selPerf);
   const filamento = insumos.find(i=>String(i.id)===selFil);
   const sustrato = insumos.find(i=>String(i.id)===selSus);
   const tinta = insumos.find(i=>String(i.id)===selTin);
-  const res = is3D?calc3D(v3D,filamento,perfil):isSub?calcSub(vSub,sustrato,tinta,perfil):isBor?calcBor(vBor,perfil):isVin?calcVin(vVin,perfil):calcLas(vLas,perfil);
+  const res = is3D?calc3D(v3D,filamento,perfil):isSub?calcSub(vSub,sustrato,tinta,perfil):isBor?calcBor(vBor,perfil):isVin?calcVin(vVin,perfil):isLas?calcLas(vLas,perfil):calcPap(vPap,perfil);
   const ins3D = insumos.filter(i=>(i.tipo==="3D"||i.tipo==="General")&&i.activo);
   const insSub = insumos.filter(i=>(i.tipo==="SUB"||i.tipo==="General")&&i.activo);
   const insF = filterTipo==="Todos"?insumos:insumos.filter(i=>i.tipo===filterTipo);
@@ -1155,6 +1206,81 @@ function App() {
               "⏱️ Tiempo total: ",h("strong",{style:{color:"#38bdf8"}},((vVin.tiempoCorte||0)+(vVin.tiempoDesmalezado||0)+(vVin.tiempoAplicacion||0))+" min")
             )
           ),
+          isPap && h(React.Fragment,null,
+            // Selector de tipo
+            h("div",{style:{marginBottom:14}},
+              h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:"#34d399",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}},"Tipo de producto"),
+              h("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}},
+                [
+                  ["cuaderno","📓","Cuaderno/Libreta"],
+                  ["planner","📅","Planner/Agenda"],
+                  ["stickers","🏷️","Stickers"],
+                  ["tarjetas","💌","Tarjetas"],
+                  ["fotoimanes","🧲","Fotoimanes"],
+                  ["calendario","📆","Calendario"],
+                ].map(([tipo,icon,label])=>
+                  h("button",{key:tipo,
+                    onClick:()=>mkPap("tipoPapeleria")(tipo),
+                    style:{padding:"8px 6px",border:"1px solid",borderColor:vPap.tipoPapeleria===tipo?"#34d399":"#1e1e35",background:vPap.tipoPapeleria===tipo?"#34d39918":"#0a0a14",color:vPap.tipoPapeleria===tipo?"#34d399":MUTED,fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:8,textAlign:"center"}
+                  },h("div",{style:{fontSize:18,marginBottom:2}},icon),label)
+                )
+              )
+            ),
+
+            // Impresión propia — común a casi todos
+            (vPap.tipoPapeleria!=="fotoimanes")&&h("div",{style:{background:"#34d39912",border:"1px solid #34d39930",borderRadius:10,padding:14,marginBottom:12}},
+              h("div",{style:{fontSize:10,fontWeight:700,color:"#34d399",marginBottom:10}},"🖨️ IMPRESIÓN PROPIA"),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Costo tinta por hoja",val:vPap.costoTintaHoja||0,onChange:mkPap("costoTintaHoja"),step:5,unit:"$",tooltip:"Cuánto gastás de tinta por cada hoja impresa. Dividí el costo del cartucho por la cantidad de hojas que rinde."}),
+                h(NumInput,{label:"Costo papel por hoja",val:vPap.costoHojaPapel||0,onChange:mkPap("costoHojaPapel"),step:2,unit:"$",tooltip:"Precio de una hoja de papel. Dividí el paquete por la cantidad de hojas."})
+              ),
+              (vPap.tipoPapeleria==="cuaderno"||vPap.tipoPapeleria==="planner")&&h(NumInput,{label:"Cantidad de hojas internas",val:vPap.cantHojas||48,onChange:mkPap("cantHojas"),step:4,unit:"hojas",tooltip:"Total de hojas impresas (no páginas). Un cuaderno de 96 páginas tiene 48 hojas."}),
+              (vPap.tipoPapeleria==="tarjetas")&&h(NumInput,{label:"Cantidad de tarjetas",val:vPap.cantHojas||10,onChange:mkPap("cantHojas"),step:5,unit:"und",tooltip:"Cuántas tarjetas va el set o pedido."}),
+              (vPap.tipoPapeleria==="calendario")&&h(NumInput,{label:"Cantidad de meses/páginas",val:vPap.cantMeses||12,onChange:mkPap("cantMeses"),step:1,unit:"hojas",tooltip:"12 para calendario anual + 1 hoja de tapa = 13 impresiones."}),
+              (vPap.costoTintaHoja>0||vPap.costoHojaPapel>0)&&h("div",{style:{background:"#34d39918",borderRadius:8,padding:"8px 12px",marginTop:4,fontSize:12,color:"#34d399"}},
+                "Costo impresión: ",h("strong",null,fmt(Math.round(((vPap.costoTintaHoja||0)+(vPap.costoHojaPapel||0))*((vPap.tipoPapeleria==="calendario"?vPap.cantMeses:vPap.cantHojas)||1))))
+              )
+            ),
+
+            // Campos específicos por tipo
+            (vPap.tipoPapeleria==="cuaderno"||vPap.tipoPapeleria==="planner"||vPap.tipoPapeleria==="calendario")&&h(React.Fragment,null,
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
+                h(NumInput,{label:"Costo de tapa",val:vPap.costoTapa||0,onChange:mkPap("costoTapa"),step:50,unit:"$",tooltip:"Costo de la tapa dura, blanda, kraft o cartulina especial."}),
+                h(NumInput,{label:"Costo encuadernación",val:vPap.costoEncuad||0,onChange:mkPap("costoEncuad"),step:50,unit:"$",tooltip:"Espiral, hot melt, cosido, colocación de anillos, etc."})
+              ),
+              h("div",{style:{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}},
+                h("span",{style:{fontSize:11,color:MUTED}},"Tipo encuadernación:"),
+                [["espiral","🌀 Espiral"],["hotmelt","🔥 Hot melt"],["cosido","🧵 Cosido"],["anillas","⭕ Anillas"]].map(([t,l])=>
+                  h("button",{key:t,onClick:()=>mkPap("tipoEncuad")(t),style:{padding:"4px 10px",border:"1px solid",borderColor:vPap.tipoEncuad===t?"#34d399":"#1e1e35",background:vPap.tipoEncuad===t?"#34d39918":"transparent",color:vPap.tipoEncuad===t?"#34d399":MUTED,fontFamily:"inherit",fontSize:11,cursor:"pointer",borderRadius:6,fontWeight:600}},l)
+                )
+              )
+            ),
+
+            vPap.tipoPapeleria==="stickers"&&h(React.Fragment,null,
+              h(NumInput,{label:"Costo papel adhesivo",val:vPap.costoPapelAdh||0,onChange:mkPap("costoPapelAdh"),step:50,unit:"$",tooltip:"Costo de la hoja de papel adhesivo (vinilo o papel sticker)."}),
+              h(NumInput,{label:"Laminado (si aplica)",val:vPap.costoLaminado||0,onChange:mkPap("costoLaminado"),step:50,unit:"$",tooltip:"Laminado brillante, mate o soft touch sobre los stickers."}),
+              h(NumInput,{label:"Cantidad de stickers",val:vPap.cantStickers||12,onChange:mkPap("cantStickers"),step:1,unit:"und",tooltip:"Cuántos stickers entran en una hoja o set."}),
+              h(NumInput,{label:"Tiempo de troquel/corte",val:vPap.tiempoTroquel||5,onChange:mkPap("tiempoTroquel"),step:1,unit:"min",tooltip:"Tiempo de corte con tijera, cutter o troqueladora."})
+            ),
+
+            (vPap.tipoPapeleria==="tarjetas"||vPap.tipoPapeleria==="packaging")&&h(React.Fragment,null,
+              h(NumInput,{label:"Costo cartulina/cartón por hoja",val:vPap.costCartulina||0,onChange:mkPap("costCartulina"),step:20,unit:"$",tooltip:"Precio de la cartulina o cartón usado."}),
+              h(NumInput,{label:"Plastificado/terminación",val:vPap.costPlastificado||0,onChange:mkPap("costPlastificado"),step:50,unit:"$",tooltip:"Brillo UV, plastificado, foil, troquelado especial."}),
+              h(NumInput,{label:"Otros acabados",val:vPap.costOtrosAcab||0,onChange:mkPap("costOtrosAcab"),step:20,unit:"$",tooltip:"Cinta adhesiva, lacito, sobre, etc."})
+            ),
+
+            vPap.tipoPapeleria==="fotoimanes"&&h(React.Fragment,null,
+              h(NumInput,{label:"Costo papel fotográfico",val:vPap.costPapelFoto||0,onChange:mkPap("costPapelFoto"),step:20,unit:"$",tooltip:"Papel fotográfico brillante. Calculá el costo por la superficie del imán."}),
+              h(NumInput,{label:"Costo base magnética",val:vPap.costBaseImán||0,onChange:mkPap("costBaseImán"),step:20,unit:"$",tooltip:"Lámina magnética o base de imán donde se pega la foto."})
+            ),
+
+            // Tiempo de armado — común a todos
+            h(NumInput,{label:"Tiempo de armado",val:vPap.tiempoArmadoMin||15,onChange:mkPap("tiempoArmadoMin"),step:5,unit:"min",tooltip:"Tiempo de ensamble, pegado, armado y control de calidad."}),
+            h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#666"}},
+              "⏱️ Tiempo total: ",h("strong",{style:{color:"#34d399"}},vPap.tiempoArmadoMin+" min")
+            )
+          ),
+
           isLas && h(React.Fragment,null,
             h("div",{style:{background:"#fb923c12",border:"1px solid #fb923c30",borderRadius:10,padding:14,marginBottom:12}},
               h("div",{style:{fontSize:10,fontWeight:700,color:"#fb923c",marginBottom:10}},"📐 CALCULAR POR ÁREA"),
