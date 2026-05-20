@@ -48,6 +48,21 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 24px;height:60px;d
 .section{padding:80px 24px;max-width:1100px;margin:0 auto;}
 .section-label{font-size:11px;font-weight:700;color:#ff5c1a;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:12px;text-align:center;}
 .section-title{font-size:clamp(28px,4vw,44px);font-weight:800;text-align:center;margin-bottom:14px;line-height:1.15;}
+
+/* Cómo funciona */
+.steps{display:flex;flex-direction:column;gap:0;max-width:700px;margin:0 auto;}
+.step{display:grid;grid-template-columns:56px 1fr;gap:20px;padding:32px 0;border-bottom:1px solid #1e1e35;position:relative;}
+.step:last-child{border-bottom:none;}
+.step-left{display:flex;flex-direction:column;align-items:center;gap:0;}
+.step-num{width:44px;height:44px;border-radius:50%;background:#ff5c1a;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0;position:relative;z-index:1;}
+.step-line{flex:1;width:2px;background:linear-gradient(to bottom,#ff5c1a40,transparent);margin-top:4px;}
+.step:last-child .step-line{display:none;}
+.step-icon{font-size:28px;margin-bottom:8px;}
+.step-title{font-size:18px;font-weight:800;margin-bottom:8px;color:#fff;}
+.step-desc{font-size:14px;color:#6b6b8a;line-height:1.7;margin-bottom:12px;}
+.step-detail{display:flex;flex-wrap:wrap;gap:6px;}
+.step-tag{padding:4px 10px;background:rgba(255,92,26,0.1);border:1px solid rgba(255,92,26,0.2);border-radius:100px;font-size:11px;color:#ff8c5a;font-weight:600;}
+@media(max-width:500px){.step{grid-template-columns:40px 1fr;gap:14px;}.step-num{width:36px;height:36px;font-size:14px;}}
 .section-desc{font-size:16px;color:#6b6b8a;text-align:center;max-width:500px;margin:0 auto 56px;line-height:1.7;}
 
 .features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;}
@@ -145,6 +160,110 @@ footer{padding:32px 24px;border-top:1px solid #1e1e35;display:flex;justify-conte
     <span class="type-chip">📓 Papelería</span>
   </div>
 </section>
+
+<!-- Cómo funciona -->
+<div id="features" style="background:#0d0d1a;border-top:1px solid #1e1e35;border-bottom:1px solid #1e1e35;padding:80px 24px;">
+  <div style="max-width:700px;margin:0 auto;">
+    <p class="section-label">Guía paso a paso</p>
+    <h2 class="section-title" style="margin-bottom:8px;">¿Cómo funciona?</h2>
+    <p class="section-desc">En menos de 5 minutos tenés tu primer precio calculado correctamente.</p>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">1</div>
+          <div class="step-line"></div>
+        </div>
+        <div>
+          <div class="step-icon">💸</div>
+          <div class="step-title">Configurá tus costos fijos</div>
+          <div class="step-desc">En <strong style="color:#fff">Mi Taller → Costos fijos</strong> cargás tus gastos mensuales: alquiler, electricidad, internet. Si trabajás desde casa, ponés el porcentaje real que usa el taller — por ejemplo el 20% del alquiler. JotaPrecios calcula automáticamente cuánto le corresponde a cada trabajo.</div>
+          <div class="step-detail">
+            <span class="step-tag">Alquiler proporcional</span>
+            <span class="step-tag">Electricidad del taller</span>
+            <span class="step-tag">Por trabajos o por horas</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">2</div>
+          <div class="step-line"></div>
+        </div>
+        <div>
+          <div class="step-icon">📦</div>
+          <div class="step-title">Cargá tus insumos</div>
+          <div class="step-desc">En <strong style="color:#fff">Mi Taller → Insumos</strong> agregás los materiales que usás con su precio actual. O si tenés el PDF de tu proveedor, subilo y la IA extrae todos los precios automáticamente — vos solo elegís cuáles importar.</div>
+          <div class="step-detail">
+            <span class="step-tag">Filamentos</span>
+            <span class="step-tag">Sustratos</span>
+            <span class="step-tag">Papeles</span>
+            <span class="step-tag">Importador IA ⭐</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">3</div>
+          <div class="step-line"></div>
+        </div>
+        <div>
+          <div class="step-icon">🧮</div>
+          <div class="step-title">Calculá el precio del trabajo</div>
+          <div class="step-desc">Elegís el tipo de trabajo (3D, sublimación, bordado, vinilo, láser o papelería) y completás los datos del trabajo: peso, tiempo, puntadas, área o lo que corresponda. JotaPrecios suma todo — materiales, electricidad, costos fijos, mano de obra y amortización de máquina — y te da el precio sugerido al instante.</div>
+          <div class="step-detail">
+            <span class="step-tag">6 tipos de trabajo</span>
+            <span class="step-tag">Mano de obra</span>
+            <span class="step-tag">Amortización</span>
+            <span class="step-tag">Margen real</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">4</div>
+          <div class="step-line"></div>
+        </div>
+        <div>
+          <div class="step-icon">📄</div>
+          <div class="step-title">Generá el presupuesto PDF</div>
+          <div class="step-desc">Con un clic generás un PDF profesional con el desglose de costos y el precio final. Podés poner el nombre del cliente y el número de pedido. El PDF se abre listo para imprimir o compartir por WhatsApp.</div>
+          <div class="step-detail">
+            <span class="step-tag">PDF con tu marca</span>
+            <span class="step-tag">Desglose de costos</span>
+            <span class="step-tag">3 escenarios de precio</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-left">
+          <div class="step-num">5</div>
+          <div class="step-line"></div>
+        </div>
+        <div>
+          <div class="step-icon">📋</div>
+          <div class="step-title">Guardá como plantilla y gestioná pedidos</div>
+          <div class="step-desc">Si hacés ese trabajo seguido, guardalo como plantilla. La próxima vez cargás en un clic. Cuando confirmás el pedido, lo pasás a la <strong style="color:#fff">Agenda</strong> y seguís su estado (pendiente → en proceso → terminado). Toda la historia queda registrada por cliente.</div>
+          <div class="step-detail">
+            <span class="step-tag">Plantillas reutilizables</span>
+            <span class="step-tag">Agenda de pedidos</span>
+            <span class="step-tag">Historial por cliente</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="text-align:center;margin-top:48px;">
+      <a href="/calculadora-pricing.html"><button class="btn-cta">🧮 Probarlo ahora — es gratis</button></a>
+    </div>
+  </div>
+</div>
 
 <!-- Features -->
 <div id="features">
