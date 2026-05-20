@@ -1034,7 +1034,7 @@ function App() {
     // Barra inferior mobile
     h("div",{style:{position:"fixed",bottom:0,left:0,right:0,background:"#0d0d1e",borderTop:"1px solid #1e1e35",display:"flex",zIndex:200,padding:"6px 0 calc(6px + env(safe-area-inset-bottom))"}},
       [
-        {href:"/",icon:"🏠",label:"Inicio"},
+        {href:"/app",icon:"🏠",label:"Inicio"},
         {icon:"🧮",label:"Calcular",action:()=>setScreen(0)},
         {icon:"🏭",label:"Taller",action:()=>setScreen(1)},
         {href:"/agenda.html",icon:"📅",label:"Agenda"},
@@ -2317,11 +2317,19 @@ tr:hover td{background:#fff8f5;}
         ),
         proModo==="url" && h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:20,marginBottom:14}},
           h("div",{style:{fontSize:10,fontWeight:700,color:"#fbbf24",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}},"🌐 URL de la página del proveedor"),
+          h("div",{style:{fontSize:12,color:MUTED,marginBottom:12,lineHeight:1.6}},"Pegá la URL de la lista de precios de tu proveedor. Funciona mejor en páginas simples con texto. Si el sitio tiene login o bloquea bots, usá el PDF."),
           h("input",{type:"url",value:proUrl,placeholder:"https://proveedor.com/lista-precios",onChange:e=>setProUrl(e.target.value),onKeyDown:e=>e.key==="Enter"&&leerURL(),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12},onFocus:e=>e.target.style.borderColor="#fbbf24",onBlur:e=>e.target.style.borderColor="#2a2a4a"}),
           h("button",{onClick:leerURL,disabled:!proUrl.trim()||proLoading,style:{...BTN,width:"100%",background:proUrl.trim()?"#fbbf24":"#2a2a2a",color:proUrl.trim()?"#0a0a14":"#444",padding:13,fontSize:14,borderRadius:10}},proLoading?"Analizando...":"Analizar página →")
         ),
         proLoading && h("div",{style:{textAlign:"center",padding:"40px 0"}},h("div",{style:{fontSize:36,marginBottom:12,display:"inline-block",animation:"spin 1s linear infinite"}},"⚙️"),h("div",{style:{fontSize:14,color:MUTED}},"Analizando con IA...")),
-        proError && h("div",{style:{background:"#1a0808",border:"1px solid #f8717130",borderRadius:12,padding:16,marginTop:14}},h("div",{style:{fontSize:13,color:"#f87171",fontWeight:700}},"❌ "+proError)),
+        proError && h("div",{style:{background:"#1a0808",border:"1px solid #f8717130",borderRadius:12,padding:16,marginTop:14}},
+          h("div",{style:{fontSize:13,color:"#f87171",fontWeight:700,marginBottom:8}},"❌ "+proError),
+          proError.includes("bloquea")||proError.includes("legible") ? h("div",{style:{fontSize:12,color:"#888",lineHeight:1.6}},
+            "💡 Muchos sitios de proveedores bloquean accesos automáticos. La opción más confiable es ",
+            h("strong",{style:{color:"#fbbf24"}},"descargar el PDF de lista de precios"),
+            " y subirlo con el botón de arriba."
+          ) : null
+        ),
         proResultado && h("div",{style:{marginTop:14}},
           // Header resultado
           h("div",{style:{background:"#0a1a0a",border:"1px solid #22d07a30",borderRadius:12,padding:16,marginBottom:14}},
