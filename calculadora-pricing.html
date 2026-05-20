@@ -2394,7 +2394,7 @@ tr:hover td{background:#fff8f5;}
         // URL
         proModo==="url" && h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:20,marginBottom:14}},
           h("div",{style:{background:"#1a1200",border:"1px solid #fbbf2430",borderRadius:10,padding:"12px 16px",marginBottom:14,fontSize:12,color:"#d4a82a",lineHeight:1.6}},
-            "⚠️ ",h("strong",null,"Este método no siempre funciona.")," Sitios como Defrastore cargan los precios con JavaScript, por eso el servidor no los ve. Si falla, usá ",h("strong",null,"Subir PDF")," o ",h("strong",null,"Pegar texto"),"."
+            "⚠️ ",h("strong",null,"Este método no siempre funciona.")," En ciertos sitios los precios se cargan dinámicamente y el servidor no puede leerlos. Si falla, usá ",h("strong",null,"Subir PDF")," o ",h("strong",null,"Pegar texto"),"."
           ),
           h("input",{type:"url",value:proUrl,placeholder:"https://proveedor.com/lista-precios",onChange:e=>setProUrl(e.target.value),onKeyDown:e=>e.key==="Enter"&&leerURL(),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12},onFocus:e=>e.target.style.borderColor="#fbbf24",onBlur:e=>e.target.style.borderColor="#2a2a4a"}),
           h("button",{onClick:leerURL,disabled:!proUrl.trim()||proLoading,style:{...BTN,width:"100%",background:proUrl.trim()?"#fbbf24":"#2a2a2a",color:proUrl.trim()?"#0a0a14":"#444",padding:13,fontSize:14,borderRadius:10}},proLoading?"Analizando...":"Analizar página →")
