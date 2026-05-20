@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>JotaPrecios — Inicio</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0a14;color:#f0eeff;font-family:'Sora',sans-serif;min-height:100vh;padding-bottom:80px;}
+@media(min-width:768px){body{padding-bottom:0;}}
+.bottom-nav{display:flex;}
+@media(min-width:768px){.bottom-nav{display:none;}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,createElement:h}=React;
+const {createRoot}=ReactDOM;
+
+// Si no tiene sesión ni datos locales, redirigir a landing
+const hasData = localStorage.getItem("jp_uid") || localStorage.getItem("jp_pedidos") || localStorage.getItem("jp_clientes");
+if (!hasData && window.location.pathname === "/" || window.location.pathname === "/index.html") {
+  // Nuevo visitante sin datos — mostrar landing
+  // (si viene de /landing.html no redirigir)
+}
+
+function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
+const fmt=v=>"$"+Math.round(v).toLocaleString("es-AR");
+const MUTED="#6b6b8a";
+const CODIGOS_PRO=["JP-2026-001","JP-2026-002","JP-2026-003","JP-BETA-001","JP-BETA-002","JP-BETA-003","JP-BETA-004","JP-BETA-005"];
+
+function App(){
+  const pro=CODIGOS_PRO.includes(loadLS("jp_codigo",""));
+  const uid=localStorage.getItem("jp_uid");
+  const email=localStorage.getItem("jp_email")||"";
+
+  const pedidos=loadLS("jp_pedidos",[]);
+  const clientes=loadLS("jp_clientes",[]);
+  const historial=loadLS("jp_historial",[]);
+
+  const pedidosPendientes=pedidos.filter(p=>p.estado==="pendiente").length;
+  const pedidosProceso=pedidos.filter(p=>p.estado==="proceso").length;
+  const hoy=new Date().toISOString().split("T")[0];
+  const pedidosHoy=pedidos.filter(p=>p.fechaEntrega===hoy&&p.estado!=="terminado").length;
+  const vencidos=pedidos.filter(p=>p.fechaEntrega&&p.fechaEntrega<hoy&&p.estado!=="terminado");
+  const facturacion=pedidos.filter(p=>p.estado==="terminado"&&p.precio>0).reduce((s,p)=>s+p.precio,0);
+
+  const hora=new Date().getHours();
+  const saludo=hora<12?"Buenos días":hora<19?"Buenas tardes":"Buenas noches";
+  const nombre=uid?(email.split("@")[0]):"";
+
+  const card=(href,icon,label,desc,color)=>
+    h("a",{href,style:{display:"flex",alignItems:"center",gap:12,background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:"16px",textDecoration:"none"}},
+      h("div",{style:{width:42,height:42,borderRadius:10,background:color+"18",border:"1px solid "+color+"30",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}},icon),
+      h("div",null,
+        h("div",{style:{fontSize:14,fontWeight:700,color:"#fff",marginBottom:2}},label),
+        h("div",{style:{fontSize:11,color:MUTED}},desc)
+      )
+    );
+
+  return h("div",{style:{minHeight:"100vh",background:"#0a0a14"}},
+
+    // Header
+    h("div",{style:{background:"#0d0d1e",borderBottom:"1px solid #1e1e35",padding:"0 20px",position:"sticky",top:0,zIndex:50}},
+      h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",maxWidth:900,margin:"0 auto",height:56}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:10}},
+          h("div",{style:{width:32,height:32,borderRadius:8,background:"#ff5c1a",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:16}},"J"),
+          h("div",{style:{fontSize:16,fontWeight:800,color:"#fff"}},"JotaPrecios")
+        ),
+        h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+          pro&&h("div",{style:{background:"#fbbf2418",border:"1px solid #fbbf2440",color:"#fbbf24",fontSize:10,fontWeight:800,padding:"4px 10px",borderRadius:100}},"⭐ PRO"),
+          uid
+            ?h("span",{style:{fontSize:11,color:MUTED}},nombre)
+            :h("a",{href:"/calculadora-pricing.html",style:{fontSize:12,color:"#ff5c1a",textDecoration:"none",fontWeight:700}},"Entrar →")
+        )
+      )
+    ),
+
+    h("div",{style:{maxWidth:900,margin:"0 auto",padding:"20px 16px"}},
+
+      // Saludo
+      h("div",{style:{marginBottom:20}},
+        h("h1",{style:{fontSize:22,fontWeight:800,marginBottom:4}},saludo+(nombre?" ✌️":"")),
+        h("p",{style:{fontSize:13,color:MUTED}},new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"}))
+      ),
+
+      // Alertas
+      (pedidosHoy>0||vencidos.length>0)&&h("div",{style:{display:"flex",flexDirection:"column",gap:8,marginBottom:20}},
+        pedidosHoy>0&&h("a",{href:"/agenda.html",style:{display:"flex",alignItems:"center",gap:12,background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:12,padding:"12px 16px",textDecoration:"none"}},
+          h("span",{style:{fontSize:18}},"📅"),
+          h("span",{style:{fontSize:13,fontWeight:600,color:"#fbbf24",flex:1}},pedidosHoy+" pedido"+(pedidosHoy>1?"s":"")+" para entregar hoy"),
+          h("span",{style:{color:"#fbbf24"}},"→")
+        ),
+        vencidos.length>0&&h("a",{href:"/agenda.html",style:{display:"flex",alignItems:"center",gap:12,background:"#f8717112",border:"1px solid #f8717130",borderRadius:12,padding:"12px 16px",textDecoration:"none"}},
+          h("span",{style:{fontSize:18}},"⚠️"),
+          h("span",{style:{fontSize:13,fontWeight:600,color:"#f87171",flex:1}},vencidos.length+" pedido"+(vencidos.length>1?"s":"")+" vencido"+(vencidos.length>1?"s":"")),
+          h("span",{style:{color:"#f87171"}},"→")
+        )
+      ),
+
+      // Stats
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:24}},
+        [
+          [pedidosPendientes,"🕐 Pendientes","#fbbf24","/agenda.html"],
+          [pedidosProceso,"⚙️ En proceso","#38bdf8","/agenda.html"],
+          [clientes.length,"👥 Clientes","#a78bfa","/clientes.html"],
+          [facturacion>0?fmt(facturacion):"—","💰 Cobrado","#22d07a","/agenda.html"],
+        ].map(([v,l,c,href])=>h("a",{key:l,href,style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:"16px",textDecoration:"none",display:"block"}},
+          h("div",{style:{fontSize:22,fontWeight:900,fontFamily:"monospace",color:c,marginBottom:4}},v),
+          h("div",{style:{fontSize:12,color:MUTED}},l)
+        ))
+      ),
+
+      // Calcular — destacado
+      h("a",{href:"/calculadora-pricing.html",style:{display:"flex",alignItems:"center",gap:16,background:"linear-gradient(135deg,#1a0d00,#ff5c1a18)",border:"1px solid #ff5c1a40",borderLeft:"4px solid #ff5c1a",borderRadius:16,padding:"20px",textDecoration:"none",marginBottom:16}},
+        h("div",{style:{fontSize:36,flexShrink:0}},"🧮"),
+        h("div",{style:{flex:1}},
+          h("div",{style:{fontSize:16,fontWeight:800,color:"#fff",marginBottom:4}},"Calculadora de precios"),
+          h("div",{style:{fontSize:12,color:"#ff8c5a"}},"3D · Sublimación · Bordado · Vinilo · Láser · Papelería")
+        ),
+        h("div",{style:{color:"#ff5c1a",fontSize:22}},"→")
+      ),
+
+      // Administración
+      h("p",{style:{fontSize:11,fontWeight:700,color:MUTED,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"Administración"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}},
+        card("/clientes.html","👥","Clientes",clientes.length+" registrados","#38bdf8"),
+        card("/agenda.html","📅","Agenda",pedidosPendientes+" pendientes","#a78bfa")
+      ),
+
+      // Herramientas
+      h("p",{style:{fontSize:11,fontWeight:700,color:MUTED,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"Herramientas"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}},
+        card("/catalogo.html","🛍️","Catálogo","Lista de precios","#f472b6"),
+        card("/inventario.html","📦","Inventario","Stock de insumos","#fbbf24")
+      ),
+
+      // Pro banner
+      !pro&&h("a",{href:"/calculadora-pricing.html",style:{display:"flex",alignItems:"center",gap:14,background:"#1a120044",border:"1px solid #fbbf2430",borderRadius:16,padding:"16px",textDecoration:"none",marginBottom:20}},
+        h("div",{style:{fontSize:26}},"⭐"),
+        h("div",{style:{flex:1}},
+          h("div",{style:{fontSize:14,fontWeight:700,color:"#fbbf24",marginBottom:2}},"Activar Plan Pro"),
+          h("div",{style:{fontSize:11,color:"#888"}},"Clientes ilimitados · Calendario · Importador IA")
+        ),
+        h("div",{style:{color:"#fbbf24",fontSize:18}},"→")
+      ),
+
+      // Últimos presupuestos
+      historial.length>0&&h("div",null,
+        h("p",{style:{fontSize:11,fontWeight:700,color:MUTED,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}},"Últimos presupuestos"),
+        h("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+          historial.slice(0,3).map(e=>h("div",{key:e.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:"#12121f",border:"1px solid #1e1e35",borderRadius:12,padding:"12px 16px"}},
+            h("div",null,
+              h("div",{style:{fontSize:13,fontWeight:600,marginBottom:2}},e.tipo),
+              h("div",{style:{fontSize:11,color:MUTED}},e.fecha)
+            ),
+            h("div",{style:{textAlign:"right"}},
+              h("div",{style:{fontSize:15,fontWeight:800,fontFamily:"monospace",color:"#ff5c1a"}},fmt(e.precioSugerido)),
+              h("div",{style:{fontSize:11,color:"#22d07a"}},e.margen+"%")
+            )
+          ))
+        )
+      )
+    ),
+
+    // Barra inferior mobile
+    h("div",{className:"bottom-nav",style:{position:"fixed",bottom:0,left:0,right:0,background:"#0d0d1e",borderTop:"1px solid #1e1e35",zIndex:100,padding:"6px 0 calc(6px + env(safe-area-inset-bottom))"}},
+      [
+        {href:"/",icon:"🏠",label:"Inicio",active:true},
+        {href:"/calculadora-pricing.html",icon:"🧮",label:"Calcular"},
+        {href:"/clientes.html",icon:"👥",label:"Clientes"},
+        {href:"/agenda.html",icon:"📅",label:"Agenda"},
+        {href:"/catalogo.html",icon:"🛍️",label:"Más"},
+      ].map(item=>h("a",{key:item.label,href:item.href,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,textDecoration:"none",padding:"4px 0"}},
+        h("span",{style:{fontSize:22,lineHeight:1}},item.icon),
+        h("span",{style:{fontSize:9,fontWeight:700,color:item.active?"#ff5c1a":MUTED,letterSpacing:"0.03em"}},item.label.toUpperCase())
+      ))
+    )
+  );
+}
+
+createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>
