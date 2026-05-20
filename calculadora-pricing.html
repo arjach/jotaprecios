@@ -2401,12 +2401,12 @@ tr:hover td{background:#fff8f5;}
         ),
         proLoading && h("div",{style:{textAlign:"center",padding:"40px 0"}},h("div",{style:{fontSize:36,marginBottom:12,display:"inline-block",animation:"spin 1s linear infinite"}},"⚙️"),h("div",{style:{fontSize:14,color:MUTED}},"Analizando con IA...")),
         proError && h("div",{style:{background:"#1a0808",border:"1px solid #f8717130",borderRadius:12,padding:16,marginTop:14}},
-          h("div",{style:{fontSize:13,color:"#f87171",fontWeight:700,marginBottom:8}},"❌ "+proError),
-          proError.includes("bloquea")||proError.includes("legible") ? h("div",{style:{fontSize:12,color:"#888",lineHeight:1.6}},
-            "💡 Muchos sitios de proveedores bloquean accesos automáticos. La opción más confiable es ",
-            h("strong",{style:{color:"#fbbf24"}},"descargar el PDF de lista de precios"),
-            " y subirlo con el botón de arriba."
-          ) : null
+          h("div",{style:{fontSize:13,color:"#f87171",fontWeight:700,marginBottom:6}},"❌ "+proError),
+          (proError.includes("demanda")||proError.includes("límite"))
+            ? h("div",{style:{fontSize:12,color:"#888",lineHeight:1.6}},"⏳ Es un problema temporal del servicio de IA. Esperá 1-2 minutos y volvé a intentarlo.")
+            : (proError.includes("bloquea")||proError.includes("legible"))
+              ? h("div",{style:{fontSize:12,color:"#888",lineHeight:1.6}},"💡 Usá ",h("strong",{style:{color:"#fbbf24"}},"Subir PDF")," o ",h("strong",{style:{color:"#38bdf8"}},"Pegar texto")," que siempre funcionan.")
+              : null
         ),
         proResultado && h("div",{style:{marginTop:14}},
           // Header resultado

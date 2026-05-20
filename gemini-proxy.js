@@ -165,7 +165,16 @@ Reglas: precio siempre como número sin símbolos. tipo "3D" para filamentos/res
     );
 
     const data = await geminiRes.json();
-    if (!geminiRes.ok) throw new Error(data.error?.message || "Error de Gemini");
+    if (!geminiRes.ok) {
+      const msg = data.error?.message || "";
+      if (geminiRes.status === 503 || msg.includes("high demand") || msg.includes("overloaded")) {
+        throw new Error("El servicio de IA está con alta demanda en este momento. Esperá unos minutos y volvé a intentarlo.");
+      }
+      if (geminiRes.status === 429) {
+        throw new Error("Se alcanzó el límite de solicitudes. Esperá unos segundos y volvé a intentarlo.");
+      }
+      throw new Error(msg || "Error de IA: " + geminiRes.status);
+    }
 
     const txt = data.candidates[0].content.parts[0].text
       .trim()
