@@ -10,7 +10,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; }
+body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; padding-bottom:70px; }
+@media(min-width:768px){ body { padding-bottom:0; } }
 #root { min-height:100vh; }
 .calc-grid { display:grid; grid-template-columns:1fr 380px; gap:24px; align-items:start; max-width:1100px; margin:0 auto; padding:24px; }
 .result-sticky { position:sticky; top:80px; }
@@ -996,41 +997,55 @@ function App() {
 
   return h("div", { style:{ minHeight:"100vh", background:"#0a0a14", fontFamily:"'Sora',sans-serif", color:"#f0eeff" } },
 
-    // ── Header ──
-    h("div", { style:{ background:"#0d0d1e", borderBottom:"1px solid #1e1e35", padding:"0 24px", position:"sticky", top:0, zIndex:50 } },
-      h("div", { style:{ display:"flex", alignItems:"center", justifyContent:"space-between", maxWidth:1100, margin:"0 auto", height:60 } },
-        h("a", { href:"/", style:{ display:"flex", alignItems:"center", gap:12, textDecoration:"none" } },
-          h("div", { style:{ width:32, height:32, borderRadius:8, background:"#ff5c1a", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"#fff", fontSize:16 } }, "J"),
-          h("div", null,
-            h("div", { style:{ fontSize:16, fontWeight:800, color:"#fff" } }, "JotaPrecios"),
-            h("div", { style:{ fontSize:9, color:"#444", letterSpacing:"0.08em" } }, "CALCULADORA DE PRECIOS")
+    // ── Header minimalista ──
+    h("div",{style:{background:"#0d0d1e",borderBottom:"1px solid #1e1e35",padding:"0 16px",position:"sticky",top:0,zIndex:50}},
+      h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",maxWidth:1100,margin:"0 auto",height:52}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:10}},
+          h("a",{href:"/",style:{display:"flex",alignItems:"center",gap:8,textDecoration:"none"}},
+            h("div",{style:{width:28,height:28,borderRadius:7,background:"#ff5c1a",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:14}},"J"),
+            h("div",{style:{fontSize:14,fontWeight:800,color:"#fff"}},"JotaPrecios")
+          ),
+          h("div",{style:{display:"flex",gap:2,marginLeft:6}},
+            ["🧮","🏭","📋","📊","⭐","🔍","🎯","📦"].map((icon,i)=>
+              h("button",{key:i,onClick:()=>setScreen(i),title:["Calcular","Mi Taller","Historial","Dashboard","Pro","Proveedores","Simulador","Pedidos"][i],style:{padding:"5px 8px",border:"none",background:screen===i?"#ff5c1a18":"none",borderRadius:7,color:screen===i?(i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a"):MUTED,fontFamily:"inherit",fontSize:14,cursor:"pointer",borderBottom:screen===i?("2px solid "+(i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a")):"2px solid transparent"}},icon)
+            )
           )
         ),
-        h("div", { style:{ display:"flex", alignItems:"center", gap:4, flexWrap:"wrap" } },
-          h("div",{style:{display:"flex",gap:4,borderRight:"1px solid #1e1e35",paddingRight:8,marginRight:4}},
-            h("a",{href:"/clientes.html",style:{padding:"7px 10px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"👥 Clientes"),
-            h("a",{href:"/agenda.html",style:{padding:"7px 10px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"📅 Agenda"),
-            h("a",{href:"/catalogo.html",style:{padding:"7px 10px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"🛍️ Catálogo"),
-            h("a",{href:"/inventario.html",style:{padding:"7px 10px",borderRadius:8,textDecoration:"none",color:MUTED,fontWeight:700,fontSize:11,border:"none",background:"none"}},"📦 Inventario")
-          ),
-          ["🧮 Calcular","🏭 Mi Taller","📋 Historial","📊 Dashboard","⭐ Pro","🔍 Proveedores","🎯 Simulador","📦 Pedidos"].map((s,i) =>
-            h("button", { key:s, onClick:()=>setScreen(i), style:{ padding:"8px 10px", border:"none", background:screen===i?"#ff5c1a18":"none", borderRadius:8, color:screen===i?(i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a"):MUTED, fontFamily:"inherit", fontWeight:700, fontSize:10, cursor:"pointer", borderBottom:screen===i?`2px solid ${i===4?"#fbbf24":i===5?"#38bdf8":i===6?"#a78bfa":"#ff5c1a"}`:"2px solid transparent" } }, s)
-          ),
+        h("div",{style:{display:"flex",alignItems:"center",gap:6}},
           esPro
-            ? h("div", { title:"Clic para desactivar", onClick:()=>{saveLS("jp_codigo","");setEsPro(false);}, style:{ marginLeft:6, background:"#fbbf2418", border:"1px solid #fbbf2440", color:"#fbbf24", fontSize:10, fontWeight:800, padding:"5px 10px", borderRadius:100, cursor:"pointer" } }, "⭐ PRO")
-            : h("button", { onClick:()=>setShowCodigo(true), style:{ marginLeft:6, background:"#fbbf2412", border:"1px solid #fbbf2430", color:"#fbbf24", fontSize:11, fontWeight:700, padding:"5px 12px", borderRadius:100, cursor:"pointer", fontFamily:"inherit" } }, "⭐ Activar Pro"),
-          user
-            ? h("div", { style:{ display:"flex", alignItems:"center", gap:8, marginLeft:8, paddingLeft:8, borderLeft:"1px solid #1e1e35" } },
-                syncLoading && h("div",{style:{fontSize:10,color:"#444"}},"↻"),
-                h("div",{style:{fontSize:11,color:"#555",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},user.email),
-                h("button",{onClick:handleLogout,style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#444",padding:"5px 10px",fontSize:10,borderRadius:8}},"Salir")
-              )
-            : h("div", { style:{ display:"flex", gap:6, marginLeft:8, paddingLeft:8, borderLeft:"1px solid #1e1e35" } },
-                h("button",{onClick:()=>setShowAuthModal(true),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:"#aaa",padding:"6px 12px",fontSize:11,borderRadius:8}},"Iniciar sesión"),
-                h("button",{onClick:()=>{ setShowAuthModal(true); setAuthModoInicial("registro"); },style:{...BTN,background:"#ff5c1a",color:"#fff",padding:"6px 12px",fontSize:11,borderRadius:8}},"Crear cuenta →")
-              )
+            ?h("div",{title:"Clic para desactivar",onClick:()=>{saveLS("jp_codigo","");setEsPro(false);},style:{background:"#fbbf2418",border:"1px solid #fbbf2440",color:"#fbbf24",fontSize:10,fontWeight:800,padding:"4px 9px",borderRadius:100,cursor:"pointer"}},"⭐")
+            :h("button",{onClick:()=>setShowCodigo(true),style:{background:"#fbbf2412",border:"1px solid #fbbf2430",color:"#fbbf24",fontSize:10,fontWeight:700,padding:"4px 9px",borderRadius:100,cursor:"pointer",fontFamily:"inherit"}},"⭐ Pro"),
+          h("div",{style:{display:"flex",alignItems:"center",gap:5,paddingLeft:6,borderLeft:"1px solid #1e1e35"}},
+            syncLoading&&h("span",{style:{fontSize:11,color:"#444"}},"↻"),
+            user
+              ?h("div",{style:{display:"flex",alignItems:"center",gap:5}},
+                  h("span",{style:{fontSize:11,color:"#555",maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},user.email.split("@")[0]),
+                  h("button",{onClick:handleLogout,style:{background:"transparent",border:"1px solid #1e1e35",color:"#444",padding:"4px 7px",fontSize:10,borderRadius:7,cursor:"pointer",fontFamily:"inherit",fontWeight:600}},"Salir")
+                )
+              :h("div",{style:{display:"flex",gap:5}},
+                  h("button",{onClick:()=>setShowAuthModal(true),style:{background:"transparent",border:"1px solid #1e1e35",color:"#aaa",padding:"4px 9px",fontSize:10,borderRadius:7,cursor:"pointer",fontFamily:"inherit",fontWeight:600}},"Ingresar"),
+                  h("button",{onClick:()=>{setShowAuthModal(true);setAuthModoInicial("registro");},style:{background:"#ff5c1a",border:"none",color:"#fff",padding:"4px 9px",fontSize:10,borderRadius:7,cursor:"pointer",fontFamily:"inherit",fontWeight:700}},"Registro")
+                )
+          )
         )
       )
+    ),
+
+    // Barra inferior mobile
+    h("div",{style:{position:"fixed",bottom:0,left:0,right:0,background:"#0d0d1e",borderTop:"1px solid #1e1e35",display:"flex",zIndex:200,padding:"6px 0 calc(6px + env(safe-area-inset-bottom))"}},
+      [
+        {href:"/",icon:"🏠",label:"Inicio"},
+        {icon:"🧮",label:"Calcular",action:()=>setScreen(0)},
+        {icon:"🏭",label:"Taller",action:()=>setScreen(1)},
+        {href:"/agenda.html",icon:"📅",label:"Agenda"},
+        {icon:"📊",label:"Dashboard",action:()=>setScreen(3)},
+      ].map((item,i)=>{
+        const isActive=(item.href==="/"&&false)||(item.action&&screen===[0,0,1,null,3][i]);
+        return h(item.href?"a":"button",{key:item.label,...(item.href?{href:item.href}:{onClick:item.action}),style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,textDecoration:"none",padding:"4px 0",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit"}},
+          h("span",{style:{fontSize:20,lineHeight:1}},item.icon),
+          h("span",{style:{fontSize:9,fontWeight:700,color:MUTED,letterSpacing:"0.02em"}},item.label.toUpperCase())
+        );
+      })
     ),
 
     // Banner para usuarios sin cuenta
