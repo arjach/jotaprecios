@@ -754,8 +754,9 @@ function App() {
   const [proLoading, setProLoading] = useState(false);
   const [proError, setProError] = useState(null);
   const [proResultado, setProResultado] = useState(null);
-  const [proSeleccion, setProSeleccion] = useState({}); // id -> bool
+  const [proSeleccion, setProSeleccion] = useState({});
   const [proUrl, setProUrl] = useState("");
+  const [proTexto, setProTexto] = useState("");
   const [proModo, setProModo] = useState("pdf");
   const fileRef = useRef(null);
 
@@ -2294,30 +2295,107 @@ tr:hover td{background:#fff8f5;}
 
     // ── PRO ──
     screen===4 && h("div",{style:{maxWidth:900,margin:"0 auto",padding:"24px"}},
-      !esPro && lockScreen("⭐","Importador de precios Pro","Subí el PDF de tu proveedor o pegá la URL de su web y cargamos los precios automáticamente."),
+      !esPro && lockScreen("⭐","Importador de precios Pro","Subí el PDF de tu proveedor o pegá el texto de su web y cargamos los precios automáticamente."),
       esPro && h(React.Fragment,null,
-        h("div",{style:{background:"linear-gradient(135deg,#1a1200,#12121f)",border:"1px solid #fbbf2430",borderRadius:14,padding:20,marginBottom:16,textAlign:"center"}},
+        h("div",{style:{background:"linear-gradient(135deg,#1a1200,#12121f)",border:"1px solid #fbbf2430",borderRadius:14,padding:20,marginBottom:20,textAlign:"center"}},
           h("div",{style:{fontSize:28,marginBottom:8}},"⭐"),
           h("div",{style:{fontWeight:800,fontSize:18,marginBottom:4}},"Importador de precios Pro"),
-          h("div",{style:{fontSize:13,color:MUTED,lineHeight:1.5}},"Subí el PDF de tu proveedor o pegá la URL de su web y cargamos los precios automáticamente en Mi Taller.")
+          h("div",{style:{fontSize:13,color:MUTED,lineHeight:1.5}},"Tres formas de importar la lista de precios de tu proveedor.")
         ),
+
+        // Guía de cuál usar
+        h("div",{style:{background:"#0a0a14",border:"1px solid #1e1e35",borderRadius:14,padding:16,marginBottom:20}},
+          h("div",{style:{fontSize:11,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:12}},"💡 ¿Cuál método usar?"),
+          h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10}},
+            [
+              ["📄","Subir PDF","✅ Recomendado","Para cualquier proveedor con lista de precios en PDF. En Chrome: abrís la página, presionás Ctrl+P → Guardar como PDF, y subís el archivo acá.","#22d07a"],
+              ["📋","Pegar texto","✅ Siempre funciona","Abrís la página, seleccionás todo (Ctrl+A), copiás (Ctrl+C) y pegás acá. Funciona con cualquier sitio sin importar cómo carga.","#38bdf8"],
+              ["🌐","Pegar URL","⚠️ No siempre","Solo funciona en páginas simples con texto estático. Sitios con login o precios cargados con JavaScript pueden no funcionar.","#fbbf24"],
+            ].map(([icon,label,status,desc,color])=>
+              h("div",{key:label,style:{background:"#12121f",borderRadius:10,padding:14,border:"1px solid #1e1e35"}},
+                h("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}},
+                  h("span",{style:{fontSize:20}},icon),
+                  h("span",{style:{fontWeight:700,fontSize:13}},label),
+                  h("span",{style:{fontSize:10,background:color+"18",color,padding:"2px 8px",borderRadius:100,fontWeight:700}},status)
+                ),
+                h("div",{style:{fontSize:12,color:MUTED,lineHeight:1.6}},desc)
+              )
+            )
+          )
+        ),
+
+        // Tabs
         h("div",{style:{display:"flex",gap:8,marginBottom:16}},
           h("button",{onClick:()=>{setProModo("pdf");setProResultado(null);setProError(null);},style:tabBtn(proModo==="pdf","#fbbf24")},"📄 Subir PDF"),
-          h("button",{onClick:()=>{setProModo("url");setProResultado(null);setProError(null);},style:tabBtn(proModo==="url","#fbbf24")},"🌐 Pegar URL")
+          h("button",{onClick:()=>{setProModo("texto");setProResultado(null);setProError(null);},style:tabBtn(proModo==="texto","#fbbf24")},"📋 Pegar texto"),
+          h("button",{onClick:()=>{setProModo("url");setProResultado(null);setProError(null);},style:tabBtn(proModo==="url","#fbbf24")},"🌐 URL")
         ),
-        proModo==="pdf" && h("div",{onClick:()=>fileRef.current?.click(),
-          onDragOver:e=>{e.preventDefault();e.currentTarget.style.borderColor="#fbbf24";},
-          onDragLeave:e=>e.currentTarget.style.borderColor="#1e1e35",
-          onDrop:e=>{e.preventDefault();e.currentTarget.style.borderColor="#1e1e35";const f=e.dataTransfer.files[0];if(f?.type==="application/pdf")leerPDF(f);else setProError("El archivo debe ser PDF");},
-          style:{background:"#12121f",border:"2px dashed #1e1e35",borderRadius:14,padding:"36px 20px",textAlign:"center",cursor:"pointer",marginBottom:14}},
-          h("div",{style:{fontSize:36,marginBottom:10}},"📄"),
-          h("div",{style:{fontWeight:700,fontSize:14,marginBottom:4}},"Arrastrá el PDF acá"),
-          h("div",{style:{fontSize:12,color:MUTED}},"o hacé clic para seleccionarlo"),
-          h("input",{ref:fileRef,type:"file",accept:".pdf",style:{display:"none"},onChange:e=>{const f=e.target.files[0];if(f)leerPDF(f);}})
+
+        // PDF
+        proModo==="pdf" && h("div",null,
+          h("div",{style:{background:"#0a1a0a",border:"1px solid #22d07a30",borderRadius:10,padding:"12px 16px",marginBottom:12,fontSize:12,color:"#9ad4b0",lineHeight:1.6}},
+            h("strong",{style:{color:"#22d07a"}},"📋 Cómo obtener el PDF de cualquier proveedor:"),
+            h("ol",{style:{paddingLeft:18,marginTop:6,display:"flex",flexDirection:"column",gap:4}},
+              h("li",null,"Abrís la página de lista de precios en Chrome"),
+              h("li",null,"Presionás ",h("kbd",{style:{background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:4,padding:"1px 6px",fontSize:11}},"Ctrl+P")," (o Cmd+P en Mac)"),
+              h("li",null,"En destino elegís ",h("strong",null,"\"Guardar como PDF\""),h("li",null,"Guardás y subís acá abajo"))
+            )
+          ),
+          h("div",{onClick:()=>fileRef.current?.click(),
+            onDragOver:e=>{e.preventDefault();e.currentTarget.style.borderColor="#fbbf24";},
+            onDragLeave:e=>e.currentTarget.style.borderColor="#1e1e35",
+            onDrop:e=>{e.preventDefault();e.currentTarget.style.borderColor="#1e1e35";const f=e.dataTransfer.files[0];if(f?.type==="application/pdf")leerPDF(f);else setProError("El archivo debe ser PDF");},
+            style:{background:"#12121f",border:"2px dashed #1e1e35",borderRadius:14,padding:"32px 20px",textAlign:"center",cursor:"pointer",marginBottom:14}},
+            h("div",{style:{fontSize:36,marginBottom:10}},"📄"),
+            h("div",{style:{fontWeight:700,fontSize:14,marginBottom:4}},"Arrastrá el PDF acá"),
+            h("div",{style:{fontSize:12,color:MUTED}},"o hacé clic para seleccionarlo"),
+            h("input",{ref:fileRef,type:"file",accept:".pdf",style:{display:"none"},onChange:e=>{const f=e.target.files[0];if(f)leerPDF(f);}})
+          )
         ),
+
+        // Texto pegado
+        proModo==="texto" && h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:20,marginBottom:14}},
+          h("div",{style:{background:"#0a1438",border:"1px solid #38bdf830",borderRadius:10,padding:"12px 16px",marginBottom:14,fontSize:12,color:"#7dd3fc",lineHeight:1.6}},
+            h("strong",{style:{color:"#38bdf8"}},"📋 Cómo copiar el texto de cualquier página:"),
+            h("ol",{style:{paddingLeft:18,marginTop:6,display:"flex",flexDirection:"column",gap:4}},
+              h("li",null,"Abrís la página de precios del proveedor"),
+              h("li",null,"Presionás ",h("kbd",{style:{background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:4,padding:"1px 6px",fontSize:11}},"Ctrl+A")," para seleccionar todo"),
+              h("li",null,"Presionás ",h("kbd",{style:{background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:4,padding:"1px 6px",fontSize:11}},"Ctrl+C")," para copiar"),
+              h("li",null,"Pegás con ",h("kbd",{style:{background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:4,padding:"1px 6px",fontSize:11}},"Ctrl+V")," en el cuadro de abajo")
+            )
+          ),
+          h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}},"Texto copiado de la página"),
+          h("textarea",{
+            value:proTexto||"",
+            onChange:e=>setProTexto(e.target.value),
+            placeholder:"Pegá acá el texto de la página del proveedor (Ctrl+A, Ctrl+C en la página, luego Ctrl+V acá)...",
+            rows:8,
+            style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical",marginBottom:12},
+            onFocus:e=>e.target.style.borderColor="#38bdf8",
+            onBlur:e=>e.target.style.borderColor="#2a2a4a"
+          }),
+          h("button",{
+            onClick:async()=>{
+              if(!proTexto?.trim()){setProError("Pegá el texto primero");return;}
+              setProLoading(true);setProError(null);setProResultado(null);
+              try{
+                const resultado=await llamarGemini(proTexto);
+                const sel={};(resultado.insumos||[]).forEach((_,i)=>sel[i]=true);
+                setProSeleccion(sel);
+                setProResultado({ok:true,...resultado});
+              }catch(e){setProError(e.message);}
+              finally{setProLoading(false);}
+            },
+            disabled:!proTexto?.trim()||proLoading,
+            style:{...BTN,width:"100%",background:proTexto?.trim()?"#38bdf8":"#2a2a2a",color:proTexto?.trim()?"#0a0a14":"#444",padding:13,fontSize:14,borderRadius:10}
+          },proLoading?"Analizando...":"Analizar texto →")
+        ),
+
+        // URL
         proModo==="url" && h("div",{style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:20,marginBottom:14}},
-          h("div",{style:{fontSize:10,fontWeight:700,color:"#fbbf24",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}},"🌐 URL de la página del proveedor"),
-          h("div",{style:{fontSize:12,color:MUTED,marginBottom:12,lineHeight:1.6}},"Pegá la URL de la lista de precios de tu proveedor. Funciona mejor en páginas simples con texto. Si el sitio tiene login o bloquea bots, usá el PDF."),
+          h("div",{style:{background:"#1a1200",border:"1px solid #fbbf2430",borderRadius:10,padding:"12px 16px",marginBottom:14,fontSize:12,color:"#d4a82a",lineHeight:1.6}},
+            "⚠️ ",h("strong",null,"Este método no siempre funciona.")," Sitios como Defrastore cargan los precios con JavaScript, por eso el servidor no los ve. Si falla, usá ",h("strong",null,"Subir PDF")," o ",h("strong",null,"Pegar texto"),"."
+          ),
           h("input",{type:"url",value:proUrl,placeholder:"https://proveedor.com/lista-precios",onChange:e=>setProUrl(e.target.value),onKeyDown:e=>e.key==="Enter"&&leerURL(),style:{width:"100%",background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"12px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12},onFocus:e=>e.target.style.borderColor="#fbbf24",onBlur:e=>e.target.style.borderColor="#2a2a4a"}),
           h("button",{onClick:leerURL,disabled:!proUrl.trim()||proLoading,style:{...BTN,width:"100%",background:proUrl.trim()?"#fbbf24":"#2a2a2a",color:proUrl.trim()?"#0a0a14":"#444",padding:13,fontSize:14,borderRadius:10}},proLoading?"Analizando...":"Analizar página →")
         ),
