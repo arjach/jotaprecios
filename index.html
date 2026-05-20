@@ -22,6 +22,13 @@ body{background:#0a0a14;color:#f0eeff;font-family:'Sora',sans-serif;min-height:1
 const {useState,createElement:h}=React;
 const {createRoot}=ReactDOM;
 
+// Si no tiene sesión ni datos locales, redirigir a landing
+const hasData = localStorage.getItem("jp_uid") || localStorage.getItem("jp_pedidos") || localStorage.getItem("jp_clientes");
+if (!hasData && window.location.pathname === "/" || window.location.pathname === "/index.html") {
+  // Nuevo visitante sin datos — mostrar landing
+  // (si viene de /landing.html no redirigir)
+}
+
 function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
 const fmt=v=>"$"+Math.round(v).toLocaleString("es-AR");
 const MUTED="#6b6b8a";
@@ -164,7 +171,7 @@ function App(){
     // Barra inferior mobile
     h("div",{className:"bottom-nav",style:{position:"fixed",bottom:0,left:0,right:0,background:"#0d0d1e",borderTop:"1px solid #1e1e35",zIndex:100,padding:"6px 0 calc(6px + env(safe-area-inset-bottom))"}},
       [
-        {href:"/",icon:"🏠",label:"Inicio",active:true},
+        {href:"/landing.html",icon:"🏠",label:"Inicio",active:true},
         {href:"/calculadora-pricing.html",icon:"🧮",label:"Calcular"},
         {href:"/clientes.html",icon:"👥",label:"Clientes"},
         {href:"/agenda.html",icon:"📅",label:"Agenda"},
