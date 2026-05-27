@@ -10,7 +10,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; min-height:100vh; }
+body { background:#0a0a14; color:#f0eeff; font-family:'Sora',sans-serif; min-height:100vh; padding-bottom:70px; }
+@media(min-width:768px){ body { padding-bottom:0; } }
 input:focus,select:focus,textarea:focus { outline:none; border-color:#ff5c1a !important; }
 </style>
 <!-- Google Analytics -->
@@ -387,6 +388,20 @@ function App(){
       ),
       h(Field,{label:"Notas",value:nuevoPedido.notas,onChange:v=>setNuevoPedido(p=>({...p,notas:v})),placeholder:"Colores, medidas, detalles..."}),
       h("button",{onClick:guardarPedido,style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,borderRadius:10,fontSize:14}},editPedido?"💾 Guardar cambios":"📅 Crear pedido")
+    ),
+
+    // Barra inferior mobile
+    h("div",{style:{position:"fixed",bottom:0,left:0,right:0,background:"#0d0d1e",borderTop:"1px solid #1e1e35",display:"flex",zIndex:200,padding:"6px 0 calc(6px + env(safe-area-inset-bottom))"}},
+      [
+        {href:"/app",icon:"🏠",label:"Inicio"},
+        {href:"/calculadora-pricing.html",icon:"🧮",label:"Calcular"},
+        {href:"/clientes.html",icon:"👥",label:"Clientes"},
+        {href:"/agenda.html",icon:"📅",label:"Agenda",active:true},
+        {href:"/catalogo.html",icon:"🛍️",label:"Más"},
+      ].map(item=>h("a",{key:item.label,href:item.href,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,textDecoration:"none",padding:"4px 0"}},
+        h("span",{style:{fontSize:20,lineHeight:1}},item.icon),
+        h("span",{style:{fontSize:9,fontWeight:700,color:item.active?"#ff5c1a":MUTED,letterSpacing:"0.03em"}},item.label.toUpperCase())
+      ))
     )
   );
 }
