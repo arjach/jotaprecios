@@ -2147,20 +2147,30 @@ tr:hover td{background:#fff8f5;}
       !esPro && lockScreen("📊","Dashboard Pro","El dashboard de rentabilidad es exclusivo del plan Pro."),
       esPro && h(React.Fragment,null,
         h("div",{style:{fontWeight:700,fontSize:20,marginBottom:24}},"📊 Dashboard de rentabilidad"),
-        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:16,marginBottom:24}},
-          [
-            ["Presupuestos",historial.length,"📋","#ff5c1a"],
-            ["Ganancia total",fmt(historial.reduce((s,e)=>s+e.ganancia,0)),"💰","#22d07a"],
-            ["Margen promedio",(historial.length?Math.round(historial.reduce((s,e)=>s+e.margen,0)/historial.length):0)+"%","📈","#a78bfa"],
-            ["Precio promedio",fmt(historial.length?historial.reduce((s,e)=>s+e.precioSugerido,0)/historial.length:0),"🏷️","#38bdf8"],
-          ].map(([label,value,icon,color])=>
-            h("div",{key:label,style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:20}},
-              h("div",{style:{fontSize:24,marginBottom:8}},icon),
-              h("div",{style:{fontSize:24,fontWeight:800,color,fontFamily:"monospace",marginBottom:4}},value),
-              h("div",{style:{fontSize:12,color:MUTED}},label)
+        (() => {
+          // Calcular ganancia total real desde pedidos terminados con margen propio
+          const pedTerm = pedidos.filter(p=>p.estado==="terminado"&&p.precio>0);
+          const margenFallbackStats = dashMargen !== null ? dashMargen : (historial.length>0?Math.round(historial.reduce((s,e)=>s+e.margen,0)/historial.length):40);
+          const gananciaTotalPedidos = pedTerm.reduce((s,p)=>s+(p.precio*((p.margen>0?p.margen:margenFallbackStats)/100)),0);
+          const gananciaPromPedidos = pedTerm.length>0 ? gananciaTotalPedidos/pedTerm.length : null;
+          const margenPromStats = pedTerm.length>0 ? Math.round(pedTerm.reduce((s,p)=>s+(p.margen>0?p.margen:margenFallbackStats),0)/pedTerm.length) : (historial.length?Math.round(historial.reduce((s,e)=>s+e.margen,0)/historial.length):0);
+          const gananciaTotal = pedTerm.length>0 ? gananciaTotalPedidos : historial.reduce((s,e)=>s+e.ganancia,0);
+
+          return h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:16,marginBottom:24}},
+            [
+              ["Presupuestos",historial.length,"📋","#ff5c1a"],
+              ["Ganancia total",fmt(Math.round(gananciaTotal))+(pedTerm.length>0?" (pedidos)":""),"💰","#22d07a"],
+              ["Margen promedio",margenPromStats+"%","📈","#a78bfa"],
+              ["Precio promedio",fmt(Math.round(pedTerm.length>0?pedTerm.reduce((s,p)=>s+p.precio,0)/pedTerm.length:historial.length?historial.reduce((s,e)=>s+e.precioSugerido,0)/historial.length:0)),"🏷️","#38bdf8"],
+            ].map(([label,value,icon,color])=>
+              h("div",{key:label,style:{background:"#12121f",border:"1px solid #1e1e35",borderRadius:14,padding:20}},
+                h("div",{style:{fontSize:24,marginBottom:8}},icon),
+                h("div",{style:{fontSize:24,fontWeight:800,color,fontFamily:"monospace",marginBottom:4}},value),
+                h("div",{style:{fontSize:12,color:MUTED}},label)
+              )
             )
-          )
-        ),
+          );
+        })(),
         // Punto de equilibrio
         h("div",{style:{background:"#12121f",border:"1px solid #22d07a25",borderRadius:14,padding:24,marginBottom:16}},
           h("div",{style:{fontSize:12,fontWeight:700,color:"#22d07a",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}},"⚖️ Punto de equilibrio"),
@@ -2174,7 +2184,13 @@ tr:hover td{background:#fff8f5;}
                 ["Costos fijos del taller",fmt(Math.round(totalFijosImputables))+"/mes","#fbbf24"],
                 ["Sueldo deseado",fmt(sueldoMensual)+"/mes","#a78bfa"],
                 ["Total a cubrir",fmt(Math.round(totalFijosImputables)+sueldoMensual)+"/mes","#ff5c1a"],
-                ["Ganancia promedio/trabajo",historial.length>0||pedidos.filter(p=>p.estado==="terminado"&&p.precio>0).length>0?fmt(Math.round((()=>{const pt=pedidos.filter(p=>p.estado==="terminado"&&p.precio>0);const mp=historial.length>0?historial.reduce((s,e)=>s+e.margen,0)/historial.length:40;return pt.length>0?pt.reduce((s,p)=>s+(p.precio*(mp/100)),0)/pt.length:historial.reduce((s,e)=>s+e.ganancia,0)/historial.length;})())):"-","#22d07a"],
+                ["Ganancia promedio/trabajo", (() => {
+                  const pt=pedidos.filter(p=>p.estado==="terminado"&&p.precio>0);
+                  const mf=dashMargen!==null?dashMargen:(historial.length>0?historial.reduce((s,e)=>s+e.margen,0)/historial.length:40);
+                  if(pt.length>0) return fmt(Math.round(pt.reduce((s,p)=>s+(p.precio*((p.margen>0?p.margen:mf)/100)),0)/pt.length));
+                  if(historial.length>0) return fmt(Math.round(historial.reduce((s,e)=>s+e.ganancia,0)/historial.length));
+                  return "-";
+                })(),"#22d07a"],
               ].map(([l,v,c])=>
                 h("div",{key:l,style:{padding:"10px 12px",background:"#12121f",borderRadius:8}},
                   h("div",{style:{fontSize:10,color:MUTED,marginBottom:4}},l),
