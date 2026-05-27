@@ -777,6 +777,14 @@ function App() {
   const [simUseCalc, setSimUseCalc] = useState(true);
   const [simPct, setSimPct] = useState({ mat:0, elec:0, fijos:0, mano:0, margen:0 });
   const [pedidos, setPedidosR] = useState(()=>loadLS("jp_pedidos",[]));
+
+  // Refrescar pedidos desde localStorage cuando se abre el dashboard
+  useEffect(()=>{
+    if(screen===3){
+      const fresh=loadLS("jp_pedidos",[]);
+      setPedidosR(fresh);
+    }
+  },[screen]);
   const setPedidos = fn => setPedidosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_pedidos",n); return n; });
   const [showNuevoPedido, setShowNuevoPedido] = useState(false);
   const [editPedido, setEditPedido] = useState(null);
