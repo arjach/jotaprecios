@@ -117,7 +117,7 @@ function App(){
     if(!sb._uid()) return;
     sb.getAll("pedidos").then(data=>{
       if(data.length>0){
-        const mapped=data.map(p=>({id:p.id,cliente:p.cliente||"",descripcion:p.descripcion||"",estado:p.estado||"pendiente",fechaEntrega:p.fecha_entrega||"",precio:p.precio||0,tipo:p.tipo||"",notas:p.notas||"",creadoEn:p.created_at}));
+        const mapped=data.map(p=>({id:p.id,cliente:p.cliente||"",descripcion:p.descripcion||"",estado:p.estado||"pendiente",fechaEntrega:p.fecha_entrega||"",precio:p.precio||0,margen:p.margen||null,tipo:p.tipo||"",notas:p.notas||"",creadoEn:p.created_at}));
         setPedidosR(mapped); saveLS("jp_pedidos",mapped);
       }
     });
