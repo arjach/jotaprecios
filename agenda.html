@@ -107,7 +107,7 @@ function App(){
   const [pro, setPro] = useState(esPro());
   const [editPedido, setEditPedido] = useState(null);
   const [filtroPedido, setFiltroPedido] = useState("todos");
-  const [nuevoPedido, setNuevoPedido] = useState({cliente:"",descripcion:"",estado:"pendiente",fechaEntrega:"",precio:0,notas:"",tipo:"🖨️ 3D"});
+  const [nuevoPedido, setNuevoPedido] = useState({cliente:"",descripcion:"",estado:"pendiente",fechaEntrega:"",precio:0,margen:null,notas:"",tipo:"🖨️ 3D"});
 
   const clientes = loadLS("jp_clientes",[]);
   const setPedidos = fn => setPedidosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_pedidos",n); return n; });
@@ -141,7 +141,7 @@ function App(){
   async function guardarPedido(){
     if (!nuevoPedido.cliente&&!nuevoPedido.descripcion) return;
     if (!editPedido && !pro && pedidos.length >= LIMITE_PEDIDOS) { setShowProModal(true); return; }
-    const dbData = {cliente:nuevoPedido.cliente,descripcion:nuevoPedido.descripcion,estado:nuevoPedido.estado,fecha_entrega:nuevoPedido.fechaEntrega||null,precio:nuevoPedido.precio||0,tipo:nuevoPedido.tipo,notas:nuevoPedido.notas};
+    const dbData = {cliente:nuevoPedido.cliente,descripcion:nuevoPedido.descripcion,estado:nuevoPedido.estado,fecha_entrega:nuevoPedido.fechaEntrega||null,precio:nuevoPedido.precio||0,margen:nuevoPedido.margen||null,tipo:nuevoPedido.tipo,notas:nuevoPedido.notas};
     if (editPedido) {
       setPedidos(p=>p.map(x=>x.id===editPedido.id?{...x,...nuevoPedido}:x));
       if(sb._uid()) await sb.update("pedidos",editPedido.id,dbData);
@@ -287,7 +287,8 @@ function App(){
                   ),
                   h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
                     h("span",{style:{fontSize:12,color:MUTED}},p.tipo),
-                    p.precio>0 && h("span",{style:{fontSize:15,fontWeight:800,fontFamily:"monospace",color:"#ff5c1a"}},fmt(p.precio))
+                    p.precio>0 && h("span",{style:{fontSize:15,fontWeight:800,fontFamily:"monospace",color:"#ff5c1a"}},fmt(p.precio)),
+                    p.margen>0 && h("div",{style:{fontSize:11,color:"#22d07a",marginTop:2}},"Margen: "+p.margen+"%")
                   ),
                   p.notas && h("div",{style:{fontSize:12,color:MUTED,background:"#0a0a14",borderRadius:6,padding:"6px 10px",marginBottom:10,lineHeight:1.5}},p.notas),
                   h("div",{style:{display:"flex",gap:6}},
@@ -385,6 +386,17 @@ function App(){
       h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},
         h(Field,{label:"Fecha de entrega",value:nuevoPedido.fechaEntrega,onChange:v=>setNuevoPedido(p=>({...p,fechaEntrega:v})),type:"date"}),
         h(Field,{label:"Precio acordado ($)",value:nuevoPedido.precio||"",onChange:v=>setNuevoPedido(p=>({...p,precio:parseFloat(v)||0})),type:"number"})
+      ),
+      h("div",{style:{marginBottom:12}},
+        h("label",{style:{display:"block",fontSize:10,fontWeight:700,color:"#6b6b8a",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}},"Margen de ganancia (opcional)"),
+        h("div",{style:{display:"flex",alignItems:"center",gap:8}},
+          h("input",{type:"number",min:0,max:99,value:nuevoPedido.margen||"",onChange:e=>setNuevoPedido(p=>({...p,margen:parseFloat(e.target.value)||null})),placeholder:"Ej: 45",style:{width:100,background:"#0a0a14",border:"1px solid #2a2a4a",borderRadius:8,padding:"10px 14px",color:"#fff",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"},onFocus:e=>e.target.style.borderColor="#ff5c1a",onBlur:e=>e.target.style.borderColor="#2a2a4a"}),
+          h("span",{style:{color:"#6b6b8a",fontSize:14}},"%"),
+          nuevoPedido.precio>0&&nuevoPedido.margen>0&&h("div",{style:{fontSize:12,color:"#22d07a",marginLeft:4}},
+            "Ganancia: "+new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format(Math.round(nuevoPedido.precio*nuevoPedido.margen/100))
+          )
+        ),
+        h("div",{style:{fontSize:11,color:"#444",marginTop:5}},"Usado en el Dashboard para el punto de equilibrio.")
       ),
       h(Field,{label:"Notas",value:nuevoPedido.notas,onChange:v=>setNuevoPedido(p=>({...p,notas:v})),placeholder:"Colores, medidas, detalles..."}),
       h("button",{onClick:guardarPedido,style:{...BTN,background:"#ff5c1a",color:"#fff",width:"100%",padding:14,borderRadius:10,fontSize:14}},editPedido?"💾 Guardar cambios":"📅 Crear pedido")
