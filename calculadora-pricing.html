@@ -183,7 +183,7 @@ const DEF_PERFILES = [
 ];
 const DEF_V = (extra) => ({ costoElectricidadHora:120, costosFijos:800, manoObraHora:0, horasManoObra:0, otrosGastos:0, precioMaquina:0, vidaUtilAnios:3, horasUsoDiario:8, pctReparaciones:5, margenDeseado:40, cantidad:1, ...extra });
 const DEF_3D = DEF_V({ pesoGramos:50, costoPorGramo:35, tiempoHoras:3, pctFallaImpresion:5, tiempoPostProcMin:10 });
-const DEF_SUB = DEF_V({ costoSustrato:1500, costoTinta:380, costoPapel:45, pctDesperdicioPapel:20, cantHojas:1, costoCinta:30, tiempoImpresion:5, tiempoPrensado:60, tiempoPreparacion:5, wattsPrensado:1500, cantSustratosPorPrensada:1, pctMermaSustrato:5, margenDeseado:50 });
+const DEF_SUB = DEF_V({ costoSustrato:1500, costoTinta:380, costoPapel:45, pctDesperdicioPapel:20, cantHojas:1, costoCinta:30, tiempoImpresion:5, tiempoPrensado:60, tiempoPreparacion:5, wattsPrensado:1500, cantSustratosPorPrensada:1, pctMermaSustrato:5, modoAlmohadon:false, anchoAlmohadon:40, altoAlmohadon:40, costoTelaM2:2500, carasImprimir:1, costoCorte:0, tiempoCosturaMin:15, costoRelleno:0, margenDeseado:50 });
 const DEF_BOR = DEF_V({ costoPrenda:2000, prentaTercero:false, costoHilo:350, costoEntretela:200, cantPuntadas:8000, velocidadPuntadas:800, cabezales:1, costoDigitalizacion:0, cantPrendasDigit:1, tiempoEnhebradoMin:5, cantCambiosColor:2, manoObraHora:800, margenDeseado:50 });
 const DEF_VIN = DEF_V({ costoVinilo:300, costoTransfer:150, precioViniloRollo:0, anchoRollo:61, largoRollo:1000, anchoDiseno:0, altoDiseno:0, pctDesperdicio:20, tiempoCorte:5, tiempoDesmalezado:10, tiempoAplicacion:10, costoOtrosVin:0, cantColores:1, tiempoPrensadoVin:0, wattsPrensadoVin:1500, manoObraHora:600, margenDeseado:45 });
 const DEF_LAS = DEF_V({ costoMaterial:500, precioMaterialTotal:0, anchoMaterial:0, altoMaterial:0, pctDesperdicio:10, tiempoCorteMin:0, tiempoGrabadoMin:0, tiempoPostLaserMin:0, costoPostLaser:0, costoConsumiblesHora:200, costoGas:0, wattsExtractor:150, costoElectricidadHora:150, manoObraHora:700, margenDeseado:50 });
@@ -247,15 +247,36 @@ function calcSub(v, sus, tin, perf) {
   const cTin = tin ? tin.costo : v.costoTinta;
   const elec = perf ? perf.electricidad : v.costoElectricidadHora;
   const fijos = perf ? (perf.fijosSub||500) : v.costosFijos;
-  const costoPapelReal = (v.costoPapel||0)*(v.cantHojas||1)*(1+(v.pctDesperdicioPapel||20)/100);
-  const costoCinta = v.costoCinta||0;
-  // Merma de sustrato: % que sale mal
-  const factorMerma = 1+(v.pctMermaSustrato||0)/100;
-  const costoSustratoReal = cSus * factorMerma;
-  // Cantidad de sustratos por prensada — divide el tiempo de prensado
-  const prensadasNecesarias = Math.ceil(1/(v.cantSustratosPorPrensada||1));
-  const tiempoTotalHrs = ((v.tiempoImpresion||0)+(v.tiempoPreparacion||0))/60;
-  const tiempoPrensadoHrs = (v.tiempoPrensado||60)*prensadasNecesarias/3600;
+
+  let costoMat, tiempoTotalHrs, tiempoPrensadoHrs;
+
+  if (v.modoAlmohadon) {
+    // Calcular tela: ancho × alto en metros cuadrados + 20% de margen de costura
+    const anchoM = (v.anchoAlmohadon||40) / 100;
+    const altoM  = (v.altoAlmohadon||40)  / 100;
+    const areaM2 = anchoM * altoM * 2 * 1.2; // ×2 para frente y dorso, +20% costuras
+    const costoTela = areaM2 * (v.costoTelaM2||2500);
+    // Papel: una hoja por cara impresa
+    const caras = v.carasImprimir||1;
+    const costoPapelReal = (v.costoPapel||45) * caras * (1+(v.pctDesperdicioPapel||20)/100);
+    const costoTintaTotal = cTin * caras;
+    const costoRelleno = v.costoRelleno||0;
+    const costoCorte = v.costoCorte||0;
+    const factorMerma = 1+(v.pctMermaSustrato||0)/100;
+    costoMat = (costoTela + costoTintaTotal + costoPapelReal + (v.costoCinta||0) + costoRelleno + costoCorte) * factorMerma;
+    // Tiempo: impresión × caras + prensado × caras + costura
+    tiempoPrensadoHrs = (v.tiempoPrensado||60) * caras / 3600;
+    tiempoTotalHrs = ((v.tiempoImpresion||0)*caras + (v.tiempoPreparacion||0) + (v.tiempoCosturaMin||15)) / 60;
+  } else {
+    const costoPapelReal = (v.costoPapel||0)*(v.cantHojas||1)*(1+(v.pctDesperdicioPapel||20)/100);
+    const factorMerma = 1+(v.pctMermaSustrato||0)/100;
+    const costoSustratoReal = cSus * factorMerma;
+    const prensadasNecesarias = Math.ceil(1/(v.cantSustratosPorPrensada||1));
+    tiempoPrensadoHrs = (v.tiempoPrensado||60)*prensadasNecesarias/3600;
+    tiempoTotalHrs = ((v.tiempoImpresion||0)+(v.tiempoPreparacion||0))/60;
+    costoMat = costoSustratoReal+cTin+costoPapelReal+(v.costoCinta||0);
+  }
+
   const electricidadImpresora = tiempoTotalHrs*elec;
   const electricidadPrensado = tiempoPrensadoHrs*((v.wattsPrensado||1500)/1000)*elec;
   const electricidad = electricidadImpresora+electricidadPrensado;
@@ -263,10 +284,9 @@ function calcSub(v, sus, tin, perf) {
   const otrosGastos = v.otrosGastos||0;
   const amortH = v.precioMaquina>0?(v.precioMaquina*(1+(v.pctReparaciones||5)/100))/((v.vidaUtilAnios||3)*365*(v.horasUsoDiario||8)):0;
   const amortizacion = amortH*(tiempoTotalHrs+tiempoPrensadoHrs);
-  const costoMat = costoSustratoReal+cTin+costoPapelReal+costoCinta;
   const costoTotal = (costoMat+electricidad+fijos+manoObra+otrosGastos+amortizacion)*v.cantidad;
   const precioSugerido = costoTotal/(1-v.margenDeseado/100);
-  return { costoMat, cSus:costoSustratoReal, cTin, costoPapelReal, costoCinta, electricidad, electricidadPrensado, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia:precioSugerido-costoTotal };
+  return { costoMat, electricidad, electricidadPrensado, fijos, manoObra, otrosGastos, amortizacion, costoTotal, precioSugerido, ganancia:precioSugerido-costoTotal };
 }
 
 function calcBor(v, perf) {
@@ -1167,8 +1187,75 @@ function App() {
             )
           ),
           isSub && h(React.Fragment,null,
-            // Sustrato
-            h(NumInput,{label:"Costo del sustrato",val:vSub.costoSustrato,onChange:mkSub("costoSustrato"),step:100,unit:"$",disabled:!!sustrato,tooltip:"Precio del objeto a sublimar — taza, remera, almohada, etc."}),
+
+            // Toggle modo almohadón
+            h("div",{
+              onClick:()=>mkSub("modoAlmohadon")(!vSub.modoAlmohadon),
+              style:{display:"flex",alignItems:"center",justifyContent:"space-between",background:vSub.modoAlmohadon?"#a78bfa18":"#12121f",border:"1px solid "+(vSub.modoAlmohadon?"#a78bfa":"#1e1e35"),borderRadius:12,padding:"14px 16px",marginBottom:14,cursor:"pointer",transition:"all 0.2s"}
+            },
+              h("div",null,
+                h("div",{style:{fontWeight:700,fontSize:14,marginBottom:3}},
+                  h("span",{style:{marginRight:8}},"🛏️"),
+                  "Modo Almohadón"
+                ),
+                h("div",{style:{fontSize:12,color:vSub.modoAlmohadon?"#c4b5fd":"#444"}},"Calcula tela, costura y relleno automáticamente")
+              ),
+              h("div",{style:{width:44,height:24,borderRadius:12,background:vSub.modoAlmohadon?"#a78bfa":"#2a2a4a",position:"relative",transition:"background 0.2s",flexShrink:0}},
+                h("div",{style:{position:"absolute",top:3,left:vSub.modoAlmohadon?22:3,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}})
+              )
+            ),
+
+            // Campos modo almohadón
+            vSub.modoAlmohadon && h("div",{style:{background:"#a78bfa12",border:"1px solid #a78bfa30",borderRadius:12,padding:16,marginBottom:14}},
+              h("div",{style:{fontSize:10,fontWeight:700,color:"#a78bfa",marginBottom:12}},"🛏️ CONFIGURACIÓN DEL ALMOHADÓN"),
+
+              // Tamaño
+              h("div",{style:{marginBottom:12}},
+                h("div",{style:{fontSize:10,fontWeight:700,color:"#6b6b8a",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}},"Tamaño"),
+                h("div",{style:{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}},
+                  [["30","30×30"],["40","40×40"],["45","45×45"],["50","50×50"],["60","60×60"]].map(([v,l])=>
+                    h("button",{key:v,onClick:()=>{mkSub("anchoAlmohadon")(parseInt(v));mkSub("altoAlmohadon")(parseInt(v));},
+                      style:{padding:"6px 14px",border:"1px solid",borderColor:(vSub.anchoAlmohadon||40)===parseInt(v)?"#a78bfa":"#1e1e35",background:(vSub.anchoAlmohadon||40)===parseInt(v)?"#a78bfa18":"transparent",color:(vSub.anchoAlmohadon||40)===parseInt(v)?"#a78bfa":"#6b6b8a",fontFamily:"inherit",fontSize:12,cursor:"pointer",borderRadius:8,fontWeight:700}},l+" cm")
+                  )
+                ),
+                h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},
+                  h(NumInput,{label:"Ancho personalizado",val:vSub.anchoAlmohadon||40,onChange:mkSub("anchoAlmohadon"),step:5,unit:"cm",tooltip:"Ancho del almohadón terminado."}),
+                  h(NumInput,{label:"Alto personalizado",val:vSub.altoAlmohadon||40,onChange:mkSub("altoAlmohadon"),step:5,unit:"cm",tooltip:"Alto del almohadón terminado."})
+                )
+              ),
+
+              // Tela
+              h(NumInput,{label:"Costo de tela por m²",val:vSub.costoTelaM2||2500,onChange:mkSub("costoTelaM2"),step:100,unit:"$",tooltip:"Precio del metro cuadrado de la tela polyester para sublimación. Se calcula automáticamente la cantidad necesaria incluyendo márgenes de costura."}),
+
+              // Caras
+              h("div",{style:{marginBottom:12}},
+                h("div",{style:{fontSize:10,fontWeight:700,color:"#6b6b8a",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}},"Caras a imprimir"),
+                h("div",{style:{display:"flex",gap:8}},
+                  h("button",{onClick:()=>mkSub("carasImprimir")(1),style:{flex:1,padding:"10px",border:"1px solid",borderColor:(vSub.carasImprimir||1)===1?"#a78bfa":"#1e1e35",background:(vSub.carasImprimir||1)===1?"#a78bfa18":"transparent",color:(vSub.carasImprimir||1)===1?"#a78bfa":"#6b6b8a",fontFamily:"inherit",fontSize:13,cursor:"pointer",borderRadius:8,fontWeight:700}},"Solo frente"),
+                  h("button",{onClick:()=>mkSub("carasImprimir")(2),style:{flex:1,padding:"10px",border:"1px solid",borderColor:(vSub.carasImprimir||1)===2?"#a78bfa":"#1e1e35",background:(vSub.carasImprimir||1)===2?"#a78bfa18":"transparent",color:(vSub.carasImprimir||1)===2?"#a78bfa":"#6b6b8a",fontFamily:"inherit",fontSize:13,cursor:"pointer",borderRadius:8,fontWeight:700}},"Frente y dorso")
+                )
+              ),
+
+              // Costura y relleno
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},
+                h(NumInput,{label:"Tiempo de costura",val:vSub.tiempoCosturaMin||15,onChange:mkSub("tiempoCosturaMin"),step:5,unit:"min",tooltip:"Minutos para coser la funda. Se suma al tiempo total y afecta mano de obra y electricidad."}),
+                h(NumInput,{label:"Costo de relleno",val:vSub.costoRelleno||0,onChange:mkSub("costoRelleno"),step:100,unit:"$",tooltip:"Si incluís el relleno en el precio. Dejá en 0 si el cliente pone el relleno."})
+              ),
+              h(NumInput,{label:"Costo de corte de tela",val:vSub.costoCorte||0,onChange:mkSub("costoCorte"),step:50,unit:"$",tooltip:"Si mandás a cortar o usás una cizalla con costo adicional."}),
+
+              // Resumen
+              h("div",{style:{background:"#0a0a14",borderRadius:8,padding:"10px 14px",marginTop:4,fontSize:12,color:"#9d9db8",lineHeight:1.8}},
+                "📐 Tela necesaria: ",h("strong",{style:{color:"#a78bfa"}},
+                  (Math.round((vSub.anchoAlmohadon||40)/100*(vSub.altoAlmohadon||40)/100*2*1.2*1000)/1000).toFixed(3)+" m²"
+                ),h("br"),
+                "📄 Hojas de papel: ",h("strong",{style:{color:"#a78bfa"}},(vSub.carasImprimir||1)===2?"2 hojas (frente y dorso)":"1 hoja")
+              )
+            ),
+
+            // Campos modo normal (solo si NO es almohadón)
+            !vSub.modoAlmohadon && h(React.Fragment,null,
+              h(NumInput,{label:"Costo del sustrato",val:vSub.costoSustrato,onChange:mkSub("costoSustrato"),step:100,unit:"$",disabled:!!sustrato,tooltip:"Precio del objeto a sublimar — taza, remera, almohada, etc."}),
+            ),
 
             // Papel de sublimación
             h("div",{style:{background:"#a78bfa12",border:"1px solid #a78bfa30",borderRadius:10,padding:14,marginBottom:12}},
