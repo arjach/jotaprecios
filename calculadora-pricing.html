@@ -725,6 +725,8 @@ function App() {
 
   // Data
   const [insumos, setInsumosR] = useState(()=>loadLS("jp_insumos",DEF_INSUMOS));
+  const [showActualizacion, setShowActualizacion] = useState(false);
+  const [insumosDesactualizados, setInsumosDesactualizados] = useState([]);
   const [perfiles, setPerfilesR] = useState(()=>loadLS("jp_perfiles",DEF_PERFILES));
   const [historial, setHistorialR] = useState(()=>loadLS("jp_historial",[]));
   const [plantillas, setPlantillasR] = useState(()=>loadLS("jp_plantillas",[]));
@@ -749,6 +751,18 @@ function App() {
     ? Math.round(totalFijosImputables / Math.max(trabajosMes,1))
     : Math.round(totalFijosImputables / Math.max(horasMes,1)); // $/hora de taller
   const setInsumos = fn => setInsumosR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_insumos",n); return n; });
+
+  // Chequear insumos desactualizados al cargar
+  useEffect(()=>{
+    const DIAS_UMBRAL = 30;
+    const hoy = new Date();
+    const viejos = insumos.filter(i=>{
+      if(!i.ultimaActualizacion) return false; // sin fecha no molestamos
+      const dias = (hoy - new Date(i.ultimaActualizacion))/(1000*60*60*24);
+      return dias > DIAS_UMBRAL && i.costo > 0;
+    });
+    if(viejos.length > 0) setInsumosDesactualizados(viejos);
+  },[]);
   const setPerfiles = fn => setPerfilesR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_perfiles",n); return n; });
   const setHistorial = fn => setHistorialR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_historial",n); return n; });
   const setPlantillas = fn => setPlantillasR(p=>{ const n=typeof fn==="function"?fn(p):fn; saveLS("jp_plantillas",n); return n; });
@@ -938,12 +952,13 @@ function App() {
 
   async function saveInsumo() {
     if (!newIns.nombre.trim()) return;
+    const ahora = new Date().toISOString();
     if (editIns) {
-      setInsumos(p=>p.map(i=>i.id===editIns.id?{...i,...newIns}:i));
-      if (user) await sb.from("insumos").eq("id",editIns.id).update({nombre:newIns.nombre,tipo:newIns.tipo,unidad:newIns.unidad,costo:newIns.costo,activo:newIns.activo});
+      setInsumos(p=>p.map(i=>i.id===editIns.id?{...i,...newIns,ultimaActualizacion:ahora}:i));
+      if (user) await sb.from("insumos").eq("id",editIns.id).update({nombre:newIns.nombre,tipo:newIns.tipo,unidad:newIns.unidad,costo:newIns.costo,activo:newIns.activo,ultima_actualizacion:ahora});
     } else {
       const tempId = Date.now();
-      setInsumos(p=>[...p,{id:tempId,...newIns,activo:true}]);
+      setInsumos(p=>[...p,{id:tempId,...newIns,activo:true,ultimaActualizacion:ahora}]);
       if (user) {
         const {data} = await sb.from("insumos").insert({user_id:user.id,nombre:newIns.nombre,tipo:newIns.tipo,unidad:newIns.unidad,costo:newIns.costo,activo:true}).select().single();
         // Actualizar con el ID real de Supabase
@@ -1042,7 +1057,7 @@ function App() {
   }
 
   function importarInsumos(ins) {
-    setInsumos(p=>[...ins.map(i=>({id:Date.now()+Math.random(),nombre:i.nombre,tipo:i.tipo||"General",unidad:i.unidad||"u",costo:i.precio,activo:true})),...p]);
+    setInsumos(p=>[...ins.map(i=>({id:Date.now()+Math.random(),nombre:i.nombre,tipo:i.tipo||"General",unidad:i.unidad||"u",costo:i.precio,activo:true,ultimaActualizacion:new Date().toISOString()})),...p]);
     setScreen(1); setTallerTab(0);
   }
 
@@ -1118,6 +1133,19 @@ function App() {
           h("span",{style:{fontSize:9,fontWeight:700,color:MUTED,letterSpacing:"0.02em"}},item.label.toUpperCase())
         );
       })
+    ),
+
+    // Banner precios desactualizados
+    insumosDesactualizados.length>0 && h("div",{style:{background:"#fbbf2412",border:"1px solid #fbbf2430",borderRadius:12,padding:"12px 16px",margin:"0 24px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}},
+      h("span",{style:{fontSize:18}},"⚠️"),
+      h("div",{style:{flex:1}},
+        h("div",{style:{fontWeight:700,fontSize:13,color:"#fbbf24",marginBottom:2}},"Precios desactualizados"),
+        h("div",{style:{fontSize:12,color:"#888"}},
+          insumosDesactualizados.slice(0,3).map(i=>i.nombre).join(", ")+(insumosDesactualizados.length>3?" y "+(insumosDesactualizados.length-3)+" más":"")+" — más de 30 días sin actualizar"
+        )
+      ),
+      h("button",{onClick:()=>{setScreen(1);setTallerTab(0);setInsumosDesactualizados([]);},style:{background:"#fbbf24",border:"none",color:"#0a0a14",fontFamily:"inherit",fontWeight:700,fontSize:12,padding:"7px 14px",borderRadius:8,cursor:"pointer",whiteSpace:"nowrap"}},"Actualizar precios"),
+      h("button",{onClick:()=>setInsumosDesactualizados([]),style:{background:"transparent",border:"none",color:"#555",fontSize:18,cursor:"pointer",padding:"0 4px"}},"×")
     ),
 
     // Banner para usuarios sin cuenta
@@ -1859,8 +1887,13 @@ function App() {
           h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
             h("div",null,
               h("div",{style:{fontWeight:700,fontSize:14,marginBottom:4}},ins.nombre," ",h("span",{style:{background:"#ff5c1a22",color:"#ff5c1a",fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:100}},ins.tipo)),
-              h("span",{style:{fontSize:18,fontWeight:800,color:"#ff5c1a",fontFamily:"monospace"}},fmt(ins.costo)),
-              h("span",{style:{fontSize:11,color:MUTED,marginLeft:4}},"/"+ins.unidad)
+              h("div",{style:{display:"flex",alignItems:"center",gap:6}},
+                h("span",{style:{fontSize:18,fontWeight:800,color:"#ff5c1a",fontFamily:"monospace"}},fmt(ins.costo)),
+                h("span",{style:{fontSize:11,color:MUTED}},"/"+ins.unidad),
+                ins.ultimaActualizacion && h("span",{style:{fontSize:10,color:(()=>{const dias=(new Date()-new Date(ins.ultimaActualizacion))/(1000*60*60*24);return dias>30?"#f87171":dias>14?"#fbbf24":"#444";})(),marginLeft:4}},
+                  "· "+new Date(ins.ultimaActualizacion).toLocaleDateString("es-AR",{day:"2-digit",month:"short"})
+                )
+              )
             ),
             h("div",{style:{display:"flex",gap:4}},
               h("button",{onClick:()=>setInsumos(p=>p.map(i=>i.id===ins.id?{...i,activo:!i.activo}:i)),style:{...BTN,background:"transparent",border:"1px solid #1e1e35",color:ins.activo?"#22d07a":"#333",padding:"5px 9px",fontSize:13}},ins.activo?"●":"○"),
